@@ -1,7 +1,8 @@
 <%- include("head", { pageTitle }) %>
+<% const isVotePortal = currentPath.startsWith('/vote'); %>
 <div class="site-shell">
   <header class="site-header">
-    <a class="brand-mark" href="/">
+    <a class="brand-mark" href="<%= isVotePortal ? '/vote/login' : '/' %>">
       <% if (settings.organizationLogoPath) { %>
         <img class="brand-mark__logo" src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
       <% } else { %>
@@ -14,16 +15,20 @@
     </a>
 
     <nav class="site-nav">
-      <a class="<%= currentPath === '/' ? 'active' : '' %>" href="/">Home</a>
-      <a class="<%= currentPath.startsWith('/vote') ? 'active' : '' %>" href="/vote/login">
-        Vote
-      </a>
-      <a
-        class="<%= currentPath.startsWith('/admin') ? 'active' : '' %>"
-        href="/admin/login"
-      >
-        Admin
-      </a>
+      <% if (isVotePortal) { %>
+        <a class="active" href="/vote/login">Vote</a>
+      <% } else { %>
+        <a class="<%= currentPath === '/' ? 'active' : '' %>" href="/">Home</a>
+        <a class="<%= currentPath.startsWith('/vote') ? 'active' : '' %>" href="/vote/login">
+          Vote
+        </a>
+        <a
+          class="<%= currentPath.startsWith('/admin') ? 'active' : '' %>"
+          href="/admin/login"
+        >
+          Admin
+        </a>
+      <% } %>
     </nav>
 
     <div class="status-badge <%= electionState.badgeClass %>">

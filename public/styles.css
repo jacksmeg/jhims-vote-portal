@@ -943,7 +943,22 @@ tbody tr:hover {
   max-width: 1240px;
   margin: 0 auto;
   padding: 0 24px 34px;
+  display: grid;
+  gap: 6px;
+  text-align: center;
   color: var(--muted);
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+.site-footer--admin {
+  padding-top: 10px;
+}
+
+.footer-meta {
+  font-size: 0.92rem;
 }
 
 code {
