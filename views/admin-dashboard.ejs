@@ -1,0 +1,174 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Election Dashboard",
+  pageIntro: "Monitor readiness, set the voting window, and control the election lifecycle.",
+  currentSection: "dashboard"
+}) %>
+
+<section class="metric-grid">
+  <article class="metric-card">
+    <span>Total Voters</span>
+    <strong><%= metrics.totalVoters %></strong>
+    <small><%= metrics.votedCount %> already marked as voted</small>
+  </article>
+  <article class="metric-card">
+    <span>Ballots Submitted</span>
+    <strong><%= metrics.totalBallots %></strong>
+    <small>
+      <%= metrics.totalVoters ? formatPercent(metrics.votedCount / metrics.totalVoters) : '0.0%' %>
+      turnout
+    </small>
+  </article>
+  <article class="metric-card">
+    <span>Positions</span>
+    <strong><%= metrics.totalPositions %></strong>
+    <small>Configured ballot categories</small>
+  </article>
+  <article class="metric-card">
+    <span>Candidates</span>
+    <strong><%= metrics.totalCandidates %></strong>
+    <small>Registered across all positions</small>
+  </article>
+</section>
+
+<section class="admin-grid">
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Election Settings</span>
+        <h2>Voting window and title</h2>
+      </div>
+      <p>These settings stay editable only while the election is in setup.</p>
+    </div>
+
+    <form class="stack-md" action="/admin/settings" method="post">
+      <label class="field">
+        <span>Election Name</span>
+        <input
+          name="electionName"
+          value="<%= settings.electionName %>"
+          <%= electionState.canEditSetup ? '' : 'disabled' %>
+          required
+        />
+      </label>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Voting Opens</span>
+          <input
+            name="opensAt"
+            type="datetime-local"
+            value="<%= settings.opensAt %>"
+            <%= electionState.canEditSetup ? '' : 'disabled' %>
+            required
+          />
+        </label>
+
+        <label class="field">
+          <span>Voting Closes</span>
+          <input
+            name="closesAt"
+            type="datetime-local"
+            value="<%= settings.closesAt %>"
+            <%= electionState.canEditSetup ? '' : 'disabled' %>
+            required
+          />
+        </label>
+      </div>
+
+      <button class="button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+        Save Settings
+      </button>
+    </form>
+  </article>
+
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Election Controls</span>
+        <h2>Open, close, and protect the process</h2>
+      </div>
+      <p>Opening the election locks setup changes to protect ballot integrity.</p>
+    </div>
+
+    <div class="button-stack">
+      <form action="/admin/election/open" method="post">
+        <button class="button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+          Open Voting
+        </button>
+      </form>
+
+      <form action="/admin/election/close" method="post">
+        <button class="button button-danger" type="submit" <%= settings.phase === 'open' ? '' : 'disabled' %>>
+          Close Voting
+        </button>
+      </form>
+
+      <form action="/admin/backup" method="post">
+        <button class="button button-ghost" type="submit">Create Database Backup</button>
+      </form>
+    </div>
+
+    <div class="note-block">
+      <strong>Status:</strong> <%= electionState.message %>
+    </div>
+  </article>
+</section>
+
+<section class="panel panel-light stack-md">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Branding</span>
+      <h2>Organization logo</h2>
+    </div>
+    <p>Upload the logo once and it will appear on the admin and voter pages.</p>
+  </div>
+
+  <div class="brand-upload-panel">
+    <div class="brand-upload-panel__preview">
+      <% if (settings.organizationLogoPath) { %>
+        <img
+          class="brand-upload-panel__image"
+          src="<%= settings.organizationLogoPath %>"
+          alt="<%= settings.electionName %> logo"
+        />
+      <% } else { %>
+        <div class="brand-upload-panel__fallback">No logo uploaded yet</div>
+      <% } %>
+    </div>
+
+    <form class="stack-md brand-upload-panel__form" action="/admin/logo" method="post" enctype="multipart/form-data">
+      <label class="field">
+        <span>Upload Organization Logo</span>
+        <input name="logo" type="file" accept="image/*" required />
+      </label>
+
+      <button class="button" type="submit">Save Logo</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel panel-light stack-md">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Ballot Readiness</span>
+      <h2>Check that each position has candidates</h2>
+    </div>
+    <p>Every active position needs at least one candidate before voting can open.</p>
+  </div>
+
+  <div class="readiness-grid">
+    <% if (positionReadiness.length === 0) { %>
+      <div class="empty-state">No positions have been added yet.</div>
+    <% } %>
+
+    <% positionReadiness.forEach((position) => { %>
+      <article class="mini-card">
+        <strong><%= position.positionName %></strong>
+        <span><%= position.candidateCount %> candidate(s)</span>
+      </article>
+    <% }) %>
+  </div>
+</section>
+
+<%- include("partials/admin-shell-end") %>

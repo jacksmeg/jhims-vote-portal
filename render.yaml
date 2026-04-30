@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: organization-vote-portal
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: vote-portal-data
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_PATH
+        value: /var/data/vote-portal.sqlite
+      - key: STORAGE_ROOT
+        value: /var/data/storage
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ELECTION_NAME
+        sync: false

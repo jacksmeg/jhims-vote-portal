@@ -1,0 +1,20 @@
+<%- include("partials/public-shell-start", { pageTitle }) %>
+
+<section class="panel panel-light narrow-panel stack-lg success-panel">
+  <span class="eyebrow">Vote Submitted</span>
+  <h2>Your ballot has been recorded successfully.</h2>
+  <p>
+    Thank you <strong><%= receipt.voterName || 'Staff Member' %></strong>. Your vote was saved
+    on <strong><%= formatDateTime(receipt.submittedAt) %></strong> and your voter record has been
+    locked from further changes.
+  </p>
+
+  <div class="button-row">
+    <a class="button" href="/">Return Home</a>
+    <form action="/vote/logout" method="post">
+      <button class="button button-ghost" type="submit">Finish Session</button>
+    </form>
+  </div>
+</section>
+
+<%- include("partials/public-shell-end") %>

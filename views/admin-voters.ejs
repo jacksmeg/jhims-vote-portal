@@ -1,0 +1,105 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Voter Registration",
+  pageIntro: "Import registered staff members from Excel and review who has already voted.",
+  currentSection: "voters"
+}) %>
+
+<section class="admin-grid">
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Excel Import</span>
+        <h2>Upload voter login records</h2>
+      </div>
+      <p>Required columns: staff_id and phone_number. Optional: full_name and department.</p>
+    </div>
+
+    <div class="button-row">
+      <a class="button button-ghost" href="<%= templatePath %>">Download Staff Login Template</a>
+    </div>
+
+    <form class="stack-md" action="/admin/voters/import" method="post" enctype="multipart/form-data">
+      <label class="field">
+        <span>Excel or CSV file</span>
+        <input name="voterFile" type="file" accept=".xlsx,.xls,.csv" required />
+      </label>
+
+      <button class="button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+        Upload Voters
+      </button>
+    </form>
+  </article>
+
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Summary</span>
+        <h2>Current voter counts</h2>
+      </div>
+    </div>
+
+    <div class="stack-sm">
+      <div class="info-row"><span>Total voters</span><strong><%= metrics.totalVoters %></strong></div>
+      <div class="info-row"><span>Already voted</span><strong><%= metrics.votedCount %></strong></div>
+      <div class="info-row">
+        <span>Turnout</span>
+        <strong><%= metrics.totalVoters ? formatPercent(metrics.votedCount / metrics.totalVoters) : '0.0%' %></strong>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="panel panel-light stack-md">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Registered Staff</span>
+      <h2>Imported voter list</h2>
+    </div>
+    <p>Staff IDs are unique and each record can be marked as voted once.</p>
+  </div>
+
+  <% if (voters.length === 0) { %>
+    <div class="empty-state">No voters have been imported yet.</div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Staff ID</th>
+            <th>Phone Number</th>
+            <th>Name</th>
+            <th>Department</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% voters.forEach((voterRow) => { %>
+            <%
+              const voterStatus = voterRow.hasVoted
+                ? { label: 'Voted', className: 'inline-badge--success' }
+                : electionState.isClosed
+                  ? { label: 'Did Not Vote', className: 'inline-badge--warning' }
+                  : electionState.isOpen
+                    ? { label: 'Ready to Vote', className: 'inline-badge--info' }
+                    : { label: 'Registered', className: 'inline-badge--muted' };
+            %>
+            <tr>
+              <td><strong><%= voterRow.staffId %></strong></td>
+              <td><%= voterRow.phoneNumber %></td>
+              <td><%= voterRow.fullName || '—' %></td>
+              <td><%= voterRow.department || '—' %></td>
+              <td>
+                <span class="inline-badge <%= voterStatus.className %>">
+                  <%= voterStatus.label %>
+                </span>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<%- include("partials/admin-shell-end") %>

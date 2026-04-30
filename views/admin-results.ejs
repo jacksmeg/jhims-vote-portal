@@ -1,0 +1,86 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Election Results",
+  pageIntro: "Review final totals after voting has closed and the ballot is locked.",
+  currentSection: "results"
+}) %>
+
+<section class="metric-grid">
+  <article class="metric-card">
+    <span>Total Voters</span>
+    <strong><%= metrics.totalVoters %></strong>
+  </article>
+  <article class="metric-card">
+    <span>Votes Cast</span>
+    <strong><%= metrics.votedCount %></strong>
+  </article>
+  <article class="metric-card">
+    <span>Turnout</span>
+    <strong><%= metrics.totalVoters ? formatPercent(metrics.votedCount / metrics.totalVoters) : '0.0%' %></strong>
+  </article>
+</section>
+
+<% if (resultsLocked) { %>
+  <section class="panel panel-light narrow-panel stack-md">
+    <span class="eyebrow">Results Locked</span>
+    <h2>Detailed results appear after the election is closed.</h2>
+    <p>
+      You can still monitor turnout from the dashboard, but candidate-by-candidate totals remain
+      hidden until voting is officially closed.
+    </p>
+  </section>
+<% } else { %>
+  <section class="panel panel-light">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Export & Print</span>
+        <h2>Download or print the final results</h2>
+      </div>
+      <div class="button-row">
+        <a class="button" href="/admin/results/pdf">Export PDF</a>
+        <a class="button button-ghost" href="/admin/results/print" target="_blank" rel="noopener noreferrer">
+          Print Results
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="stack-lg">
+    <% results.forEach((result) => { %>
+      <article class="panel panel-light stack-md">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">Position Results</span>
+            <h2><%= result.name %></h2>
+          </div>
+          <div class="winner-pill">Winner: <strong><%= result.winnerLabel %></strong></div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Candidate</th>
+                <th>Votes</th>
+                <th>Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% result.candidates.forEach((candidate) => { %>
+                <tr>
+                  <td><strong><%= candidate.name %></strong></td>
+                  <td><%= candidate.voteCount %></td>
+                  <td>
+                    <%= result.totalVotes ? formatPercent(candidate.voteCount / result.totalVotes) : '0.0%' %>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </article>
+    <% }) %>
+  </section>
+<% } %>
+
+<%- include("partials/admin-shell-end") %>

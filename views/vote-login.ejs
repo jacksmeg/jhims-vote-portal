@@ -1,0 +1,50 @@
+<%- include("partials/public-shell-start", { pageTitle }) %>
+
+<section class="split-stage">
+  <div class="panel panel-dark stack-lg">
+    <span class="eyebrow">Voter Access</span>
+    <h2>Sign in with your staff ID and phone number.</h2>
+    <p>
+      Your record must already be registered by the election committee. Once you submit your
+      ballot, it cannot be edited or cast again.
+    </p>
+
+    <div class="check-list">
+      <div>Registered staff ID is required</div>
+      <div>Phone number must match the imported voter record</div>
+      <div>Only one vote is allowed for each staff member</div>
+    </div>
+  </div>
+
+  <div class="panel panel-light">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Secure Login</span>
+        <h3>Enter your voter details</h3>
+      </div>
+      <p class="muted-text"><%= electionState.badgeLabel %></p>
+    </div>
+
+    <form class="stack-md" action="/vote/login" method="post">
+      <label class="field">
+        <span>Staff ID</span>
+        <input name="staffId" placeholder="STF0234" required />
+      </label>
+
+      <label class="field">
+        <span>Phone Number</span>
+        <input name="phoneNumber" placeholder="0240000000" required />
+      </label>
+
+      <button class="button" type="submit" <%= electionState.isOpen ? '' : 'disabled' %>>
+        Continue to Ballot
+      </button>
+    </form>
+
+    <% if (!electionState.isOpen) { %>
+      <p class="note-block"><%= electionState.message %></p>
+    <% } %>
+  </div>
+</section>
+
+<%- include("partials/public-shell-end") %>

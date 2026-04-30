@@ -1,0 +1,59 @@
+<%- include("head", { pageTitle }) %>
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <a class="brand-mark brand-mark--stacked" href="/admin">
+      <% if (settings.organizationLogoPath) { %>
+        <img class="brand-mark__logo" src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
+      <% } else { %>
+        <span class="brand-mark__crest">EC</span>
+      <% } %>
+      <span>
+        <strong><%= settings.electionName %></strong>
+        <small>Election Committee Console</small>
+      </span>
+    </a>
+
+    <nav class="admin-nav">
+      <a class="<%= currentSection === 'dashboard' ? 'active' : '' %>" href="/admin">
+        Dashboard
+      </a>
+      <a class="<%= currentSection === 'voters' ? 'active' : '' %>" href="/admin/voters">
+        Voters
+      </a>
+      <a class="<%= currentSection === 'setup' ? 'active' : '' %>" href="/admin/setup">
+        Positions & Candidates
+      </a>
+      <a class="<%= currentSection === 'results' ? 'active' : '' %>" href="/admin/results">
+        Results
+      </a>
+      <a class="<%= currentSection === 'audit' ? 'active' : '' %>" href="/admin/audit">
+        Audit Log
+      </a>
+    </nav>
+
+    <div class="sidebar-card">
+      <span class="eyebrow">Election Status</span>
+      <div class="status-badge <%= electionState.badgeClass %>">
+        <span class="status-dot"></span>
+        <%= electionState.badgeLabel %>
+      </div>
+      <p><%= electionState.message %></p>
+    </div>
+  </aside>
+
+  <div class="admin-main">
+    <header class="admin-topbar">
+      <div>
+        <h1><%= pageHeading %></h1>
+        <p><%= pageIntro %></p>
+      </div>
+
+      <div class="admin-topbar__actions">
+        <div class="signed-in-tag">Signed in as <strong><%= admin.username %></strong></div>
+        <form action="/admin/logout" method="post">
+          <button class="button button-ghost" type="submit">Log Out</button>
+        </form>
+      </div>
+    </header>
+
+    <%- include("flash") %>

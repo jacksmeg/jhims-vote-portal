@@ -1,0 +1,162 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Positions and Candidates",
+  pageIntro: "Build the ballot structure and upload each candidate with a photo and position.",
+  currentSection: "setup"
+}) %>
+
+<section class="admin-grid">
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Add Position</span>
+        <h2>Create ballot categories</h2>
+      </div>
+      <p>Examples: President, Secretary, Treasurer.</p>
+    </div>
+
+    <form class="stack-md" action="/admin/positions" method="post">
+      <label class="field">
+        <span>Position Name</span>
+        <input name="positionName" required />
+      </label>
+
+      <label class="field">
+        <span>Sort Order</span>
+        <input name="sortOrder" type="number" value="0" />
+      </label>
+
+      <button class="button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+        Add Position
+      </button>
+    </form>
+  </article>
+
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Add Candidate</span>
+        <h2>Upload candidate details</h2>
+      </div>
+      <p>Attach a photo, candidate name, ballot order, and the position they are standing for.</p>
+    </div>
+
+    <form class="stack-md" action="/admin/candidates" method="post" enctype="multipart/form-data">
+      <label class="field">
+        <span>Candidate Name</span>
+        <input name="name" required />
+      </label>
+
+      <label class="field">
+        <span>Position</span>
+        <select name="positionId" required>
+          <option value="">Select a position</option>
+          <% positions.forEach((position) => { %>
+            <option value="<%= position.id %>"><%= position.name %></option>
+          <% }) %>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Short Bio or Note</span>
+        <textarea name="bio" rows="3" placeholder="Optional description"></textarea>
+      </label>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Sort Order</span>
+          <input name="sortOrder" type="number" value="0" />
+        </label>
+
+        <label class="field">
+          <span>Photo</span>
+          <input name="photo" type="file" accept="image/*" />
+        </label>
+      </div>
+
+      <button class="button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+        Add Candidate
+      </button>
+    </form>
+  </article>
+</section>
+
+<section class="admin-grid">
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Positions</span>
+        <h2>Current ballot positions</h2>
+      </div>
+    </div>
+
+    <% if (positions.length === 0) { %>
+      <div class="empty-state">No positions added yet.</div>
+    <% } else { %>
+      <div class="stack-sm">
+        <% positions.forEach((position) => { %>
+          <article class="mini-card mini-card--row">
+            <div>
+              <strong><%= position.name %></strong>
+              <span>Order: <%= position.sortOrder %></span>
+            </div>
+            <form action="/admin/positions/<%= position.id %>/delete" method="post">
+              <button class="button button-ghost" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+                Remove
+              </button>
+            </form>
+          </article>
+        <% }) %>
+      </div>
+    <% } %>
+  </article>
+
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Candidates</span>
+        <h2>Current candidate roster</h2>
+      </div>
+    </div>
+
+    <% if (candidates.length === 0) { %>
+      <div class="empty-state">No candidates added yet.</div>
+    <% } else { %>
+      <div class="stack-sm">
+        <% candidates.forEach((candidate) => { %>
+          <article class="candidate-summary">
+            <div class="candidate-summary__media">
+              <% if (candidate.photoPath) { %>
+                <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+              <% } else { %>
+                <div class="candidate-avatar-fallback"><%= getInitials(candidate.name) %></div>
+              <% } %>
+            </div>
+
+            <div class="candidate-summary__body">
+              <strong><%= candidate.name %></strong>
+              <span><%= candidate.positionName %></span>
+              <small><%= candidate.bio || 'No note added.' %></small>
+            </div>
+
+            <div class="candidate-summary__actions">
+              <a
+                class="button button-ghost"
+                href="/admin/candidates/<%= candidate.id %>/edit"
+              >
+                Edit
+              </a>
+              <form action="/admin/candidates/<%= candidate.id %>/delete" method="post">
+                <button class="button button-ghost" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+                  Remove
+                </button>
+              </form>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    <% } %>
+  </article>
+</section>
+
+<%- include("partials/admin-shell-end") %>

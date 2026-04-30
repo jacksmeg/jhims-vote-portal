@@ -1,0 +1,44 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Audit Log",
+  pageIntro: "Track admin actions, voter sign-ins, import activity, and ballot submissions.",
+  currentSection: "audit"
+}) %>
+
+<section class="panel panel-light stack-md">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Recent Activity</span>
+      <h2>Latest recorded audit events</h2>
+    </div>
+  </div>
+
+  <% if (logs.length === 0) { %>
+    <div class="empty-state">No audit events have been recorded yet.</div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Actor</th>
+            <th>Action</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% logs.forEach((log) => { %>
+            <tr>
+              <td><%= formatDateTime(log.createdAt) %></td>
+              <td><strong><%= log.actorType %></strong> / <%= log.actorIdentifier %></td>
+              <td><%= log.action %></td>
+              <td><code><%= log.detailsJson %></code></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<%- include("partials/admin-shell-end") %>

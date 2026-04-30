@@ -1,0 +1,90 @@
+<%- include("partials/head", { pageTitle }) %>
+
+<main class="print-page">
+  <section class="print-toolbar">
+    <div>
+      <span class="eyebrow">Print Results</span>
+      <h1><%= settings.electionName %></h1>
+      <p>Final election results ready for printing or saving as PDF.</p>
+    </div>
+
+    <div class="button-row">
+      <button class="button" type="button" onclick="window.print()">Print Now</button>
+      <a class="button button-ghost" href="/admin/results/pdf">Download PDF</a>
+      <a class="button button-ghost" href="/admin/results">Back to Results</a>
+    </div>
+  </section>
+
+  <section class="print-sheet">
+    <header class="print-sheet__header">
+      <div>
+        <span class="eyebrow">Election Results</span>
+        <h2><%= settings.electionName %></h2>
+        <p>Generated on <strong><%= formatDateTime(generatedAt) %></strong></p>
+      </div>
+
+      <% if (settings.organizationLogoPath) { %>
+        <img
+          class="print-sheet__logo"
+          src="<%= settings.organizationLogoPath %>"
+          alt="<%= settings.electionName %> logo"
+        />
+      <% } %>
+    </header>
+
+    <section class="print-summary-grid">
+      <article class="mini-card">
+        <strong><%= metrics.totalVoters %></strong>
+        <span>Total voters</span>
+      </article>
+      <article class="mini-card">
+        <strong><%= metrics.votedCount %></strong>
+        <span>Votes cast</span>
+      </article>
+      <article class="mini-card">
+        <strong><%= metrics.totalVoters ? formatPercent(metrics.votedCount / metrics.totalVoters) : '0.0%' %></strong>
+        <span>Turnout</span>
+      </article>
+    </section>
+
+    <section class="stack-lg">
+      <% results.forEach((result) => { %>
+        <article class="print-result-card">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">Position Results</span>
+              <h3><%= result.name %></h3>
+            </div>
+            <div class="winner-pill">Winner: <strong><%= result.winnerLabel %></strong></div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Candidate</th>
+                  <th>Votes</th>
+                  <th>Share</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% result.candidates.forEach((candidate) => { %>
+                  <tr>
+                    <td><strong><%= candidate.name %></strong></td>
+                    <td><%= candidate.voteCount %></td>
+                    <td>
+                      <%= result.totalVotes ? formatPercent(candidate.voteCount / result.totalVotes) : '0.0%' %>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      <% }) %>
+    </section>
+  </section>
+</main>
+
+</body>
+</html>

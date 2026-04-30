@@ -1,0 +1,94 @@
+<%- include("partials/public-shell-start", { pageTitle }) %>
+
+<section class="hero-grid">
+  <div class="hero-copy panel panel-dark">
+    <span class="eyebrow">Election Service App</span>
+    <h2>Run a secure organization-wide vote with staff ID and phone verification.</h2>
+    <p>
+      This portal verifies every voter, allows one ballot per staff member, and gives the
+      election committee a controlled dashboard for setup, monitoring, backups, and final
+      results.
+    </p>
+
+    <div class="hero-actions">
+      <a class="button" href="/vote/login">Open Voter Portal</a>
+      <a class="button button-ghost" href="/admin/login">Admin Dashboard</a>
+    </div>
+
+    <div class="hero-stats">
+      <div>
+        <strong><%= metrics.totalVoters %></strong>
+        <span>registered voters</span>
+      </div>
+      <div>
+        <strong><%= metrics.totalBallots %></strong>
+        <span>ballots submitted</span>
+      </div>
+      <div>
+        <strong><%= metrics.totalPositions %></strong>
+        <span>positions on ballot</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel panel-light stack-lg">
+    <div>
+      <span class="eyebrow">How It Works</span>
+      <h3>Simple flow for voters and clear controls for administrators.</h3>
+    </div>
+
+    <ol class="flow-list">
+      <li>Staff enters a registered staff ID and phone number.</li>
+      <li>The system verifies the record and blocks duplicate voting.</li>
+      <li>The voter chooses one candidate under each position.</li>
+      <li>The ballot is confirmed once and then submitted permanently.</li>
+      <li>The committee closes the election and unlocks final results.</li>
+    </ol>
+
+    <div class="card-grid card-grid--compact">
+      <article class="mini-card">
+        <h4>Security</h4>
+        <p>Admin login, audit trails, single-vote enforcement, and locked results.</p>
+      </article>
+      <article class="mini-card">
+        <h4>Voter Import</h4>
+        <p>Upload voter login data from Excel with staff ID and phone number columns.</p>
+      </article>
+      <article class="mini-card">
+        <h4>Candidate Setup</h4>
+        <p>Add positions, upload candidate photos, and manage ballot order centrally.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="panel panel-light">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Important Safeguards</span>
+      <h3>Built around your election rules.</h3>
+    </div>
+    <p><%= electionState.message %></p>
+  </div>
+
+  <div class="feature-grid">
+    <article class="feature-card">
+      <h4>One staff member = one vote</h4>
+      <p>Each registered record is checked and marked as voted after submission.</p>
+    </article>
+    <article class="feature-card">
+      <h4>Timed voting window</h4>
+      <p>Admins set both opening and closing times before voting goes live.</p>
+    </article>
+    <article class="feature-card">
+      <h4>Backup support</h4>
+      <p>The dashboard can create local database backups for the election committee.</p>
+    </article>
+    <article class="feature-card">
+      <h4>Results discipline</h4>
+      <p>Detailed results are revealed only after the election has been closed.</p>
+    </article>
+  </div>
+</section>
+
+<%- include("partials/public-shell-end") %>

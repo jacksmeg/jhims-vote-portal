@@ -1,0 +1,75 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Edit Candidate",
+  pageIntro: "Update saved candidate details and optionally replace the photo before voting opens.",
+  currentSection: "setup"
+}) %>
+
+<section class="panel panel-light stack-lg narrow-panel">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Candidate Update</span>
+      <h2>Edit <%= candidate.name %></h2>
+    </div>
+    <p>Saved candidates can be updated during setup before the election is opened.</p>
+  </div>
+
+  <div class="candidate-edit-layout">
+    <div class="candidate-edit-layout__preview">
+      <% if (candidate.photoPath) { %>
+        <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+      <% } else { %>
+        <div class="candidate-avatar-fallback"><%= getInitials(candidate.name) %></div>
+      <% } %>
+    </div>
+
+    <form
+      class="stack-md candidate-edit-layout__form"
+      action="/admin/candidates/<%= candidate.id %>"
+      method="post"
+      enctype="multipart/form-data"
+    >
+      <label class="field">
+        <span>Candidate Name</span>
+        <input name="name" value="<%= candidate.name %>" <%= electionState.canEditSetup ? '' : 'disabled' %> required />
+      </label>
+
+      <label class="field">
+        <span>Position</span>
+        <select name="positionId" <%= electionState.canEditSetup ? '' : 'disabled' %> required>
+          <% positions.forEach((position) => { %>
+            <option value="<%= position.id %>" <%= position.id === candidate.positionId ? 'selected' : '' %>>
+              <%= position.name %>
+            </option>
+          <% }) %>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Short Bio or Note</span>
+        <textarea name="bio" rows="3" placeholder="Optional description" <%= electionState.canEditSetup ? '' : 'disabled' %>><%= candidate.bio %></textarea>
+      </label>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Sort Order</span>
+          <input name="sortOrder" type="number" value="<%= candidate.sortOrder %>" <%= electionState.canEditSetup ? '' : 'disabled' %> />
+        </label>
+
+        <label class="field">
+          <span>Replace Photo</span>
+          <input name="photo" type="file" accept="image/*" <%= electionState.canEditSetup ? '' : 'disabled' %> />
+        </label>
+      </div>
+
+      <div class="button-row">
+        <button class="button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+          Save Changes
+        </button>
+        <a class="button button-ghost" href="/admin/setup">Back to Setup</a>
+      </div>
+    </form>
+  </div>
+</section>
+
+<%- include("partials/admin-shell-end") %>

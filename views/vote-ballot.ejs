@@ -1,0 +1,89 @@
+<%- include("partials/public-shell-start", { pageTitle }) %>
+
+<section class="section-heading section-heading--spaced">
+  <div>
+    <span class="eyebrow">Ballot Progress</span>
+    <h2>Vote for one position at a time.</h2>
+  </div>
+  <div class="signed-in-tag">Voter: <strong><%= voter.staffId %></strong></div>
+</section>
+
+<section class="panel panel-light stack-lg vote-wizard-panel">
+  <div class="wizard-progress">
+    <div>
+      <span class="eyebrow">Step <%= currentStep %> of <%= totalSteps %></span>
+      <h3><%= currentPosition.name %></h3>
+      <p class="muted-text">
+        Completed selections: <strong><%= completedSteps %></strong> of
+        <strong><%= totalSteps %></strong>
+      </p>
+    </div>
+
+    <div class="wizard-progress__meter">
+      <div class="wizard-progress__track">
+        <span class="wizard-progress__fill" style="width: <%= progressPercent %>%"></span>
+      </div>
+      <div class="wizard-progress__steps">
+        <% for (let stepIndex = 1; stepIndex <= totalSteps; stepIndex += 1) { %>
+          <span class="wizard-progress__step <%= stepIndex === currentStep ? 'wizard-progress__step--current' : stepIndex < currentStep ? 'wizard-progress__step--done' : '' %>">
+            <%= stepIndex %>
+          </span>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <form action="/vote/step/<%= currentStep %>" method="post" class="stack-lg">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Choose Candidate</span>
+        <h3><%= currentPosition.name %></h3>
+      </div>
+      <p class="muted-text">
+        <%= isLastStep ? 'This is the final position before review.' : 'Click next to continue to the next position.' %>
+      </p>
+    </div>
+
+    <div class="candidate-grid">
+      <% currentPosition.candidates.forEach((candidate) => { %>
+        <label class="candidate-card <%= selectedCandidateId === candidate.id ? 'candidate-card--selected' : '' %>">
+          <input
+            type="radio"
+            name="candidateId"
+            value="<%= candidate.id %>"
+            <%= selectedCandidateId === candidate.id ? 'checked' : '' %>
+            required
+          />
+
+          <% if (candidate.photoPath) { %>
+            <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+          <% } else { %>
+            <div class="candidate-avatar-fallback"><%= getInitials(candidate.name) %></div>
+          <% } %>
+
+          <div class="stack-sm">
+            <strong><%= candidate.name %></strong>
+            <span><%= currentPosition.name %> candidate</span>
+            <% if (candidate.bio) { %>
+              <small><%= candidate.bio %></small>
+            <% } %>
+          </div>
+        </label>
+      <% }) %>
+    </div>
+
+    <div class="button-row vote-wizard-panel__actions">
+      <% if (currentStep > 1) { %>
+        <a class="button button-ghost" href="/vote/step/<%= currentStep - 1 %>">Back</a>
+      <% } else { %>
+        <a class="button button-ghost" href="/">Cancel</a>
+      <% } %>
+
+      <button class="button" type="submit">
+        <%= isLastStep ? 'Review Vote' : 'Next Position' %>
+      </button>
+    </div>
+  </form>
+</section>
+
+<%- include("partials/public-shell-end") %>

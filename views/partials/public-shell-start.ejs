@@ -1,0 +1,36 @@
+<%- include("head", { pageTitle }) %>
+<div class="site-shell">
+  <header class="site-header">
+    <a class="brand-mark" href="/">
+      <% if (settings.organizationLogoPath) { %>
+        <img class="brand-mark__logo" src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
+      <% } else { %>
+        <span class="brand-mark__crest">VP</span>
+      <% } %>
+      <span>
+        <strong><%= settings.electionName %></strong>
+        <small>Secure internal ballot system</small>
+      </span>
+    </a>
+
+    <nav class="site-nav">
+      <a class="<%= currentPath === '/' ? 'active' : '' %>" href="/">Home</a>
+      <a class="<%= currentPath.startsWith('/vote') ? 'active' : '' %>" href="/vote/login">
+        Vote
+      </a>
+      <a
+        class="<%= currentPath.startsWith('/admin') ? 'active' : '' %>"
+        href="/admin/login"
+      >
+        Admin
+      </a>
+    </nav>
+
+    <div class="status-badge <%= electionState.badgeClass %>">
+      <span class="status-dot"></span>
+      <%= electionState.badgeLabel %>
+    </div>
+  </header>
+
+  <main class="site-main">
+    <%- include("flash") %>

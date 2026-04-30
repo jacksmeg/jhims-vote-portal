@@ -1,0 +1,32 @@
+{
+  "name": "organization-vote-portal",
+  "version": "1.0.0",
+  "description": "Internal election voting portal with voter verification, admin controls, Excel import, and results dashboard.",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "generate:templates": "node scripts/generate-templates.js"
+  },
+  "keywords": [
+    "election",
+    "voting",
+    "portal",
+    "express",
+    "sqlite"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "exceljs": "^4.4.0",
+    "helmet": "^8.0.0",
+    "multer": "^2.0.2",
+    "pdfkit": "^0.15.2"
+  }
+}

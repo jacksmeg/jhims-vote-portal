@@ -1,0 +1,34 @@
+<%- include("partials/public-shell-start", { pageTitle }) %>
+
+<section class="panel panel-light stack-lg narrow-panel">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Final Review</span>
+      <h2>Are you sure you want to submit your vote?</h2>
+    </div>
+    <p class="muted-text">After submission, you cannot change it.</p>
+  </div>
+
+  <div class="review-list">
+    <% selections.forEach((selection) => { %>
+      <article class="review-row">
+        <div>
+          <strong><%= selection.positionName %></strong>
+          <span>Selected candidate</span>
+        </div>
+        <strong><%= selection.candidateName %></strong>
+      </article>
+    <% }) %>
+  </div>
+
+  <div class="button-row">
+    <form action="/vote/step/<%= lastStep %>" method="get">
+      <button class="button button-ghost" type="submit">Go Back</button>
+    </form>
+    <form action="/vote/submit" method="post">
+      <button class="button" type="submit">Yes, Submit</button>
+    </form>
+  </div>
+</section>
+
+<%- include("partials/public-shell-end") %>
