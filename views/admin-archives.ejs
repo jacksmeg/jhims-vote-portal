@@ -1,0 +1,43 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Election Archives",
+  pageIntro: "Open saved election results from previous cycles and review their final statistics.",
+  currentSection: "archives"
+}) %>
+
+<section class="panel panel-light stack-md">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Saved Elections</span>
+      <h2>Archived election history</h2>
+    </div>
+    <p>Each archive is created when you save final results and reset the system for a new election.</p>
+  </div>
+
+  <% if (archives.length === 0) { %>
+    <div class="empty-state">No archived elections have been saved yet.</div>
+  <% } else { %>
+    <div class="archive-grid">
+      <% archives.forEach((archive) => { %>
+        <article class="archive-card">
+          <div class="archive-card__topline">
+            <strong><%= archive.electionName %></strong>
+            <span><%= formatDateTime(archive.archivedAt) %></span>
+          </div>
+
+          <div class="mini-metrics-grid">
+            <div><strong><%= archive.totalVoters %></strong><span>Voters</span></div>
+            <div><strong><%= archive.votesCast %></strong><span>Votes</span></div>
+            <div><strong><%= formatPercent(archive.turnoutRate || 0) %></strong><span>Turnout</span></div>
+          </div>
+
+          <div class="button-row">
+            <a class="button button-ghost button-small" href="/admin/archives/<%= archive.id %>">Open Archive</a>
+          </div>
+        </article>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<%- include("partials/admin-shell-end") %>

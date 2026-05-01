@@ -34,6 +34,46 @@
   <article class="panel panel-light stack-md">
     <div class="section-heading">
       <div>
+        <span class="eyebrow">Manual Entry</span>
+        <h2>Add a voter directly</h2>
+      </div>
+      <p>Use this form when you want to register one staff member without uploading Excel.</p>
+    </div>
+
+    <form class="stack-md" action="/admin/voters" method="post">
+      <div class="form-grid">
+        <label class="field">
+          <span>Staff ID</span>
+          <input name="staffId" placeholder="STF0234" <%= electionState.canEditSetup ? '' : 'disabled' %> required />
+        </label>
+
+        <label class="field">
+          <span>Phone Number</span>
+          <input name="phoneNumber" placeholder="0240000000" <%= electionState.canEditSetup ? '' : 'disabled' %> required />
+        </label>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Full Name</span>
+          <input name="fullName" placeholder="Staff Member Name" <%= electionState.canEditSetup ? '' : 'disabled' %> />
+        </label>
+
+        <label class="field">
+          <span>Department</span>
+          <input name="department" placeholder="Department" <%= electionState.canEditSetup ? '' : 'disabled' %> />
+        </label>
+      </div>
+
+      <button class="button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+        Save Voter
+      </button>
+    </form>
+  </article>
+
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
         <span class="eyebrow">Summary</span>
         <h2>Current voter counts</h2>
       </div>
@@ -92,6 +132,7 @@
             <th>Name</th>
             <th>Department</th>
             <th>Status</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -114,6 +155,15 @@
                 <span class="inline-badge <%= voterStatus.className %>">
                   <%= voterStatus.label %>
                 </span>
+              </td>
+              <td>
+                <% if (electionState.canEditSetup) { %>
+                  <a class="button button-ghost button-small" href="/admin/voters/<%= voterRow.id %>/edit">
+                    Edit
+                  </a>
+                <% } else { %>
+                  <span class="inline-badge inline-badge--muted">Locked</span>
+                <% } %>
               </td>
             </tr>
           <% }) %>

@@ -100,11 +100,28 @@ function initDatabase(defaultElectionName) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS election_archives (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      election_name TEXT NOT NULL,
+      phase TEXT NOT NULL DEFAULT 'closed',
+      opens_at TEXT NOT NULL DEFAULT '',
+      closes_at TEXT NOT NULL DEFAULT '',
+      archived_at TEXT NOT NULL,
+      total_voters INTEGER NOT NULL DEFAULT 0,
+      votes_cast INTEGER NOT NULL DEFAULT 0,
+      turnout_rate REAL NOT NULL DEFAULT 0,
+      settings_json TEXT NOT NULL DEFAULT '{}',
+      metrics_json TEXT NOT NULL DEFAULT '{}',
+      results_json TEXT NOT NULL DEFAULT '[]'
+    );
+
     CREATE INDEX IF NOT EXISTS idx_voters_has_voted ON voters (has_voted);
     CREATE INDEX IF NOT EXISTS idx_candidates_position_id ON candidates (position_id);
     CREATE INDEX IF NOT EXISTS idx_ballot_entries_candidate_id ON ballot_entries (candidate_id);
     CREATE INDEX IF NOT EXISTS idx_ballot_entries_position_id ON ballot_entries (position_id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_election_archives_archived_at
+      ON election_archives (archived_at DESC);
   `);
 
   const defaults = [
@@ -113,6 +130,7 @@ function initDatabase(defaultElectionName) {
     ["opens_at", ""],
     ["closes_at", ""],
     ["results_visibility", "after_close"],
+    ["theme_name", "heritage"],
   ];
 
   for (const [key, value] of defaults) {

@@ -71,6 +71,23 @@ const staffLoginTemplatePath = path.join(
   templatesDirectory,
   "staff-login-template.xlsx",
 );
+const themeOptions = [
+  {
+    value: "heritage",
+    label: "Heritage Gold",
+    description: "Warm gold and navy tones for the current election style.",
+  },
+  {
+    value: "emerald",
+    label: "Emerald Pulse",
+    description: "Fresh green branding with a lighter civic dashboard look.",
+  },
+  {
+    value: "midnight",
+    label: "Midnight Blue",
+    description: "Deep blue contrast with brighter highlights for readability.",
+  },
+];
 
 function ensureDirectories() {
   [
@@ -126,6 +143,18 @@ function getInitials(name) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() || "")
     .join("");
+}
+
+function safeJsonParse(value, fallback) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch (_error) {
+    return fallback;
+  }
+}
+
+function getThemeOptions() {
+  return themeOptions;
 }
 
 function isWithinDirectory(targetPath, baseDirectory) {
@@ -196,6 +225,7 @@ function getElectionSettings() {
     opensAt: settings.opens_at || "",
     closesAt: settings.closes_at || "",
     resultsVisibility: settings.results_visibility || "after_close",
+    themeName: settings.theme_name || "heritage",
   };
 }
 
@@ -397,6 +427,63 @@ function getResultsExportPayload() {
     metrics: getDashboardMetrics(),
     results: getResultsSummary(),
     generatedAt: nowIso(),
+  };
+}
+
+function getElectionArchives() {
+  const rows = db.prepare(`
+    SELECT
+      id,
+      election_name AS electionName,
+      phase,
+      opens_at AS opensAt,
+      closes_at AS closesAt,
+      archived_at AS archivedAt,
+      total_voters AS totalVoters,
+      votes_cast AS votesCast,
+      turnout_rate AS turnoutRate,
+      results_json AS resultsJson
+    FROM election_archives
+    ORDER BY archived_at DESC
+  `).all();
+
+  return rows.map((row) => {
+    const parsedResults = safeJsonParse(row.resultsJson, []);
+    return {
+      ...row,
+      resultsCount: parsedResults.length,
+    };
+  });
+}
+
+function getElectionArchiveById(archiveId) {
+  const row = db.prepare(`
+    SELECT
+      id,
+      election_name AS electionName,
+      phase,
+      opens_at AS opensAt,
+      closes_at AS closesAt,
+      archived_at AS archivedAt,
+      total_voters AS totalVoters,
+      votes_cast AS votesCast,
+      turnout_rate AS turnoutRate,
+      settings_json AS settingsJson,
+      metrics_json AS metricsJson,
+      results_json AS resultsJson
+    FROM election_archives
+    WHERE id = ?
+  `).get(archiveId);
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    ...row,
+    settingsSnapshot: safeJsonParse(row.settingsJson, {}),
+    metricsSnapshot: safeJsonParse(row.metricsJson, {}),
+    results: safeJsonParse(row.resultsJson, []),
   };
 }
 
@@ -648,6 +735,12 @@ function getResultsSummary() {
         : winners.length > 1
           ? `Tie: ${winners.map((candidate) => candidate.name).join(", ")}`
           : winners[0].name;
+
+    summary.candidates = summary.candidates.map((candidate) => ({
+      ...candidate,
+      shareRatio: summary.totalVotes ? candidate.voteCount / summary.totalVotes : 0,
+      isLeading: highestVoteCount > 0 && candidate.voteCount === highestVoteCount,
+    }));
   }
 
   return summaries;
@@ -1212,6 +1305,7 @@ app.get("/admin", requireAdmin, (req, res) => {
   const metrics = getDashboardMetrics();
   const settings = getElectionSettings();
   const electionState = computeElectionState(settings);
+  const archives = getElectionArchives().slice(0, 5);
   const positionReadiness = db.prepare(`
     SELECT
       p.name AS positionName,
@@ -1231,6 +1325,8 @@ app.get("/admin", requireAdmin, (req, res) => {
     settings,
     electionState,
     positionReadiness,
+    archives,
+    themeOptions: getThemeOptions(),
   });
 });
 
@@ -1264,6 +1360,23 @@ app.post("/admin/settings", requireAdmin, (req, res) => {
   });
 
   setFlash(req, "success", "Election settings updated.");
+  return res.redirect("/admin");
+});
+
+app.post("/admin/theme", requireAdmin, (req, res) => {
+  const themeName = String(req.body.themeName || "").trim();
+  const selectedTheme = getThemeOptions().find((theme) => theme.value === themeName);
+
+  if (!selectedTheme) {
+    setFlash(req, "error", "Choose one of the available software themes.");
+    return res.redirect("/admin");
+  }
+
+  setSetting("theme_name", selectedTheme.value);
+  logAudit(req, "admin", req.session.admin.username, "theme_updated", {
+    themeName: selectedTheme.value,
+  });
+  setFlash(req, "success", `${selectedTheme.label} has been applied across the portal.`);
   return res.redirect("/admin");
 });
 
@@ -1378,6 +1491,98 @@ app.post("/admin/election/close", requireAdmin, (req, res) => {
   return res.redirect("/admin/results");
 });
 
+app.post("/admin/election/archive-reset", requireAdmin, async (req, res) => {
+  const settings = getElectionSettings();
+
+  if (settings.phase !== "closed") {
+    setFlash(req, "error", "Close the election before archiving and resetting the system.");
+    return res.redirect("/admin/results");
+  }
+
+  const metrics = getDashboardMetrics();
+  const results = getResultsSummary();
+
+  if (
+    metrics.totalVoters === 0 &&
+    metrics.totalBallots === 0 &&
+    metrics.totalPositions === 0 &&
+    metrics.totalCandidates === 0
+  ) {
+    setFlash(req, "error", "There is no election data to archive yet.");
+    return res.redirect("/admin/results");
+  }
+
+  const candidatePhotoRows = db.prepare(`
+    SELECT photo_path AS photoPath
+    FROM candidates
+    WHERE photo_path <> ''
+  `).all();
+
+  let archiveId = 0;
+
+  runTransaction(() => {
+    const archivedAt = nowIso();
+    const archiveInsert = db.prepare(`
+      INSERT INTO election_archives (
+        election_name,
+        phase,
+        opens_at,
+        closes_at,
+        archived_at,
+        total_voters,
+        votes_cast,
+        turnout_rate,
+        settings_json,
+        metrics_json,
+        results_json
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      settings.electionName,
+      settings.phase,
+      settings.opensAt,
+      settings.closesAt,
+      archivedAt,
+      metrics.totalVoters,
+      metrics.votedCount,
+      metrics.totalVoters ? metrics.votedCount / metrics.totalVoters : 0,
+      JSON.stringify(settings),
+      JSON.stringify(metrics),
+      JSON.stringify(results),
+    );
+
+    archiveId = Number(archiveInsert.lastInsertRowid);
+
+    db.prepare("DELETE FROM ballot_entries").run();
+    db.prepare("DELETE FROM ballots").run();
+    db.prepare("DELETE FROM voters").run();
+    db.prepare("DELETE FROM candidates").run();
+    db.prepare("DELETE FROM positions").run();
+
+    setSetting("election_phase", "setup");
+    setSetting("opens_at", "");
+    setSetting("closes_at", "");
+  });
+
+  for (const photoRow of candidatePhotoRows) {
+    await safeRemoveFile(resolveAssetPath(photoRow.photoPath));
+  }
+
+  logAudit(req, "admin", req.session.admin.username, "election_archived_and_reset", {
+    archiveId,
+    electionName: settings.electionName,
+    totalVoters: metrics.totalVoters,
+    votesCast: metrics.votedCount,
+  });
+
+  setFlash(
+    req,
+    "success",
+    `Election archived successfully. The system has been reset and is ready for the next election.`,
+  );
+  return res.redirect(`/admin/archives/${archiveId}`);
+});
+
 app.post("/admin/backup", requireAdmin, async (req, res) => {
   const backupName = `vote-portal-backup-${dayjs().format("YYYYMMDD-HHmmss")}.sqlite`;
   const backupPath = path.join(backupsDirectory, backupName);
@@ -1404,6 +1609,51 @@ app.get("/admin/voters", requireAdmin, (req, res) => {
     metrics,
     templatePath: "/templates/staff-login-template.xlsx",
   });
+});
+
+app.post("/admin/voters", requireAdmin, (req, res) => {
+  if (!ensureSetupMode(req, res)) {
+    return;
+  }
+
+  const staffId = normalizeStaffId(req.body.staffId);
+  const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
+  const fullName = String(req.body.fullName || "").trim();
+  const department = String(req.body.department || "").trim();
+
+  if (!staffId || !isLikelyPhoneNumber(phoneNumber)) {
+    setFlash(
+      req,
+      "error",
+      "Enter a unique staff ID and a valid phone number before saving the voter.",
+    );
+    return res.redirect("/admin/voters");
+  }
+
+  try {
+    const timestamp = nowIso();
+    db.prepare(`
+      INSERT INTO voters (
+        staff_id,
+        phone_number,
+        full_name,
+        department,
+        has_voted,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, 0, ?, ?)
+    `).run(staffId, phoneNumber, fullName, department, timestamp, timestamp);
+
+    logAudit(req, "admin", req.session.admin.username, "voter_added_manually", {
+      staffId,
+    });
+    setFlash(req, "success", `${staffId} has been added to the voter list.`);
+  } catch (_error) {
+    setFlash(req, "error", "That staff ID already exists or could not be added.");
+  }
+
+  return res.redirect("/admin/voters");
 });
 
 app.post(
@@ -1527,6 +1777,95 @@ app.post(
   },
 );
 
+app.get("/admin/voters/:id/edit", requireAdmin, (req, res) => {
+  const voterId = parseInteger(req.params.id, 0);
+  const voter = db.prepare(`
+    SELECT
+      id,
+      staff_id AS staffId,
+      phone_number AS phoneNumber,
+      full_name AS fullName,
+      department,
+      has_voted AS hasVoted
+    FROM voters
+    WHERE id = ?
+  `).get(voterId);
+
+  if (!voter) {
+    setFlash(req, "error", "Voter not found.");
+    return res.redirect("/admin/voters");
+  }
+
+  return res.render("admin-voter-edit", {
+    pageTitle: "Edit Voter",
+    voter,
+  });
+});
+
+app.post("/admin/voters/:id", requireAdmin, (req, res) => {
+  if (!ensureSetupMode(req, res)) {
+    return;
+  }
+
+  const voterId = parseInteger(req.params.id, 0);
+  const existingVoter = db.prepare(`
+    SELECT
+      id,
+      staff_id AS staffId
+    FROM voters
+    WHERE id = ?
+  `).get(voterId);
+
+  if (!existingVoter) {
+    setFlash(req, "error", "Voter not found.");
+    return res.redirect("/admin/voters");
+  }
+
+  const staffId = normalizeStaffId(req.body.staffId);
+  const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
+  const fullName = String(req.body.fullName || "").trim();
+  const department = String(req.body.department || "").trim();
+
+  if (!staffId || !isLikelyPhoneNumber(phoneNumber)) {
+    setFlash(
+      req,
+      "error",
+      "Enter a unique staff ID and a valid phone number before saving the voter.",
+    );
+    return res.redirect(`/admin/voters/${voterId}/edit`);
+  }
+
+  const duplicateVoter = db.prepare(`
+    SELECT id
+    FROM voters
+    WHERE staff_id = ?
+      AND id <> ?
+  `).get(staffId, voterId);
+
+  if (duplicateVoter) {
+    setFlash(req, "error", "Another voter is already using that staff ID.");
+    return res.redirect(`/admin/voters/${voterId}/edit`);
+  }
+
+  db.prepare(`
+    UPDATE voters
+    SET
+      staff_id = ?,
+      phone_number = ?,
+      full_name = ?,
+      department = ?,
+      updated_at = ?
+    WHERE id = ?
+  `).run(staffId, phoneNumber, fullName, department, nowIso(), voterId);
+
+  logAudit(req, "admin", req.session.admin.username, "voter_updated", {
+    voterId,
+    staffId,
+  });
+  setFlash(req, "success", `${staffId} has been updated.`);
+  return res.redirect("/admin/voters");
+});
+
 app.post("/admin/voters/clear", requireAdmin, (req, res) => {
   if (!ensureSetupMode(req, res)) {
     return;
@@ -1569,6 +1908,29 @@ app.get("/admin/setup", requireAdmin, (req, res) => {
     pageTitle: "Election Setup",
     positions,
     candidates,
+  });
+});
+
+app.get("/admin/archives", requireAdmin, (req, res) => {
+  const archives = getElectionArchives();
+  res.render("admin-archives", {
+    pageTitle: "Election Archives",
+    archives,
+  });
+});
+
+app.get("/admin/archives/:id", requireAdmin, (req, res) => {
+  const archiveId = parseInteger(req.params.id, 0);
+  const archive = getElectionArchiveById(archiveId);
+
+  if (!archive) {
+    setFlash(req, "error", "Archived election not found.");
+    return res.redirect("/admin/archives");
+  }
+
+  return res.render("admin-archive-detail", {
+    pageTitle: "Archived Election",
+    archive,
   });
 });
 
@@ -1934,12 +2296,21 @@ app.get("/admin/results/pdf", requireAdmin, (req, res) => {
 
 app.get("/admin/results", requireAdmin, (req, res) => {
   const payload = getResultsExportPayload();
+  const showResults = payload.electionState.isOpen || payload.electionState.isClosed;
+  const pageIntro = payload.electionState.isOpen
+    ? "Monitor live provisional statistics and candidate performance while voting is in progress."
+    : payload.electionState.isClosed
+      ? "Review final totals after voting has closed and the ballot is locked."
+      : "Results become available for monitoring once voting opens.";
 
   res.render("admin-results", {
     pageTitle: "Results",
+    pageIntro,
     metrics: payload.metrics,
-    results: payload.electionState.isClosed ? payload.results : [],
-    resultsLocked: !payload.electionState.isClosed,
+    results: showResults ? payload.results : [],
+    resultsLocked: !showResults,
+    isLiveResults: payload.electionState.isOpen,
+    canArchiveReset: payload.electionState.isClosed,
   });
 });
 

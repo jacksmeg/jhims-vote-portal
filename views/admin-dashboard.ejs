@@ -148,6 +148,66 @@
   </div>
 </section>
 
+<section class="admin-grid">
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Software Theme</span>
+        <h2>Choose the portal appearance</h2>
+      </div>
+      <p>The selected theme applies to both voter and admin pages.</p>
+    </div>
+
+    <form class="stack-md" action="/admin/theme" method="post">
+      <div class="theme-card-grid">
+        <% themeOptions.forEach((theme) => { %>
+          <label class="theme-option-card theme-option-card--<%= theme.value %>">
+            <input type="radio" name="themeName" value="<%= theme.value %>" <%= settings.themeName === theme.value ? 'checked' : '' %> />
+            <div class="theme-option-card__swatches">
+              <span></span><span></span><span></span>
+            </div>
+            <strong><%= theme.label %></strong>
+            <small><%= theme.description %></small>
+          </label>
+        <% }) %>
+      </div>
+
+      <button class="button" type="submit">Apply Theme</button>
+    </form>
+  </article>
+
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Election History</span>
+        <h2>Recent archived elections</h2>
+      </div>
+      <a class="button button-ghost button-small" href="/admin/archives">View All Archives</a>
+    </div>
+
+    <% if (archives.length === 0) { %>
+      <div class="empty-state">No archived elections yet. Close and archive a completed election to save it here.</div>
+    <% } else { %>
+      <div class="archive-grid">
+        <% archives.forEach((archive) => { %>
+          <article class="archive-card">
+            <div class="archive-card__topline">
+              <strong><%= archive.electionName %></strong>
+              <span><%= formatDateTime(archive.archivedAt) %></span>
+            </div>
+            <div class="mini-metrics-grid">
+              <div><strong><%= archive.totalVoters %></strong><span>Voters</span></div>
+              <div><strong><%= archive.votesCast %></strong><span>Votes</span></div>
+              <div><strong><%= formatPercent(archive.turnoutRate || 0) %></strong><span>Turnout</span></div>
+            </div>
+            <a class="button button-ghost button-small" href="/admin/archives/<%= archive.id %>">Open Archive</a>
+          </article>
+        <% }) %>
+      </div>
+    <% } %>
+  </article>
+</section>
+
 <section class="panel panel-light stack-md">
   <div class="section-heading">
     <div>

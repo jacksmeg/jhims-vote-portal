@@ -1,0 +1,41 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Archived Election",
+  pageIntro: "Review the saved final results from a completed election cycle.",
+  currentSection: "archives"
+}) %>
+
+<section class="metric-grid">
+  <article class="metric-card">
+    <span>Total Voters</span>
+    <strong><%= archive.totalVoters %></strong>
+  </article>
+  <article class="metric-card">
+    <span>Votes Cast</span>
+    <strong><%= archive.votesCast %></strong>
+  </article>
+  <article class="metric-card">
+    <span>Turnout</span>
+    <strong><%= formatPercent(archive.turnoutRate || 0) %></strong>
+  </article>
+</section>
+
+<section class="panel panel-light stack-md">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Archived Snapshot</span>
+      <h2><%= archive.electionName %></h2>
+    </div>
+    <a class="button button-ghost button-small" href="/admin/archives">Back to Archives</a>
+  </div>
+
+  <div class="stack-sm">
+    <div class="info-row"><span>Archived on</span><strong><%= formatDateTime(archive.archivedAt) %></strong></div>
+    <div class="info-row"><span>Voting opened</span><strong><%= archive.opensAt ? formatDateTime(archive.opensAt) : 'Not set' %></strong></div>
+    <div class="info-row"><span>Voting closed</span><strong><%= archive.closesAt ? formatDateTime(archive.closesAt) : 'Not set' %></strong></div>
+  </div>
+</section>
+
+<%- include("partials/results-panels", { results: archive.results, eyebrowLabel: 'Archived Position Results' }) %>
+
+<%- include("partials/admin-shell-end") %>

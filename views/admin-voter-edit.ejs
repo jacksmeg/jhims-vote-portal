@@ -1,0 +1,51 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Edit Voter",
+  pageIntro: "Update a saved voter record before the election opens.",
+  currentSection: "voters"
+}) %>
+
+<section class="panel panel-light stack-lg narrow-panel">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Voter Update</span>
+      <h2>Edit <%= voter.staffId %></h2>
+    </div>
+    <p>Manual voter editing stays available only during setup before voting begins.</p>
+  </div>
+
+  <form class="stack-md" action="/admin/voters/<%= voter.id %>" method="post">
+    <div class="form-grid">
+      <label class="field">
+        <span>Staff ID</span>
+        <input name="staffId" value="<%= voter.staffId %>" <%= electionState.canEditSetup ? '' : 'disabled' %> required />
+      </label>
+
+      <label class="field">
+        <span>Phone Number</span>
+        <input name="phoneNumber" value="<%= voter.phoneNumber %>" <%= electionState.canEditSetup ? '' : 'disabled' %> required />
+      </label>
+    </div>
+
+    <div class="form-grid">
+      <label class="field">
+        <span>Full Name</span>
+        <input name="fullName" value="<%= voter.fullName %>" <%= electionState.canEditSetup ? '' : 'disabled' %> />
+      </label>
+
+      <label class="field">
+        <span>Department</span>
+        <input name="department" value="<%= voter.department %>" <%= electionState.canEditSetup ? '' : 'disabled' %> />
+      </label>
+    </div>
+
+    <div class="button-row">
+      <button class="button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+        Save Changes
+      </button>
+      <a class="button button-ghost" href="/admin/voters">Back to Voters</a>
+    </div>
+  </form>
+</section>
+
+<%- include("partials/admin-shell-end") %>

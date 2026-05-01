@@ -1,0 +1,56 @@
+<section class="stack-lg">
+  <% results.forEach((result) => { %>
+    <article class="panel panel-light stack-md">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow"><%= typeof eyebrowLabel === 'string' ? eyebrowLabel : 'Position Results' %></span>
+          <h2><%= result.name %></h2>
+        </div>
+        <div class="winner-pill">Winner: <strong><%= result.winnerLabel %></strong></div>
+      </div>
+
+      <div class="chart-list">
+        <% result.candidates.forEach((candidate) => { %>
+          <article class="chart-row">
+            <div class="chart-row__topline">
+              <strong><%= candidate.name %></strong>
+              <span>
+                <%= candidate.voteCount %> vote(s)
+                <% if (result.totalVotes > 0) { %>
+                  • <%= formatPercent(candidate.shareRatio || 0) %>
+                <% } %>
+              </span>
+            </div>
+            <div class="chart-meter">
+              <span
+                class="chart-meter__fill <%= candidate.isLeading ? 'chart-meter__fill--leading' : '' %>"
+                style="width: <%= Math.max((candidate.shareRatio || 0) * 100, candidate.voteCount > 0 ? 8 : 0) %>%"
+              ></span>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Candidate</th>
+              <th>Votes</th>
+              <th>Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% result.candidates.forEach((candidate) => { %>
+              <tr>
+                <td><strong><%= candidate.name %></strong></td>
+                <td><%= candidate.voteCount %></td>
+                <td><%= result.totalVotes ? formatPercent(candidate.shareRatio || 0) : '0.0%' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  <% }) %>
+</section>
