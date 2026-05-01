@@ -238,7 +238,7 @@ function buildGuide() {
   sectionTitle(doc, "12. Support Contact");
   bulletList(doc, [
     "Powered by JACKSTUDIOS",
-    "Phone: +233549896901",
+    "Phone: 0592934612",
     "Email: jacksmeg99@gmail.com",
     `Copyright © ${currentYear} IT DEPARTMENT DUNKWA MUNICIPAL HOSPITAL. All rights reserved.`,
   ]);

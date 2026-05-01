@@ -1211,10 +1211,13 @@ tbody tr:hover {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  font-weight: 800;
-  letter-spacing: 0.04em;
   color: #0f8c52;
   background: rgba(255, 255, 255, 0.96);
+}
+
+.whatsapp-float__badge svg {
+  width: 22px;
+  height: 22px;
 }
 
 code {
