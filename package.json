@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "generate:templates": "node scripts/generate-templates.js"
+    "generate:templates": "node scripts/generate-templates.js",
+    "generate:guide": "node scripts/generate-user-guide.js"
   },
   "keywords": [
     "election",
