@@ -26,7 +26,12 @@
       <span class="eyebrow">Archived Snapshot</span>
       <h2><%= archive.electionName %></h2>
     </div>
-    <a class="button button-ghost button-small" href="/admin/archives">Back to Archives</a>
+    <div class="button-row">
+      <a class="button button-ghost button-small" href="/admin/archives">Back to Archives</a>
+      <form action="/admin/archives/<%= archive.id %>/delete" method="post" onsubmit="return confirm('Delete this archived election permanently?');">
+        <button class="button button-danger button-small" type="submit">Delete Archive</button>
+      </form>
+    </div>
   </div>
 
   <div class="stack-sm">

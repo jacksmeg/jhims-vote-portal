@@ -1934,6 +1934,32 @@ app.get("/admin/archives/:id", requireAdmin, (req, res) => {
   });
 });
 
+app.post("/admin/archives/:id/delete", requireAdmin, (req, res) => {
+  const archiveId = parseInteger(req.params.id, 0);
+  const archive = db.prepare(`
+    SELECT
+      id,
+      election_name AS electionName
+    FROM election_archives
+    WHERE id = ?
+  `).get(archiveId);
+
+  if (!archive) {
+    setFlash(req, "error", "Archived election not found.");
+    return res.redirect("/admin/archives");
+  }
+
+  db.prepare("DELETE FROM election_archives WHERE id = ?").run(archiveId);
+
+  logAudit(req, "admin", req.session.admin.username, "archive_deleted", {
+    archiveId,
+    electionName: archive.electionName,
+  });
+
+  setFlash(req, "success", `Archived election "${archive.electionName}" has been deleted.`);
+  return res.redirect("/admin/archives");
+});
+
 app.post("/admin/positions", requireAdmin, (req, res) => {
   if (!ensureSetupMode(req, res)) {
     return;

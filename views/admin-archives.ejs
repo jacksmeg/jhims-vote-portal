@@ -33,6 +33,9 @@
 
           <div class="button-row">
             <a class="button button-ghost button-small" href="/admin/archives/<%= archive.id %>">Open Archive</a>
+            <form action="/admin/archives/<%= archive.id %>/delete" method="post" onsubmit="return confirm('Delete this archived election permanently?');">
+              <button class="button button-danger button-small" type="submit">Delete Archive</button>
+            </form>
           </div>
         </article>
       <% }) %>
