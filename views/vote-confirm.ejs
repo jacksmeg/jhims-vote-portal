@@ -14,9 +14,9 @@
       <article class="review-row">
         <div>
           <strong><%= selection.positionName %></strong>
-          <span>Selected candidate</span>
+          <span><%= selection.isSkipped ? 'No vote selected' : 'Selected candidate' %></span>
         </div>
-        <strong><%= selection.candidateName %></strong>
+        <strong><%= selection.isSkipped ? 'Skipped' : selection.candidateName %></strong>
       </article>
     <% }) %>
   </div>

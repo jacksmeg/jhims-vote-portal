@@ -40,9 +40,13 @@
         <h3><%= currentPosition.name %></h3>
       </div>
       <p class="muted-text">
-        <%= isLastStep ? 'This is the final position before review.' : 'Click next to continue to the next position.' %>
+        <%= isLastStep ? 'This is the final position before review.' : 'Choose a candidate or skip this position to continue.' %>
       </p>
     </div>
+
+    <% if (isSkippedSelection) { %>
+      <p class="note-block">This position is currently marked as skipped. You can still choose a candidate before submitting your final vote.</p>
+    <% } %>
 
     <div class="candidate-grid">
       <% currentPosition.candidates.forEach((candidate) => { %>
@@ -52,7 +56,6 @@
             name="candidateId"
             value="<%= candidate.id %>"
             <%= selectedCandidateId === candidate.id ? 'checked' : '' %>
-            required
           />
 
           <% if (candidate.photoPath) { %>
@@ -79,7 +82,11 @@
         <a class="button button-ghost" href="/">Cancel</a>
       <% } %>
 
-      <button class="button" type="submit">
+      <button class="button button-ghost" type="submit" name="action" value="skip">
+        <%= isLastStep ? 'Skip and Review' : 'Skip Position' %>
+      </button>
+
+      <button class="button" type="submit" name="action" value="select">
         <%= isLastStep ? 'Review Vote' : 'Next Position' %>
       </button>
     </div>

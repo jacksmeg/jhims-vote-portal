@@ -393,6 +393,21 @@ function buildSelectionsFromMap(ballotData, selectionMap) {
   ballotData.forEach((position, index) => {
     const savedSelection =
       selectionMap[String(position.id)] || selectionMap[position.id] || null;
+    const isSkipped = Boolean(
+      savedSelection?.isSkipped || savedSelection?.skipped || savedSelection?.abstained,
+    );
+
+    if (isSkipped) {
+      selections.push({
+        positionId: position.id,
+        positionName: position.name,
+        candidateId: null,
+        candidateName: "",
+        isSkipped: true,
+      });
+      return;
+    }
+
     const candidateId = parseInteger(savedSelection?.candidateId ?? savedSelection, 0);
     const candidate = position.candidates.find((entry) => entry.id === candidateId);
 
@@ -410,6 +425,7 @@ function buildSelectionsFromMap(ballotData, selectionMap) {
       positionName: position.name,
       candidateId: candidate.id,
       candidateName: candidate.name,
+      isSkipped: false,
     });
   });
 
@@ -1033,6 +1049,9 @@ app.get("/vote/step/:stepNumber", requireVoter, (req, res) => {
   const selectionMap = getBallotSelectionMap(req);
   const savedSelection =
     selectionMap[String(currentPosition.id)] || selectionMap[currentPosition.id] || null;
+  const isSkippedSelection = Boolean(
+    savedSelection?.isSkipped || savedSelection?.skipped || savedSelection?.abstained,
+  );
   const selectedCandidateId = parseInteger(savedSelection?.candidateId ?? savedSelection, 0);
   const { selections } = buildSelectionsFromMap(ballotData, selectionMap);
 
@@ -1043,6 +1062,7 @@ app.get("/vote/step/:stepNumber", requireVoter, (req, res) => {
     totalSteps: ballotData.length,
     completedSteps: selections.length,
     selectedCandidateId,
+    isSkippedSelection,
     isLastStep: currentStep === ballotData.length,
     progressPercent: (currentStep / ballotData.length) * 100,
   });
@@ -1073,22 +1093,47 @@ app.post("/vote/step/:stepNumber", requireVoter, (req, res) => {
     ballotData.length,
   );
   const currentPosition = ballotData[currentStep - 1];
+  const action = String(req.body.action || "select").trim().toLowerCase();
+  const selectionMap = getBallotSelectionMap(req);
+
+  if (action === "skip") {
+    selectionMap[String(currentPosition.id)] = {
+      positionId: currentPosition.id,
+      positionName: currentPosition.name,
+      candidateId: null,
+      candidateName: "",
+      isSkipped: true,
+    };
+    req.session.ballotSelections = selectionMap;
+    req.session.pendingBallot = null;
+
+    if (currentStep >= ballotData.length) {
+      return res.redirect("/vote/confirm");
+    }
+
+    return res.redirect(`/vote/step/${currentStep + 1}`);
+  }
+
   const candidateId = parseInteger(req.body.candidateId, 0);
   const selectedCandidate = currentPosition.candidates.find(
     (candidate) => candidate.id === candidateId,
   );
 
   if (!selectedCandidate) {
-    setFlash(req, "error", `Select one candidate for ${currentPosition.name}.`);
+    setFlash(
+      req,
+      "error",
+      `Choose a candidate for ${currentPosition.name} or use Skip Position.`,
+    );
     return res.redirect(`/vote/step/${currentStep}`);
   }
 
-  const selectionMap = getBallotSelectionMap(req);
   selectionMap[String(currentPosition.id)] = {
     positionId: currentPosition.id,
     positionName: currentPosition.name,
     candidateId: selectedCandidate.id,
     candidateName: selectedCandidate.name,
+    isSkipped: false,
   };
   req.session.ballotSelections = selectionMap;
   req.session.pendingBallot = null;
@@ -1116,7 +1161,11 @@ app.get("/vote/confirm", requireVoter, (req, res) => {
   );
 
   if (incompleteSteps.length > 0) {
-    setFlash(req, "error", `Select one candidate for ${incompleteSteps[0].positionName}.`);
+    setFlash(
+      req,
+      "error",
+      `Choose a candidate for ${incompleteSteps[0].positionName} or skip that position.`,
+    );
     return res.redirect(`/vote/step/${incompleteSteps[0].stepNumber}`);
   }
 
@@ -1143,7 +1192,7 @@ app.post("/vote/submit", requireVoter, (req, res) => {
     getBallotSelectionMap(req),
   );
 
-  if (incompleteSteps.length > 0 || selections.length === 0) {
+  if (incompleteSteps.length > 0 || ballotData.length === 0) {
     setFlash(
       req,
       "error",
@@ -1174,6 +1223,10 @@ app.post("/vote/submit", requireVoter, (req, res) => {
       }
 
       for (const selection of selections) {
+        if (selection.isSkipped || !selection.candidateId) {
+          continue;
+        }
+
         const candidateRecord = db.prepare(`
           SELECT id
           FROM candidates
@@ -1208,6 +1261,10 @@ app.post("/vote/submit", requireVoter, (req, res) => {
       );
 
       for (const selection of selections) {
+        if (selection.isSkipped || !selection.candidateId) {
+          continue;
+        }
+
         db.prepare(`
           INSERT INTO ballot_entries (
             ballot_id,
@@ -1238,8 +1295,13 @@ app.post("/vote/submit", requireVoter, (req, res) => {
     return res.redirect("/vote");
   }
 
+  const skippedCount = selections.filter((selection) => selection.isSkipped).length;
+  const submittedChoices = selections.length - skippedCount;
+
   logAudit(req, "voter", req.session.voter.staffId, "vote_submitted", {
-    positions: selections.length,
+    positionsReviewed: selections.length,
+    submittedChoices,
+    skippedCount,
   });
 
   req.session.voteComplete = {
@@ -1777,7 +1839,7 @@ app.post(
   },
 );
 
-app.get("/admin/voters/:id/edit", requireAdmin, (req, res) => {
+app.get("/admin/voters/:id(\\d+)/edit", requireAdmin, (req, res) => {
   const voterId = parseInteger(req.params.id, 0);
   const voter = db.prepare(`
     SELECT
@@ -1802,7 +1864,7 @@ app.get("/admin/voters/:id/edit", requireAdmin, (req, res) => {
   });
 });
 
-app.post("/admin/voters/:id", requireAdmin, (req, res) => {
+app.post("/admin/voters/:id(\\d+)", requireAdmin, (req, res) => {
   if (!ensureSetupMode(req, res)) {
     return;
   }
