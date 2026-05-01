@@ -47,6 +47,27 @@
         <strong><%= metrics.totalVoters ? formatPercent(metrics.votedCount / metrics.totalVoters) : '0.0%' %></strong>
       </div>
     </div>
+
+    <form
+      class="stack-sm"
+      action="/admin/voters/clear"
+      method="post"
+      onsubmit="return confirm('This will remove all imported voters from the current setup. Continue?');"
+    >
+      <button
+        class="button button-danger"
+        type="submit"
+        <%= electionState.canEditSetup && metrics.totalVoters > 0 ? '' : 'disabled' %>
+      >
+        Clear Imported Voters
+      </button>
+
+      <% if (!electionState.canEditSetup) { %>
+        <p class="note-block">Voter deletion is locked once voting has been opened.</p>
+      <% } else if (metrics.totalVoters === 0) { %>
+        <p class="note-block">Import voters first before using the clear action.</p>
+      <% } %>
+    </form>
   </article>
 </section>
 

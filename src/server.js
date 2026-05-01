@@ -1527,6 +1527,41 @@ app.post(
   },
 );
 
+app.post("/admin/voters/clear", requireAdmin, (req, res) => {
+  if (!ensureSetupMode(req, res)) {
+    return;
+  }
+
+  const voterCount = db.prepare("SELECT COUNT(*) AS total FROM voters").get().total;
+
+  if (voterCount === 0) {
+    setFlash(req, "error", "There are no imported voters to remove.");
+    return res.redirect("/admin/voters");
+  }
+
+  const ballotCount = db.prepare("SELECT COUNT(*) AS total FROM ballots").get().total;
+
+  if (ballotCount > 0) {
+    setFlash(
+      req,
+      "error",
+      "Imported voters cannot be cleared after ballot activity exists. Start a new election cycle before removing voter records.",
+    );
+    return res.redirect("/admin/voters");
+  }
+
+  runTransaction(() => {
+    db.prepare("DELETE FROM voters").run();
+  });
+
+  logAudit(req, "admin", req.session.admin.username, "voters_cleared", {
+    removedCount: voterCount,
+  });
+
+  setFlash(req, "success", `Removed ${voterCount} imported voter records.`);
+  return res.redirect("/admin/voters");
+});
+
 app.get("/admin/setup", requireAdmin, (req, res) => {
   const positions = getPositions();
   const candidates = getCandidates();
