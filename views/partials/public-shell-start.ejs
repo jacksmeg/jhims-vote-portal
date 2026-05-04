@@ -1,5 +1,6 @@
 <%- include("head", { pageTitle }) %>
 <% const isVotePortal = currentPath.startsWith('/vote'); %>
+<% const showVoteCountdown = isVotePortal && electionState.isOpen && voteClosesAtMs; %>
 <div class="site-shell">
   <header class="site-header">
     <a class="brand-mark" href="<%= isVotePortal ? '/vote/login' : '/' %>">
@@ -39,3 +40,35 @@
 
   <main class="site-main">
     <%- include("flash") %>
+
+    <% if (showVoteCountdown) { %>
+      <section class="countdown-banner" data-countdown-root data-countdown-target="<%= voteClosesAtMs %>">
+        <div class="countdown-banner__copy">
+          <span class="eyebrow">Time Left to Vote</span>
+          <h2>Voting closes in</h2>
+          <p>
+            Finish your ballot before
+            <strong><%= formatDateTime(settings.closesAt) %></strong>.
+          </p>
+        </div>
+
+        <div class="countdown-banner__timer" aria-live="polite" aria-atomic="true">
+          <div class="countdown-unit">
+            <strong data-countdown-days>00</strong>
+            <span>Days</span>
+          </div>
+          <div class="countdown-unit">
+            <strong data-countdown-hours>00</strong>
+            <span>Hours</span>
+          </div>
+          <div class="countdown-unit">
+            <strong data-countdown-minutes>00</strong>
+            <span>Minutes</span>
+          </div>
+          <div class="countdown-unit">
+            <strong data-countdown-seconds>00</strong>
+            <span>Seconds</span>
+          </div>
+        </div>
+      </section>
+    <% } %>

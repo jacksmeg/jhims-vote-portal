@@ -874,6 +874,7 @@ app.use((req, res, next) => {
   res.locals.currentYear = new Date().getFullYear();
   res.locals.formatDateTime = formatDateTime;
   res.locals.formatPercent = formatPercent;
+  res.locals.voteClosesAtMs = settings.closesAt ? dayjs(settings.closesAt).valueOf() : null;
   res.locals.getInitials = getInitials;
   res.locals.flash = req.session.flash || null;
   delete req.session.flash;

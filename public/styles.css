@@ -636,6 +636,74 @@ table,
   margin: 0 auto 24px;
 }
 
+.countdown-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 24px;
+  border-radius: var(--radius-xl);
+  color: var(--surface-1);
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.14), transparent 24%),
+    linear-gradient(135deg, var(--ink-900), var(--ink-800));
+  box-shadow: var(--shadow-md);
+}
+
+.countdown-banner--ended {
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.08), transparent 24%),
+    linear-gradient(135deg, #5d6675, #394456);
+}
+
+.countdown-banner__copy {
+  display: grid;
+  gap: 6px;
+}
+
+.countdown-banner__copy h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.2vw, 2.2rem);
+}
+
+.countdown-banner__copy p {
+  color: rgba(255, 250, 240, 0.84);
+}
+
+.countdown-banner__copy strong {
+  color: #ffffff;
+}
+
+.countdown-banner__timer {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(78px, 1fr));
+  gap: 12px;
+}
+
+.countdown-unit {
+  min-width: 0;
+  padding: 14px 12px;
+  text-align: center;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.countdown-unit strong {
+  display: block;
+  font-size: clamp(1.35rem, 2.1vw, 2rem);
+  line-height: 1;
+}
+
+.countdown-unit span {
+  display: block;
+  margin-top: 8px;
+  color: rgba(255, 250, 240, 0.76);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .section-heading {
   display: flex;
   align-items: flex-start;
@@ -1313,8 +1381,14 @@ code {
 
   .brand-upload-panel,
   .candidate-edit-layout,
-  .wizard-progress {
+  .wizard-progress,
+  .countdown-banner {
     grid-template-columns: 1fr;
+  }
+
+  .countdown-banner__timer {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
 
   .print-toolbar,
