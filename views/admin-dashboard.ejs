@@ -38,7 +38,7 @@
         <span class="eyebrow">Election Settings</span>
         <h2>Voting window and title</h2>
       </div>
-      <p>These settings stay editable only while the election is in setup.</p>
+      <p>These settings stay editable only while the election is in setup, and a ready election can open automatically at the scheduled time.</p>
     </div>
 
     <form class="stack-md" action="/admin/settings" method="post">
@@ -88,13 +88,13 @@
         <span class="eyebrow">Election Controls</span>
         <h2>Open, close, and protect the process</h2>
       </div>
-      <p>Opening the election locks setup changes to protect ballot integrity.</p>
+      <p>Use the schedule for automatic opening, or open manually at once when you need to lock setup immediately.</p>
     </div>
 
     <div class="button-stack">
       <form action="/admin/election/open" method="post">
         <button class="button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
-          Open Voting
+          Open Voting Now
         </button>
       </form>
 

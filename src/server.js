@@ -268,16 +268,101 @@ function getElectionSettings() {
   };
 }
 
+function logSystemAudit(action, details = {}) {
+  db.prepare(`
+    INSERT INTO audit_logs (
+      actor_type,
+      actor_identifier,
+      action,
+      details_json,
+      ip_address,
+      user_agent,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    "system",
+    "scheduler",
+    action,
+    JSON.stringify(details),
+    "",
+    "",
+    nowIso(),
+  );
+}
+
+function getPositionsWithoutCandidates() {
+  return db.prepare(`
+    SELECT p.name
+    FROM positions p
+    LEFT JOIN candidates c
+      ON c.position_id = p.id
+      AND c.is_active = 1
+    WHERE p.is_active = 1
+    GROUP BY p.id
+    HAVING COUNT(c.id) = 0
+  `).all();
+}
+
+function getElectionReadiness(settings = getElectionSettings()) {
+  const metrics = getDashboardMetrics();
+  const positionsWithoutCandidates = getPositionsWithoutCandidates();
+  const issues = [];
+
+  if (metrics.totalVoters === 0) {
+    issues.push("Import at least one voter before voting can open.");
+  }
+
+  if (metrics.totalPositions === 0 || metrics.totalCandidates === 0) {
+    issues.push("Add positions and candidates before voting can open.");
+  }
+
+  if (!settings.opensAt || !settings.closesAt) {
+    issues.push("Set both the voting start time and closing time.");
+  } else if (!dayjs(settings.opensAt).isBefore(dayjs(settings.closesAt))) {
+    issues.push("The closing time must be later than the opening time.");
+  }
+
+  if (positionsWithoutCandidates.length > 0) {
+    issues.push(
+      `Every position needs at least one candidate. Missing: ${positionsWithoutCandidates
+        .map((position) => position.name)
+        .join(", ")}.`,
+    );
+  }
+
+  return {
+    isReady: issues.length === 0,
+    issues,
+    metrics,
+    positionsWithoutCandidates,
+  };
+}
+
 function computeElectionState(settings) {
   const now = dayjs();
   const opensAt = settings.opensAt ? dayjs(settings.opensAt) : null;
   const closesAt = settings.closesAt ? dayjs(settings.closesAt) : null;
+  const readiness = getElectionReadiness(settings);
 
   let status = "setup";
   let message =
     "The election is still in setup. Add voters, positions, and candidates before opening voting.";
 
-  if (settings.phase === "open") {
+  if (settings.phase === "setup") {
+    if (readiness.isReady && opensAt?.isValid() && closesAt?.isValid()) {
+      if (now.isBefore(opensAt)) {
+        status = "scheduled";
+        message = `Voting is scheduled to open automatically on ${formatDateTime(
+          settings.opensAt,
+        )}.`;
+      } else if (!now.isBefore(closesAt)) {
+        message = `The scheduled voting window ended on ${formatDateTime(
+          settings.closesAt,
+        )}. Update the election dates to schedule a new vote.`;
+      }
+    }
+  } else if (settings.phase === "open") {
     if (opensAt && now.isBefore(opensAt)) {
       status = "scheduled";
       message = `Voting has been opened by the committee and will start on ${formatDateTime(
@@ -324,10 +409,32 @@ function computeElectionState(settings) {
 
 function syncAutomaticClosure() {
   const settings = getElectionSettings();
-  const state = computeElectionState(settings);
+  const readiness = getElectionReadiness(settings);
+  const now = dayjs();
+  const opensAt = settings.opensAt ? dayjs(settings.opensAt) : null;
+  const closesAt = settings.closesAt ? dayjs(settings.closesAt) : null;
 
-  if (settings.phase === "open" && state.status === "closed") {
+  if (
+    settings.phase === "setup" &&
+    readiness.isReady &&
+    opensAt?.isValid() &&
+    closesAt?.isValid() &&
+    !now.isBefore(opensAt) &&
+    now.isBefore(closesAt)
+  ) {
+    setSetting("election_phase", "open");
+    logSystemAudit("election_auto_opened", {
+      opensAt: settings.opensAt,
+      closesAt: settings.closesAt,
+    });
+    return;
+  }
+
+  if (settings.phase === "open" && closesAt?.isValid() && !now.isBefore(closesAt)) {
     setSetting("election_phase", "closed");
+    logSystemAudit("election_auto_closed", {
+      closesAt: settings.closesAt,
+    });
   }
 }
 
@@ -2105,13 +2212,45 @@ app.post("/admin/settings", requireAdmin, (req, res) => {
   setSetting("opens_at", opensAt);
   setSetting("closes_at", closesAt);
 
+  const nextSettings = getElectionSettings();
+  const readiness = getElectionReadiness(nextSettings);
+  const opensAtValue = nextSettings.opensAt ? dayjs(nextSettings.opensAt) : null;
+  const closesAtValue = nextSettings.closesAt ? dayjs(nextSettings.closesAt) : null;
+  const shouldOpenImmediately =
+    readiness.isReady &&
+    opensAtValue?.isValid() &&
+    closesAtValue?.isValid() &&
+    !dayjs().isBefore(opensAtValue) &&
+    dayjs().isBefore(closesAtValue);
+
+  if (shouldOpenImmediately) {
+    setSetting("election_phase", "open");
+    logAudit(req, "admin", req.session.admin.username, "election_auto_open_triggered", {
+      opensAt: nextSettings.opensAt,
+      closesAt: nextSettings.closesAt,
+    });
+  }
+
   logAudit(req, "admin", req.session.admin.username, "election_settings_updated", {
     electionName,
     opensAt,
     closesAt,
   });
 
-  setFlash(req, "success", "Election settings updated.");
+  if (shouldOpenImmediately) {
+    setFlash(req, "success", "Election settings saved and voting is now open automatically.");
+  } else if (readiness.isReady && opensAtValue?.isValid() && dayjs().isBefore(opensAtValue)) {
+    setFlash(
+      req,
+      "success",
+      `Election settings saved. Voting will open automatically on ${formatDateTime(
+        nextSettings.opensAt,
+      )}.`,
+    );
+  } else {
+    setFlash(req, "success", "Election settings updated.");
+  }
+
   return res.redirect("/admin");
 });
 
@@ -2246,50 +2385,10 @@ app.post("/admin/election/open", requireAdmin, (req, res) => {
   }
 
   const settings = getElectionSettings();
-  const metrics = getDashboardMetrics();
-  const positionsWithoutCandidates = db.prepare(`
-    SELECT p.name
-    FROM positions p
-    LEFT JOIN candidates c
-      ON c.position_id = p.id
-      AND c.is_active = 1
-    WHERE p.is_active = 1
-    GROUP BY p.id
-    HAVING COUNT(c.id) = 0
-  `).all();
+  const readiness = getElectionReadiness(settings);
 
-  if (metrics.totalVoters === 0) {
-    setFlash(req, "error", "Import at least one voter before opening the election.");
-    return res.redirect("/admin");
-  }
-
-  if (metrics.totalPositions === 0 || metrics.totalCandidates === 0) {
-    setFlash(req, "error", "Add positions and candidates before opening voting.");
-    return res.redirect("/admin");
-  }
-
-  if (!settings.opensAt || !settings.closesAt) {
-    setFlash(
-      req,
-      "error",
-      "Set both the voting start time and closing time before opening the election.",
-    );
-    return res.redirect("/admin");
-  }
-
-  if (!dayjs(settings.opensAt).isBefore(dayjs(settings.closesAt))) {
-    setFlash(req, "error", "The closing time must be later than the opening time.");
-    return res.redirect("/admin");
-  }
-
-  if (positionsWithoutCandidates.length > 0) {
-    setFlash(
-      req,
-      "error",
-      `Every position needs at least one candidate. Missing: ${positionsWithoutCandidates
-        .map((position) => position.name)
-        .join(", ")}.`,
-    );
+  if (!readiness.isReady) {
+    setFlash(req, "error", readiness.issues[0]);
     return res.redirect("/admin");
   }
 
