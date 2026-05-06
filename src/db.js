@@ -131,6 +131,12 @@ function initDatabase(defaultElectionName) {
     ["closes_at", ""],
     ["results_visibility", "after_close"],
     ["theme_name", "heritage"],
+    ["declaration_title", "Official Declaration Block"],
+    ["committee_name", "Election Committee"],
+    ["chairman_name", ""],
+    ["secretary_name", ""],
+    ["chairman_signature_path", ""],
+    ["secretary_signature_path", ""],
   ];
 
   for (const [key, value] of defaults) {

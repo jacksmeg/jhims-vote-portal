@@ -218,14 +218,21 @@ function resolveAssetPath(assetPath) {
 
 function getElectionSettings() {
   const settings = getAllSettings();
+  const electionName = settings.election_name || defaultElectionName;
   return {
-    electionName: settings.election_name || defaultElectionName,
+    electionName,
     organizationLogoPath: settings.organization_logo_path || "",
     phase: settings.election_phase || "setup",
     opensAt: settings.opens_at || "",
     closesAt: settings.closes_at || "",
     resultsVisibility: settings.results_visibility || "after_close",
     themeName: settings.theme_name || "heritage",
+    declarationTitle: settings.declaration_title || "Official Declaration Block",
+    committeeName: settings.committee_name || `${electionName} Committee`,
+    chairmanName: settings.chairman_name || "",
+    secretaryName: settings.secretary_name || "",
+    chairmanSignaturePath: settings.chairman_signature_path || "",
+    secretarySignaturePath: settings.secretary_signature_path || "",
   };
 }
 
@@ -321,6 +328,14 @@ async function safeRemoveFile(filePath) {
   }
 
   await fsp.rm(filePath, { force: true });
+}
+
+async function safeRemoveUploadedRequestFiles(filesMap) {
+  const files = Object.values(filesMap || {}).flat();
+
+  for (const file of files) {
+    await safeRemoveFile(file?.path);
+  }
 }
 
 function getDashboardMetrics() {
@@ -673,18 +688,50 @@ function renderResultsPdf(document, payload) {
     .font("Helvetica-Bold")
     .fontSize(12)
     .fillColor("#102338")
-    .text("Official Declaration Block");
+    .text(settings.declarationTitle);
 
   document
     .moveDown(0.4)
     .font("Helvetica")
     .fontSize(11)
     .fillColor("#102338")
-    .text("Declared by: Election Committee")
-    .text(`Committee: ${settings.electionName} Committee`)
+    .text(`Declared by: ${settings.committeeName}`)
+    .text(`Committee: ${settings.committeeName}`)
+    .text(`Chairman: ${settings.chairmanName || "Chairman"}`)
+    .text(`Secretary: ${settings.secretaryName || "Secretary"}`)
     .text(`Date declared: ${formatDateTime(generatedAt)}`);
 
+  const chairmanSignaturePath = settings.chairmanSignaturePath
+    ? resolveAssetPath(settings.chairmanSignaturePath)
+    : "";
+  const secretarySignaturePath = settings.secretarySignaturePath
+    ? resolveAssetPath(settings.secretarySignaturePath)
+    : "";
   const signatureY = document.y + 36;
+  const signatureImageY = Math.max(signatureY - 46, document.y + 8);
+
+  if (chairmanSignaturePath && fs.existsSync(chairmanSignaturePath)) {
+    try {
+      document.image(chairmanSignaturePath, 70, signatureImageY, {
+        fit: [140, 40],
+        align: "left",
+      });
+    } catch (_error) {
+      // Ignore invalid image parsing and continue with the signature line.
+    }
+  }
+
+  if (secretarySignaturePath && fs.existsSync(secretarySignaturePath)) {
+    try {
+      document.image(secretarySignaturePath, 340, signatureImageY, {
+        fit: [140, 40],
+        align: "left",
+      });
+    } catch (_error) {
+      // Ignore invalid image parsing and continue with the signature line.
+    }
+  }
+
   document
     .moveTo(60, signatureY)
     .lineTo(240, signatureY)
@@ -701,8 +748,10 @@ function renderResultsPdf(document, payload) {
     .font("Helvetica")
     .fontSize(10)
     .fillColor("#5d6d80")
-    .text("Chairman Signature", 90, signatureY + 8)
-    .text("Secretary Signature", 365, signatureY + 8);
+    .text(settings.chairmanName || "Chairman", 85, signatureY + 8)
+    .text("Chairman Signature", 75, signatureY + 22)
+    .text(settings.secretaryName || "Secretary", 355, signatureY + 8)
+    .text("Secretary Signature", 350, signatureY + 22);
 }
 
 function getVoters() {
@@ -913,6 +962,11 @@ const candidateUpload = createImageUpload(
 const brandingUpload = createImageUpload(
   brandingUploadsDirectory,
   "Organization logos must be image files.",
+);
+
+const declarationUpload = createImageUpload(
+  brandingUploadsDirectory,
+  "Declaration signatures must be image files.",
 );
 
 const voterImportUpload = multer({
@@ -1529,6 +1583,80 @@ app.post("/admin/settings", requireAdmin, (req, res) => {
   setFlash(req, "success", "Election settings updated.");
   return res.redirect("/admin");
 });
+
+app.post(
+  "/admin/declaration",
+  requireAdmin,
+  declarationUpload.fields([
+    { name: "chairmanSignature", maxCount: 1 },
+    { name: "secretarySignature", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    const declarationTitle = String(req.body.declarationTitle || "").trim();
+    const committeeName = String(req.body.committeeName || "").trim();
+    const chairmanName = String(req.body.chairmanName || "").trim();
+    const secretaryName = String(req.body.secretaryName || "").trim();
+    const chairmanSignatureFile = req.files?.chairmanSignature?.[0] || null;
+    const secretarySignatureFile = req.files?.secretarySignature?.[0] || null;
+
+    if (!declarationTitle || !committeeName) {
+      await safeRemoveUploadedRequestFiles(req.files);
+      setFlash(req, "error", "Enter the declaration title and committee name before saving.");
+      return res.redirect("/admin");
+    }
+
+    const currentSettings = getElectionSettings();
+    const nextChairmanSignaturePath = chairmanSignatureFile
+      ? normalizeAssetPath(chairmanSignatureFile.path)
+      : currentSettings.chairmanSignaturePath;
+    const nextSecretarySignaturePath = secretarySignatureFile
+      ? normalizeAssetPath(secretarySignatureFile.path)
+      : currentSettings.secretarySignaturePath;
+
+    try {
+      runTransaction(() => {
+        setSetting("declaration_title", declarationTitle);
+        setSetting("committee_name", committeeName);
+        setSetting("chairman_name", chairmanName);
+        setSetting("secretary_name", secretaryName);
+        setSetting("chairman_signature_path", nextChairmanSignaturePath);
+        setSetting("secretary_signature_path", nextSecretarySignaturePath);
+      });
+
+      if (
+        chairmanSignatureFile &&
+        currentSettings.chairmanSignaturePath &&
+        currentSettings.chairmanSignaturePath !== nextChairmanSignaturePath
+      ) {
+        await safeRemoveFile(resolveAssetPath(currentSettings.chairmanSignaturePath));
+      }
+
+      if (
+        secretarySignatureFile &&
+        currentSettings.secretarySignaturePath &&
+        currentSettings.secretarySignaturePath !== nextSecretarySignaturePath
+      ) {
+        await safeRemoveFile(resolveAssetPath(currentSettings.secretarySignaturePath));
+      }
+
+      logAudit(req, "admin", req.session.admin.username, "declaration_settings_updated", {
+        declarationTitle,
+        committeeName,
+        chairmanName,
+        secretaryName,
+        updatedChairmanSignature: Boolean(chairmanSignatureFile),
+        updatedSecretarySignature: Boolean(secretarySignatureFile),
+      });
+
+      setFlash(req, "success", "Declaration settings updated.");
+    } catch (error) {
+      await safeRemoveUploadedRequestFiles(req.files);
+      setFlash(req, "error", `Declaration update failed: ${error.message}`);
+    }
+
+    return res.redirect("/admin");
+  },
+);
 
 app.post("/admin/theme", requireAdmin, (req, res) => {
   const themeName = String(req.body.themeName || "").trim();

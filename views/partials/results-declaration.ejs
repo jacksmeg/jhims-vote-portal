@@ -1,7 +1,7 @@
 <section class="panel panel-light declaration-block stack-md">
   <div>
     <span class="eyebrow">Official Declaration Block</span>
-    <h2>Declaration and Sign-Off</h2>
+    <h2><%= settings.declarationTitle %></h2>
     <p class="muted-text"><%= declarationLabel %></p>
   </div>
 
@@ -10,23 +10,47 @@
       <article class="results-summary-card stack-sm">
         <div class="info-row">
           <span>Declared By</span>
-          <strong>Election Committee</strong>
+          <strong><%= settings.committeeName %></strong>
         </div>
         <div class="info-row">
           <span>Committee</span>
-          <strong><%= settings.electionName %> Committee</strong>
+          <strong><%= settings.committeeName %></strong>
         </div>
         <div class="info-row">
           <span>Date Declared</span>
           <strong><%= formatDateTime(generatedAt) %></strong>
         </div>
+        <div class="info-row">
+          <span>Chairman</span>
+          <strong><%= settings.chairmanName || 'Chairman' %></strong>
+        </div>
+        <div class="info-row">
+          <span>Secretary</span>
+          <strong><%= settings.secretaryName || 'Secretary' %></strong>
+        </div>
       </article>
 
       <article class="results-summary-card signature-grid">
         <div class="signature-line">
+          <% if (settings.chairmanSignaturePath) { %>
+            <img
+              class="signature-line__image"
+              src="<%= settings.chairmanSignaturePath %>"
+              alt="<%= settings.chairmanName || 'Chairman' %> signature"
+            />
+          <% } %>
+          <strong><%= settings.chairmanName || 'Chairman' %></strong>
           <span>Chairman Signature</span>
         </div>
         <div class="signature-line">
+          <% if (settings.secretarySignaturePath) { %>
+            <img
+              class="signature-line__image"
+              src="<%= settings.secretarySignaturePath %>"
+              alt="<%= settings.secretaryName || 'Secretary' %> signature"
+            />
+          <% } %>
+          <strong><%= settings.secretaryName || 'Secretary' %></strong>
           <span>Secretary Signature</span>
         </div>
       </article>

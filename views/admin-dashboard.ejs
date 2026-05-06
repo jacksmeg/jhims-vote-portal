@@ -148,6 +148,115 @@
   </div>
 </section>
 
+<section class="panel panel-light stack-md">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Declaration Settings</span>
+      <h2>Official sign-off details</h2>
+    </div>
+    <p>Set the report title, committee name, office holders, and upload the official signatures.</p>
+  </div>
+
+  <div class="declaration-settings-layout">
+    <form
+      class="stack-md declaration-settings-layout__form"
+      action="/admin/declaration"
+      method="post"
+      enctype="multipart/form-data"
+    >
+      <div class="form-grid">
+        <label class="field">
+          <span>Declaration Title</span>
+          <input
+            name="declarationTitle"
+            value="<%= settings.declarationTitle %>"
+            placeholder="Official Declaration Block"
+            required
+          />
+        </label>
+
+        <label class="field">
+          <span>Committee Name</span>
+          <input
+            name="committeeName"
+            value="<%= settings.committeeName %>"
+            placeholder="Election Committee"
+            required
+          />
+        </label>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Chairman Name</span>
+          <input
+            name="chairmanName"
+            value="<%= settings.chairmanName %>"
+            placeholder="Chairman Name"
+          />
+        </label>
+
+        <label class="field">
+          <span>Secretary Name</span>
+          <input
+            name="secretaryName"
+            value="<%= settings.secretaryName %>"
+            placeholder="Secretary Name"
+          />
+        </label>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Chairman Signature</span>
+          <input name="chairmanSignature" type="file" accept="image/*" />
+        </label>
+
+        <label class="field">
+          <span>Secretary Signature</span>
+          <input name="secretarySignature" type="file" accept="image/*" />
+        </label>
+      </div>
+
+      <button class="button" type="submit">Save Declaration Settings</button>
+    </form>
+
+    <div class="signature-preview-grid">
+      <article class="signature-preview-card">
+        <span class="eyebrow">Chairman Preview</span>
+        <div class="signature-preview-card__canvas">
+          <% if (settings.chairmanSignaturePath) { %>
+            <img
+              class="signature-preview-card__image"
+              src="<%= settings.chairmanSignaturePath %>"
+              alt="<%= settings.chairmanName || 'Chairman' %> signature"
+            />
+          <% } else { %>
+            <div class="brand-upload-panel__fallback">No chairman signature uploaded yet</div>
+          <% } %>
+        </div>
+        <strong><%= settings.chairmanName || 'Chairman' %></strong>
+      </article>
+
+      <article class="signature-preview-card">
+        <span class="eyebrow">Secretary Preview</span>
+        <div class="signature-preview-card__canvas">
+          <% if (settings.secretarySignaturePath) { %>
+            <img
+              class="signature-preview-card__image"
+              src="<%= settings.secretarySignaturePath %>"
+              alt="<%= settings.secretaryName || 'Secretary' %> signature"
+            />
+          <% } else { %>
+            <div class="brand-upload-panel__fallback">No secretary signature uploaded yet</div>
+          <% } %>
+        </div>
+        <strong><%= settings.secretaryName || 'Secretary' %></strong>
+      </article>
+    </div>
+  </div>
+</section>
+
 <section class="admin-grid">
   <article class="panel panel-light stack-md">
     <div class="section-heading">

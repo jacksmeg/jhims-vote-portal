@@ -675,8 +675,13 @@ table,
   min-height: 110px;
   display: grid;
   align-content: end;
+  gap: 6px;
   padding: 14px 10px 0;
   border-bottom: 2px solid rgba(16, 35, 56, 0.8);
+}
+
+.signature-line strong {
+  font-size: 1rem;
 }
 
 .signature-line span {
@@ -685,6 +690,13 @@ table,
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.signature-line__image {
+  width: min(170px, 100%);
+  max-height: 54px;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .chart-row {
@@ -1133,6 +1145,7 @@ tbody tr:hover {
 
 .brand-upload-panel,
 .candidate-edit-layout,
+.declaration-settings-layout,
 .wizard-progress {
   display: grid;
   gap: 20px;
@@ -1166,6 +1179,45 @@ tbody tr:hover {
 .brand-upload-panel__form,
 .candidate-edit-layout__form {
   min-width: 0;
+}
+
+.declaration-settings-layout {
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  align-items: start;
+}
+
+.declaration-settings-layout__form {
+  min-width: 0;
+}
+
+.signature-preview-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.signature-preview-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  background: rgba(16, 35, 56, 0.04);
+  border: 1px solid rgba(16, 35, 56, 0.08);
+}
+
+.signature-preview-card__canvas {
+  display: grid;
+  place-items: center;
+  min-height: 130px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--surface-2), #fbf6ea);
+}
+
+.signature-preview-card__image {
+  width: min(220px, 100%);
+  max-height: 90px;
+  object-fit: contain;
 }
 
 .vote-wizard-panel {
@@ -1488,6 +1540,7 @@ code {
 
   .brand-upload-panel,
   .candidate-edit-layout,
+  .declaration-settings-layout,
   .wizard-progress,
   .countdown-banner {
     grid-template-columns: 1fr;
