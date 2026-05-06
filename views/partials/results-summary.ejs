@@ -1,0 +1,67 @@
+<section class="panel panel-light stack-lg">
+  <div class="results-report-header">
+    <div class="results-report-header__copy">
+      <span class="eyebrow">Official Results Summary</span>
+      <h2><%= settings.electionName %></h2>
+      <p>
+        Generated on <strong><%= formatDateTime(generatedAt) %></strong>
+      </p>
+    </div>
+
+    <div class="results-report-header__meta">
+      <span class="winner-pill"><%= resultsStatusLabel %> Results</span>
+
+      <% if (settings.organizationLogoPath) { %>
+        <img
+          class="results-report-header__logo"
+          src="<%= settings.organizationLogoPath %>"
+          alt="<%= settings.electionName %> logo"
+        />
+      <% } %>
+    </div>
+  </div>
+
+  <div class="results-summary-grid">
+    <article class="results-summary-card stack-sm">
+      <span class="eyebrow">Election Details</span>
+      <div class="info-row">
+        <span>Election Name</span>
+        <strong><%= settings.electionName %></strong>
+      </div>
+      <div class="info-row">
+        <span>Voting Opened</span>
+        <strong><%= formatDateTime(settings.opensAt) %></strong>
+      </div>
+      <div class="info-row">
+        <span>Voting Closed</span>
+        <strong><%= formatDateTime(settings.closesAt) %></strong>
+      </div>
+      <div class="info-row">
+        <span>Status</span>
+        <strong><%= resultsStatusLabel %></strong>
+      </div>
+    </article>
+
+    <article class="results-summary-card stack-sm">
+      <span class="eyebrow">Turnout Section</span>
+      <div class="results-summary-metrics">
+        <div>
+          <strong><%= metrics.totalVoters %></strong>
+          <span>Total registered voters</span>
+        </div>
+        <div>
+          <strong><%= metrics.votedCount %></strong>
+          <span>Total voters who voted</span>
+        </div>
+        <div>
+          <strong><%= metrics.totalVoters ? formatPercent(metrics.votedCount / metrics.totalVoters) : '0.0%' %></strong>
+          <span>Turnout percentage</span>
+        </div>
+        <div>
+          <strong><%= nonVoters %></strong>
+          <span>Total non-voters</span>
+        </div>
+      </div>
+    </article>
+  </div>
+</section>

@@ -16,36 +16,12 @@
   </section>
 
   <section class="print-sheet">
-    <header class="print-sheet__header">
-      <div>
-        <span class="eyebrow">Election Results</span>
-        <h2><%= settings.electionName %></h2>
-        <p>Generated on <strong><%= formatDateTime(generatedAt) %></strong></p>
-      </div>
-
-      <% if (settings.organizationLogoPath) { %>
-        <img
-          class="print-sheet__logo"
-          src="<%= settings.organizationLogoPath %>"
-          alt="<%= settings.electionName %> logo"
-        />
-      <% } %>
-    </header>
-
-    <section class="print-summary-grid">
-      <article class="mini-card">
-        <strong><%= metrics.totalVoters %></strong>
-        <span>Total voters</span>
-      </article>
-      <article class="mini-card">
-        <strong><%= metrics.votedCount %></strong>
-        <span>Votes cast</span>
-      </article>
-      <article class="mini-card">
-        <strong><%= metrics.totalVoters ? formatPercent(metrics.votedCount / metrics.totalVoters) : '0.0%' %></strong>
-        <span>Turnout</span>
-      </article>
-    </section>
+    <%- include("partials/results-summary", {
+      metrics,
+      generatedAt,
+      nonVoters,
+      resultsStatusLabel
+    }) %>
 
     <section class="stack-lg">
       <% results.forEach((result) => { %>
@@ -54,35 +30,57 @@
             <div>
               <span class="eyebrow">Position Results</span>
               <h3><%= result.name %></h3>
+              <p class="muted-text">Valid votes: <strong><%= result.totalVotes %></strong></p>
             </div>
-            <div class="winner-pill">Winner: <strong><%= result.winnerLabel %></strong></div>
+            <div class="stack-sm">
+              <div class="winner-pill">Winner: <strong><%= result.winnerLabel %></strong></div>
+              <div class="inline-badge inline-badge--info">Margin: <strong><%= result.marginLabel %></strong></div>
+            </div>
           </div>
 
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Candidate</th>
-                  <th>Votes</th>
-                  <th>Share</th>
-                </tr>
-              </thead>
-              <tbody>
-                <% result.candidates.forEach((candidate) => { %>
-                  <tr>
-                    <td><strong><%= candidate.name %></strong></td>
-                    <td><%= candidate.voteCount %></td>
-                    <td>
-                      <%= result.totalVotes ? formatPercent(candidate.voteCount / result.totalVotes) : '0.0%' %>
-                    </td>
-                  </tr>
-                <% }) %>
-              </tbody>
-            </table>
+          <div class="position-result-grid">
+            <% result.candidates.forEach((candidate) => { %>
+              <article class="candidate-summary">
+                <div class="candidate-summary__media">
+                  <% if (candidate.photoPath) { %>
+                    <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+                  <% } else { %>
+                    <div class="candidate-avatar-fallback"><%= getInitials(candidate.name) %></div>
+                  <% } %>
+                </div>
+
+                <div class="candidate-summary__body">
+                  <strong><%= candidate.name %></strong>
+                  <span><%= candidate.voteCount %> vote(s)</span>
+                  <small>
+                    <%= result.totalVotes ? formatPercent(candidate.shareRatio || 0) : '0.0%' %> of valid votes
+                  </small>
+                  <div class="chart-meter">
+                    <span
+                      class="chart-meter__fill <%= candidate.isLeading ? 'chart-meter__fill--leading' : '' %>"
+                      style="width: <%= Math.max((candidate.shareRatio || 0) * 100, candidate.voteCount > 0 ? 8 : 0) %>%"
+                    ></span>
+                  </div>
+                </div>
+
+                <div class="candidate-summary__actions">
+                  <% if (candidate.isLeading && result.totalVotes > 0) { %>
+                    <span class="winner-pill">Winner</span>
+                  <% } else { %>
+                    <span class="inline-badge inline-badge--muted">Candidate</span>
+                  <% } %>
+                </div>
+              </article>
+            <% }) %>
           </div>
         </article>
       <% }) %>
     </section>
+
+    <%- include("partials/results-declaration", {
+      generatedAt,
+      declarationLabel
+    }) %>
   </section>
 </main>
 

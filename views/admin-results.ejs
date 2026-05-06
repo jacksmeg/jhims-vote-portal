@@ -5,21 +5,6 @@
   currentSection: "results"
 }) %>
 
-<section class="metric-grid">
-  <article class="metric-card">
-    <span>Total Voters</span>
-    <strong><%= metrics.totalVoters %></strong>
-  </article>
-  <article class="metric-card">
-    <span>Votes Cast</span>
-    <strong><%= metrics.votedCount %></strong>
-  </article>
-  <article class="metric-card">
-    <span>Turnout</span>
-    <strong><%= metrics.totalVoters ? formatPercent(metrics.votedCount / metrics.totalVoters) : '0.0%' %></strong>
-  </article>
-</section>
-
 <% if (resultsLocked) { %>
   <section class="panel panel-light narrow-panel stack-md">
     <span class="eyebrow">Results Waiting</span>
@@ -30,6 +15,13 @@
     </p>
   </section>
 <% } else { %>
+  <%- include("partials/results-summary", {
+    metrics,
+    generatedAt,
+    nonVoters,
+    resultsStatusLabel
+  }) %>
+
   <section class="panel panel-light">
     <div class="section-heading">
       <div>
@@ -78,6 +70,7 @@
   </section>
 
   <%- include("partials/results-panels", { results, eyebrowLabel: isLiveResults ? 'Live Position Results' : 'Final Position Results' }) %>
+  <%- include("partials/results-declaration", { generatedAt, declarationLabel }) %>
 <% } %>
 
 <% if (isLiveResults) { %>

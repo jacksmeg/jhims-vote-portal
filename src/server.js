@@ -437,12 +437,21 @@ function buildSelectionsFromMap(ballotData, selectionMap) {
 
 function getResultsExportPayload() {
   const settings = getElectionSettings();
+  const electionState = computeElectionState(settings);
+  const metrics = getDashboardMetrics();
+  const results = getResultsSummary();
+  const generatedAt = nowIso();
   return {
     settings,
-    electionState: computeElectionState(settings),
-    metrics: getDashboardMetrics(),
-    results: getResultsSummary(),
-    generatedAt: nowIso(),
+    electionState,
+    metrics,
+    results,
+    generatedAt,
+    nonVoters: Math.max(metrics.totalVoters - metrics.votedCount, 0),
+    resultsStatusLabel: electionState.isClosed ? "Final" : "Provisional",
+    declarationLabel: electionState.isClosed
+      ? "Official declaration ready for sign-off."
+      : "Provisional monitoring only until voting closes.",
   };
 }
 
@@ -511,7 +520,14 @@ function ensurePdfSpace(document, neededHeight = 80) {
 }
 
 function renderResultsPdf(document, payload) {
-  const { settings, metrics, results, generatedAt } = payload;
+  const {
+    settings,
+    metrics,
+    results,
+    generatedAt,
+    nonVoters,
+    resultsStatusLabel,
+  } = payload;
   const logoPath = settings.organizationLogoPath
     ? resolveAssetPath(settings.organizationLogoPath)
     : "";
@@ -534,18 +550,24 @@ function renderResultsPdf(document, payload) {
     .font("Helvetica")
     .fontSize(10)
     .fillColor("#5d6d80")
-    .text(`Final election results`, 120, 78)
-    .text(`Generated: ${formatDateTime(generatedAt)}`, 120, 94);
+    .text(`${resultsStatusLabel} election results`, 120, 78)
+    .text(`Generated: ${formatDateTime(generatedAt)}`, 120, 94)
+    .text(`Voting opened: ${formatDateTime(settings.opensAt)}`, 120, 110)
+    .text(`Voting closed: ${formatDateTime(settings.closesAt)}`, 120, 126);
 
   document
-    .moveTo(50, 126)
-    .lineTo(545, 126)
+    .moveTo(50, 148)
+    .lineTo(545, 148)
     .strokeColor("#d8c197")
     .lineWidth(1)
     .stroke();
 
-  document.y = 148;
-  document.font("Helvetica-Bold").fontSize(12).fillColor("#102338").text("Summary");
+  document.y = 168;
+  document
+    .font("Helvetica-Bold")
+    .fontSize(12)
+    .fillColor("#102338")
+    .text("Official Results Summary");
   document
     .moveDown(0.4)
     .font("Helvetica")
@@ -553,16 +575,18 @@ function renderResultsPdf(document, payload) {
     .fillColor("#102338")
     .text(`Total voters: ${metrics.totalVoters}`)
     .text(`Votes cast: ${metrics.votedCount}`)
+    .text(`Non-voters: ${nonVoters}`)
     .text(
       `Turnout: ${
         metrics.totalVoters
           ? formatPercent(metrics.votedCount / metrics.totalVoters)
           : "0.0%"
       }`,
-    );
+    )
+    .text(`Status: ${resultsStatusLabel}`);
 
   results.forEach((result) => {
-    ensurePdfSpace(document, 110 + result.candidates.length * 24);
+    ensurePdfSpace(document, 120 + result.candidates.length * 28);
 
     document
       .moveDown(1.1)
@@ -576,16 +600,19 @@ function renderResultsPdf(document, payload) {
       .font("Helvetica")
       .fontSize(10)
       .fillColor("#5d6d80")
-      .text(`Winner: ${result.winnerLabel}`);
+      .text(`Winner: ${result.winnerLabel}`)
+      .text(`Margin of victory: ${result.marginLabel}`)
+      .text(`Valid votes: ${result.totalVotes}`);
 
     const headerY = document.y + 10;
     document
       .font("Helvetica-Bold")
       .fontSize(10)
       .fillColor("#102338")
-      .text("Candidate", 50, headerY, { width: 300 })
-      .text("Votes", 390, headerY, { width: 60, align: "right" })
-      .text("Share", 465, headerY, { width: 70, align: "right" });
+      .text("Candidate", 50, headerY, { width: 270 })
+      .text("Votes", 345, headerY, { width: 50, align: "right" })
+      .text("Share", 405, headerY, { width: 60, align: "right" })
+      .text("Status", 475, headerY, { width: 60, align: "right" });
 
     document
       .moveTo(50, headerY + 16)
@@ -597,28 +624,85 @@ function renderResultsPdf(document, payload) {
     let rowY = headerY + 26;
 
     result.candidates.forEach((candidate) => {
-      ensurePdfSpace(document, 34);
+      ensurePdfSpace(document, 38);
+      const candidatePhotoPath = candidate.photoPath
+        ? resolveAssetPath(candidate.photoPath)
+        : "";
+      const hasCandidatePhoto = candidatePhotoPath && fs.existsSync(candidatePhotoPath);
+
+      if (hasCandidatePhoto) {
+        try {
+          document.image(candidatePhotoPath, 50, rowY - 2, { fit: [18, 18] });
+        } catch (_error) {
+          // Ignore invalid image parsing and continue with the textual row.
+        }
+      }
 
       document
         .font("Helvetica")
         .fontSize(10)
         .fillColor("#102338")
-        .text(candidate.name, 50, rowY, { width: 300 })
-        .text(String(candidate.voteCount), 390, rowY, { width: 60, align: "right" })
+        .text(candidate.name, hasCandidatePhoto ? 74 : 50, rowY, { width: 246 })
+        .text(String(candidate.voteCount), 345, rowY, { width: 50, align: "right" })
         .text(
           result.totalVotes
             ? formatPercent(candidate.voteCount / result.totalVotes)
             : "0.0%",
-          465,
+          405,
           rowY,
-          { width: 70, align: "right" },
+          { width: 60, align: "right" },
+        );
+      document
+        .font(candidate.isLeading && result.totalVotes > 0 ? "Helvetica-Bold" : "Helvetica")
+        .text(
+          candidate.isLeading && result.totalVotes > 0 ? "Winner" : "Candidate",
+          475,
+          rowY,
+          { width: 60, align: "right" },
         );
 
-      rowY += 20;
+      rowY += 24;
     });
 
     document.y = rowY + 4;
   });
+
+  ensurePdfSpace(document, 120);
+  document
+    .moveDown(1)
+    .font("Helvetica-Bold")
+    .fontSize(12)
+    .fillColor("#102338")
+    .text("Official Declaration Block");
+
+  document
+    .moveDown(0.4)
+    .font("Helvetica")
+    .fontSize(11)
+    .fillColor("#102338")
+    .text("Declared by: Election Committee")
+    .text(`Committee: ${settings.electionName} Committee`)
+    .text(`Date declared: ${formatDateTime(generatedAt)}`);
+
+  const signatureY = document.y + 36;
+  document
+    .moveTo(60, signatureY)
+    .lineTo(240, signatureY)
+    .strokeColor("#102338")
+    .lineWidth(1)
+    .stroke();
+  document
+    .moveTo(330, signatureY)
+    .lineTo(510, signatureY)
+    .strokeColor("#102338")
+    .lineWidth(1)
+    .stroke();
+  document
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor("#5d6d80")
+    .text("Chairman Signature", 90, signatureY + 8)
+    .text("Secretary Signature", 365, signatureY + 8);
 }
 
 function getVoters() {
@@ -734,12 +818,20 @@ function getResultsSummary() {
   for (const summary of summaries) {
     if (summary.candidates.length === 0) {
       summary.winnerLabel = "No candidates added";
+      summary.marginVotes = 0;
+      summary.marginLabel = "No candidates available";
       continue;
     }
 
-    const highestVoteCount = Math.max(
-      ...summary.candidates.map((candidate) => candidate.voteCount),
-    );
+    const sortedByVotes = [...summary.candidates].sort((left, right) => {
+      if (right.voteCount !== left.voteCount) {
+        return right.voteCount - left.voteCount;
+      }
+
+      return left.name.localeCompare(right.name);
+    });
+    const highestVoteCount = sortedByVotes[0]?.voteCount || 0;
+    const secondHighestVoteCount = sortedByVotes[1]?.voteCount || 0;
 
     const winners = summary.candidates.filter(
       (candidate) => candidate.voteCount === highestVoteCount,
@@ -751,6 +843,18 @@ function getResultsSummary() {
         : winners.length > 1
           ? `Tie: ${winners.map((candidate) => candidate.name).join(", ")}`
           : winners[0].name;
+    summary.marginVotes =
+      highestVoteCount > 0 && winners.length === 1
+        ? Math.max(highestVoteCount - secondHighestVoteCount, 0)
+        : 0;
+    summary.marginLabel =
+      highestVoteCount === 0
+        ? "No votes recorded"
+        : winners.length > 1
+          ? "Tie"
+          : sortedByVotes.length === 1
+            ? "Unopposed"
+            : `${summary.marginVotes} vote lead`;
 
     summary.candidates = summary.candidates.map((candidate) => ({
       ...candidate,
@@ -2397,6 +2501,10 @@ app.get("/admin/results", requireAdmin, (req, res) => {
     pageIntro,
     metrics: payload.metrics,
     results: showResults ? payload.results : [],
+    generatedAt: payload.generatedAt,
+    nonVoters: payload.nonVoters,
+    resultsStatusLabel: payload.resultsStatusLabel,
+    declarationLabel: payload.declarationLabel,
     resultsLocked: !showResults,
     isLiveResults: payload.electionState.isOpen,
     canArchiveReset: payload.electionState.isClosed,
