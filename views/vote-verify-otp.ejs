@@ -1,0 +1,127 @@
+<%- include("partials/public-shell-start", { pageTitle }) %>
+
+<section class="split-stage">
+  <div class="panel panel-dark stack-lg">
+    <span class="eyebrow">Phone Verification</span>
+    <h2>Enter the OTP code sent to your phone.</h2>
+    <p>
+      We sent a one-time verification code to your registered number ending in
+      <strong><%= maskedPhoneNumber %></strong>. You must verify this code before the ballot can
+      open.
+    </p>
+
+    <div class="check-list">
+      <div>Codes expire automatically after <%= otpTtlMinutes %> minutes</div>
+      <div>You can request a new OTP if the first message does not arrive</div>
+      <div>Your vote remains locked to one verified staff member</div>
+    </div>
+  </div>
+
+  <div class="panel panel-light stack-lg narrow-panel">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Secure OTP Check</span>
+        <h3>Verify before voting</h3>
+      </div>
+      <p class="muted-text">The ballot opens immediately after a successful OTP check.</p>
+    </div>
+
+    <p class="note-block">
+      OTP sent to <strong><%= maskedPhoneNumber %></strong>.
+      Enter the code exactly as received.
+    </p>
+
+    <% if (isExpired) { %>
+      <p class="note-block otp-note otp-note--warning">
+        This OTP has expired. Use <strong>Resend OTP</strong> to receive a new code.
+      </p>
+    <% } %>
+
+    <% if (devOtpPreview) { %>
+      <p class="note-block otp-note otp-note--dev">
+        Development OTP for testing: <strong><%= devOtpPreview %></strong>
+      </p>
+    <% } %>
+
+    <form class="stack-md" action="/vote/verify-otp" method="post">
+      <label class="field">
+        <span>OTP Code</span>
+        <input
+          name="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="Enter your OTP code"
+          required
+        />
+      </label>
+
+      <button class="button" type="submit">Verify and Continue</button>
+    </form>
+
+    <div class="button-row">
+      <form action="/vote/resend-otp" method="post">
+        <button class="button button-ghost" type="submit">Resend OTP</button>
+      </form>
+
+      <form action="/vote/cancel-otp" method="post">
+        <button class="button button-ghost" type="submit">Back to Login</button>
+      </form>
+    </div>
+
+    <p
+      class="muted-text otp-helper-text"
+      data-otp-helper
+      data-resend-at="<%= resendAvailableAtMs || '' %>"
+      data-expires-at="<%= expiresAtMs || '' %>"
+    ></p>
+  </div>
+</section>
+
+<script>
+  (() => {
+    const helper = document.querySelector("[data-otp-helper]");
+    if (!helper) {
+      return;
+    }
+
+    const resendAt = Number(helper.getAttribute("data-resend-at") || "0");
+    const expiresAt = Number(helper.getAttribute("data-expires-at") || "0");
+
+    const formatSeconds = (seconds) => {
+      if (seconds <= 0) {
+        return "0 seconds";
+      }
+
+      if (seconds < 60) {
+        return `${seconds} second${seconds === 1 ? "" : "s"}`;
+      }
+
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      return `${minutes} minute${minutes === 1 ? "" : "s"}${remainingSeconds ? ` ${remainingSeconds} second${remainingSeconds === 1 ? "" : "s"}` : ""}`;
+    };
+
+    const update = () => {
+      const now = Date.now();
+      const resendSeconds = resendAt > now ? Math.ceil((resendAt - now) / 1000) : 0;
+      const expirySeconds = expiresAt > now ? Math.ceil((expiresAt - now) / 1000) : 0;
+
+      if (expirySeconds <= 0) {
+        helper.textContent = "This OTP has expired. Request a new one to continue.";
+        return;
+      }
+
+      if (resendSeconds > 0) {
+        helper.textContent = `You can request a new OTP in ${formatSeconds(resendSeconds)}. This code expires in ${formatSeconds(expirySeconds)}.`;
+        return;
+      }
+
+      helper.textContent = `You can request a new OTP now. This code expires in ${formatSeconds(expirySeconds)}.`;
+    };
+
+    update();
+    window.setInterval(update, 1000);
+  })();
+</script>
+
+<%- include("partials/public-shell-end") %>

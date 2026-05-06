@@ -830,6 +830,22 @@ table,
   margin: 0;
 }
 
+.otp-note--warning {
+  color: var(--warning);
+  background: rgba(139, 106, 28, 0.12);
+  border: 1px solid rgba(139, 106, 28, 0.22);
+}
+
+.otp-note--dev {
+  background: rgba(24, 52, 79, 0.08);
+  border: 1px dashed rgba(24, 52, 79, 0.2);
+}
+
+.otp-helper-text {
+  min-height: 24px;
+  margin: -4px 0 0;
+}
+
 .stack-xl,
 .stack-lg,
 .stack-md,

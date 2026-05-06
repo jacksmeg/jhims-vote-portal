@@ -85,6 +85,12 @@ See [.env.example](/C:/Users/El/Desktop/VOTE%20PORTAL/.env.example).
 - `ADMIN_USERNAME` - admin login username
 - `ADMIN_PASSWORD` - admin login password
 - `ELECTION_NAME` - name shown in the app
+- `OTP_PROVIDER` - `disabled`, `dev`, or `twilio`
+- `OTP_TTL_MINUTES` - how long each OTP code stays valid
+- `OTP_RESEND_COOLDOWN_SECONDS` - wait time before a new OTP can be requested
+- `TWILIO_ACCOUNT_SID` - Twilio account SID for SMS OTP
+- `TWILIO_AUTH_TOKEN` - Twilio auth token for SMS OTP
+- `TWILIO_VERIFY_SERVICE_SID` - Twilio Verify service SID used to send and check OTP codes
 
 ## Voter Import Template
 
@@ -114,12 +120,11 @@ Use the admin dashboard to:
 
 ## Security Notes
 
-- The current phone verification checks whether the entered phone number matches the registered voter record.
+- Phone verification first checks whether the entered phone number matches the registered voter record.
+- SMS OTP can be added on top of the staff record check by setting `OTP_PROVIDER=twilio` and the Twilio Verify environment variables.
 - Results stay hidden until the election is officially closed.
 - Setup changes are locked once voting is opened.
 - Every successful ballot marks the voter as already voted.
-
-If you later want SMS OTP verification, we can add that as a second factor on top of the current staff record match.
 
 ## Put It Online
 
@@ -161,6 +166,11 @@ This project now includes [render.yaml](/C:/Users/El/Desktop/VOTE%20PORTAL/rende
    - `ADMIN_USERNAME`
    - `ADMIN_PASSWORD`
    - `ELECTION_NAME`
+   - optional OTP values if you want real SMS verification on the live site:
+     - `OTP_PROVIDER=twilio`
+     - `TWILIO_ACCOUNT_SID`
+     - `TWILIO_AUTH_TOKEN`
+     - `TWILIO_VERIFY_SERVICE_SID`
 5. After deploy finishes, open your live URL.
 6. In Render, add your custom domain or subdomain such as `vote.yourdomain.com`.
 7. Share these links with your team:

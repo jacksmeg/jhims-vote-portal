@@ -150,6 +150,7 @@ function buildGuide() {
     "Open the voter link: https://vote.jhimssoftware.com/vote/login",
     "Enter the registered staff ID and phone number.",
     "The system checks that the staff ID exists, the phone number matches, and the voter has not already voted.",
+    "If OTP verification is enabled, the system sends a one-time SMS code to the registered phone number and the voter must enter that code before the ballot opens.",
     "The voter sees one position at a time and chooses one candidate before moving to the next position.",
     "At the confirmation page, the voter reviews all selections and submits the ballot.",
     "After submission, the vote is saved, the voter is marked as voted, and the ballot cannot be changed.",
@@ -223,6 +224,7 @@ function buildGuide() {
   bulletList(doc, [
     "One staff member can vote only once.",
     "Voter login requires both staff ID and phone number match.",
+    "Optional OTP SMS verification can be enabled so a voter must confirm ownership of the registered phone before the ballot opens.",
     "Admin pages require administrator login.",
     "Audit logs track major admin and voter actions.",
     "Results can be monitored by admins during live voting and finalized after closure.",

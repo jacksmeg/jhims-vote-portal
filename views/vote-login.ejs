@@ -5,13 +5,21 @@
     <span class="eyebrow">Voter Access</span>
     <h2>Sign in with your staff ID and phone number.</h2>
     <p>
-      Your record must already be registered by the election committee. Once you submit your
-      ballot, it cannot be edited or cast again.
+      Your record must already be registered by the election committee.
+      <% if (otpEnabled) { %>
+        After the system confirms your details, it will send an OTP code to your registered phone
+        before the ballot opens.
+      <% } else { %>
+        Once you submit your ballot, it cannot be edited or cast again.
+      <% } %>
     </p>
 
     <div class="check-list">
       <div>Registered staff ID is required</div>
       <div>Phone number must match the imported voter record</div>
+      <% if (otpEnabled) { %>
+        <div>An OTP SMS code will be sent to the registered phone number</div>
+      <% } %>
       <div>Only one vote is allowed for each staff member</div>
     </div>
   </div>
@@ -37,7 +45,7 @@
       </label>
 
       <button class="button" type="submit" <%= electionState.isOpen ? '' : 'disabled' %>>
-        Continue to Ballot
+        <%= otpEnabled ? 'Send OTP Code' : 'Continue to Ballot' %>
       </button>
     </form>
 

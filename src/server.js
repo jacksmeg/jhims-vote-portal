@@ -26,6 +26,7 @@ const {
   isLikelyPhoneNumber,
   normalizePhoneNumber,
   normalizeStaffId,
+  toSmsPhoneNumber,
 } = require("./helpers/phone");
 const { requireAdmin, requireVoter } = require("./middleware/auth");
 
@@ -44,6 +45,37 @@ const adminPasswordHash = bcrypt.hashSync(
 const defaultElectionName =
   process.env.ELECTION_NAME || "Organization Election Portal";
 const isProduction = process.env.NODE_ENV === "production";
+const twilioAccountSid = String(process.env.TWILIO_ACCOUNT_SID || "").trim();
+const twilioAuthToken = String(process.env.TWILIO_AUTH_TOKEN || "").trim();
+const twilioVerifyServiceSid = String(process.env.TWILIO_VERIFY_SERVICE_SID || "").trim();
+const twilioOtpConfigured = Boolean(
+  twilioAccountSid && twilioAuthToken && twilioVerifyServiceSid,
+);
+const configuredOtpProvider = String(process.env.OTP_PROVIDER || "")
+  .trim()
+  .toLowerCase();
+const otpProvider =
+  configuredOtpProvider === "twilio" ||
+  configuredOtpProvider === "dev" ||
+  configuredOtpProvider === "disabled"
+    ? configuredOtpProvider
+    : twilioOtpConfigured
+      ? "twilio"
+      : isProduction
+        ? "disabled"
+        : "dev";
+const otpTtlMinutes = Math.min(
+  Math.max(Number.parseInt(process.env.OTP_TTL_MINUTES || "10", 10) || 10, 1),
+  30,
+);
+const otpResendCooldownSeconds = Math.min(
+  Math.max(
+    Number.parseInt(process.env.OTP_RESEND_COOLDOWN_SECONDS || "30", 10) || 30,
+    0,
+  ),
+  300,
+);
+const devOtpCodeLength = 6;
 const sessionSecureCookie = String(
   process.env.SESSION_SECURE_COOKIE || (isProduction ? "true" : "false"),
 )
@@ -336,6 +368,239 @@ async function safeRemoveUploadedRequestFiles(filesMap) {
   for (const file of files) {
     await safeRemoveFile(file?.path);
   }
+}
+
+function isOtpVerificationEnabled() {
+  return otpProvider === "twilio" || otpProvider === "dev";
+}
+
+function clearVoterSession(req) {
+  req.session.voter = null;
+  req.session.ballotSelections = null;
+  req.session.pendingBallot = null;
+  req.session.pendingVoterVerification = null;
+}
+
+function maskPhoneNumber(value) {
+  const normalized = normalizePhoneNumber(value);
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized.length <= 4) {
+    return normalized;
+  }
+
+  const prefixLength = Math.min(3, Math.max(normalized.length - 4, 1));
+  const visiblePrefix = normalized.slice(0, prefixLength);
+  const visibleSuffix = normalized.slice(-4);
+  const hiddenLength = Math.max(normalized.length - visiblePrefix.length - visibleSuffix.length, 0);
+
+  return `${visiblePrefix}${"*".repeat(hiddenLength)}${visibleSuffix}`;
+}
+
+function generateDevOtpCode(length = devOtpCodeLength) {
+  let code = "";
+
+  while (code.length < length) {
+    code += crypto.randomInt(0, 10).toString();
+  }
+
+  return code;
+}
+
+function hashOtpCode(code) {
+  return crypto.createHash("sha256").update(String(code || "")).digest("hex");
+}
+
+function getOtpExpiryIso() {
+  return dayjs().add(otpTtlMinutes, "minute").toISOString();
+}
+
+function getOtpResendAvailableIso() {
+  return dayjs().add(otpResendCooldownSeconds, "second").toISOString();
+}
+
+function isPendingOtpExpired(pendingVerification) {
+  if (!pendingVerification?.expiresAt) {
+    return true;
+  }
+
+  const expiresAt = dayjs(pendingVerification.expiresAt);
+  return !expiresAt.isValid() || !dayjs().isBefore(expiresAt);
+}
+
+function buildPendingVoterVerification(voterRecord, phoneNumber, smsPhoneNumber, challenge) {
+  return {
+    voterId: voterRecord.id,
+    staffId: voterRecord.staffId,
+    fullName: voterRecord.fullName,
+    phoneNumber,
+    maskedPhoneNumber: maskPhoneNumber(phoneNumber),
+    smsPhoneNumber,
+    provider: otpProvider,
+    verificationSid: challenge.verificationSid || "",
+    devCodeHash: challenge.devCodeHash || "",
+    devCodePreview: challenge.devCodePreview || "",
+    sentAt: nowIso(),
+    expiresAt: getOtpExpiryIso(),
+    resendAvailableAt: getOtpResendAvailableIso(),
+    attempts: 0,
+  };
+}
+
+function beginAuthenticatedVoterSession(req, voterRecord) {
+  req.session.voter = {
+    voterId: voterRecord.id,
+    staffId: voterRecord.staffId,
+    fullName: voterRecord.fullName,
+  };
+  req.session.ballotSelections = {};
+  req.session.pendingBallot = null;
+  req.session.pendingVoterVerification = null;
+  req.session.voteComplete = null;
+}
+
+async function parseOtpApiResponse(response) {
+  const responseText = await response.text();
+
+  try {
+    return responseText ? JSON.parse(responseText) : {};
+  } catch (_error) {
+    return { message: responseText };
+  }
+}
+
+async function sendTwilioOtpCode(smsPhoneNumber) {
+  if (!twilioOtpConfigured) {
+    throw new Error("The OTP SMS service is not configured yet. Add the Twilio Verify credentials first.");
+  }
+
+  const response = await fetch(
+    `https://verify.twilio.com/v2/Services/${encodeURIComponent(twilioVerifyServiceSid)}/Verifications`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Basic ${Buffer.from(
+          `${twilioAccountSid}:${twilioAuthToken}`,
+        ).toString("base64")}`,
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        To: smsPhoneNumber,
+        Channel: "sms",
+      }),
+    },
+  );
+  const payload = await parseOtpApiResponse(response);
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.message ||
+        "The OTP SMS could not be sent right now. Please try again in a moment.",
+    );
+  }
+
+  return {
+    verificationSid: payload?.sid || "",
+  };
+}
+
+async function sendOtpChallenge(smsPhoneNumber) {
+  if (otpProvider === "twilio") {
+    return sendTwilioOtpCode(smsPhoneNumber);
+  }
+
+  if (otpProvider === "dev") {
+    if (isProduction) {
+      throw new Error(
+        "Development OTP mode is not allowed in production. Configure Twilio Verify before using OTP on the live site.",
+      );
+    }
+
+    const devCode = generateDevOtpCode();
+    return {
+      verificationSid: `DEV-${crypto.randomUUID()}`,
+      devCodeHash: hashOtpCode(devCode),
+      devCodePreview: devCode,
+    };
+  }
+
+  return null;
+}
+
+async function verifyTwilioOtpCode(pendingVerification, code) {
+  if (!twilioOtpConfigured) {
+    throw new Error("The OTP SMS service is not configured yet. Add the Twilio Verify credentials first.");
+  }
+
+  const requestBody = new URLSearchParams({
+    Code: code,
+  });
+
+  if (pendingVerification.verificationSid) {
+    requestBody.set("VerificationSid", pendingVerification.verificationSid);
+  } else {
+    requestBody.set("To", pendingVerification.smsPhoneNumber);
+  }
+
+  const response = await fetch(
+    `https://verify.twilio.com/v2/Services/${encodeURIComponent(
+      twilioVerifyServiceSid,
+    )}/VerificationCheck`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Basic ${Buffer.from(
+          `${twilioAccountSid}:${twilioAuthToken}`,
+        ).toString("base64")}`,
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: requestBody,
+    },
+  );
+  const payload = await parseOtpApiResponse(response);
+
+  if (response.status === 404) {
+    return {
+      approved: false,
+      errorMessage: "This OTP has expired. Request a new code and try again.",
+    };
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.message || "The OTP could not be verified right now. Please try again.",
+    );
+  }
+
+  return {
+    approved: payload?.status === "approved" || payload?.valid === true,
+    errorMessage:
+      payload?.status === "max_attempts_reached"
+        ? "Too many incorrect OTP attempts. Request a new code and try again."
+        : payload?.status === "expired"
+          ? "This OTP has expired. Request a new code and try again."
+          : "The OTP code is incorrect. Please try again.",
+  };
+}
+
+async function verifyOtpChallenge(pendingVerification, code) {
+  if (otpProvider === "twilio") {
+    return verifyTwilioOtpCode(pendingVerification, code);
+  }
+
+  if (otpProvider === "dev") {
+    return {
+      approved: hashOtpCode(code) === pendingVerification.devCodeHash,
+      errorMessage: "The OTP code is incorrect. Please try again.",
+    };
+  }
+
+  return {
+    approved: false,
+    errorMessage: "OTP verification is not enabled for this election.",
+  };
 }
 
 function getDashboardMetrics() {
@@ -1054,10 +1319,17 @@ app.get("/vote/login", (req, res) => {
     return res.redirect("/vote");
   }
 
-  return res.render("vote-login", { pageTitle: "Voter Login" });
+  if (req.session.pendingVoterVerification && isOtpVerificationEnabled()) {
+    return res.redirect("/vote/verify-otp");
+  }
+
+  return res.render("vote-login", {
+    pageTitle: "Voter Login",
+    otpEnabled: isOtpVerificationEnabled(),
+  });
 });
 
-app.post("/vote/login", (req, res) => {
+app.post("/vote/login", async (req, res) => {
   const staffId = normalizeStaffId(req.body.staffId);
   const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
   const settings = getElectionSettings();
@@ -1112,16 +1384,283 @@ app.post("/vote/login", (req, res) => {
     return res.redirect("/vote/login");
   }
 
-  req.session.voter = {
-    voterId: voterRecord.id,
-    staffId: voterRecord.staffId,
-    fullName: voterRecord.fullName,
-  };
-  req.session.ballotSelections = {};
-  req.session.pendingBallot = null;
+  if (isOtpVerificationEnabled()) {
+    const smsPhoneNumber = toSmsPhoneNumber(phoneNumber);
 
-  logAudit(req, "voter", staffId, "voter_login_success");
+    if (!smsPhoneNumber) {
+      logAudit(req, "voter", staffId, "voter_otp_send_failed", {
+        reason: "invalid_sms_phone_format",
+      });
+      setFlash(
+        req,
+        "error",
+        "Your phone number is registered, but it is not in a valid SMS format for OTP delivery. Please contact the election committee.",
+      );
+      return res.redirect("/vote/login");
+    }
+
+    try {
+      const challenge = await sendOtpChallenge(smsPhoneNumber);
+      clearVoterSession(req);
+      req.session.voteComplete = null;
+      req.session.pendingVoterVerification = buildPendingVoterVerification(
+        voterRecord,
+        phoneNumber,
+        smsPhoneNumber,
+        challenge,
+      );
+
+      logAudit(req, "voter", staffId, "voter_otp_sent", {
+        provider: otpProvider,
+        phoneNumber: maskPhoneNumber(phoneNumber),
+      });
+      setFlash(
+        req,
+        "success",
+        `A one-time OTP code has been sent to ${maskPhoneNumber(phoneNumber)}.`,
+      );
+      return res.redirect("/vote/verify-otp");
+    } catch (error) {
+      logAudit(req, "voter", staffId, "voter_otp_send_failed", {
+        reason: "provider_error",
+        message: error.message,
+      });
+      setFlash(req, "error", error.message);
+      return res.redirect("/vote/login");
+    }
+  }
+
+  beginAuthenticatedVoterSession(req, voterRecord);
+  logAudit(req, "voter", staffId, "voter_login_success", {
+    otpProvider: "disabled",
+  });
   return res.redirect("/vote");
+});
+
+app.get("/vote/verify-otp", (req, res) => {
+  if (req.session.voter) {
+    return res.redirect("/vote");
+  }
+
+  const pendingVerification = req.session.pendingVoterVerification || null;
+  if (!pendingVerification) {
+    setFlash(req, "error", "Sign in first so we can send your OTP code.");
+    return res.redirect("/vote/login");
+  }
+
+  const settings = getElectionSettings();
+  const electionState = computeElectionState(settings);
+
+  if (!electionState.isOpen) {
+    clearVoterSession(req);
+    setFlash(req, "error", electionState.message);
+    return res.redirect("/vote/login");
+  }
+
+  const resendAvailableAt = pendingVerification.resendAvailableAt
+    ? dayjs(pendingVerification.resendAvailableAt)
+    : null;
+  const expiresAt = pendingVerification.expiresAt ? dayjs(pendingVerification.expiresAt) : null;
+
+  return res.render("vote-verify-otp", {
+    pageTitle: "Verify OTP",
+    maskedPhoneNumber: pendingVerification.maskedPhoneNumber,
+    otpTtlMinutes,
+    resendAvailableAtMs: resendAvailableAt?.isValid() ? resendAvailableAt.valueOf() : null,
+    expiresAtMs: expiresAt?.isValid() ? expiresAt.valueOf() : null,
+    isExpired: isPendingOtpExpired(pendingVerification),
+    devOtpPreview:
+      pendingVerification.provider === "dev" && !isProduction
+        ? pendingVerification.devCodePreview
+        : "",
+  });
+});
+
+app.post("/vote/verify-otp", async (req, res) => {
+  const pendingVerification = req.session.pendingVoterVerification || null;
+  const code = String(req.body.code || "").replace(/\s+/g, "");
+
+  if (!pendingVerification) {
+    setFlash(req, "error", "Sign in first so we can send your OTP code.");
+    return res.redirect("/vote/login");
+  }
+
+  const settings = getElectionSettings();
+  const electionState = computeElectionState(settings);
+
+  if (!electionState.isOpen) {
+    clearVoterSession(req);
+    setFlash(req, "error", electionState.message);
+    return res.redirect("/vote/login");
+  }
+
+  if (!code) {
+    setFlash(req, "error", "Enter the OTP code that was sent to your phone.");
+    return res.redirect("/vote/verify-otp");
+  }
+
+  if (isPendingOtpExpired(pendingVerification)) {
+    setFlash(req, "error", "This OTP has expired. Request a new code and try again.");
+    return res.redirect("/vote/verify-otp");
+  }
+
+  const voterRecord = db.prepare(`
+    SELECT
+      id,
+      staff_id AS staffId,
+      phone_number AS phoneNumber,
+      full_name AS fullName,
+      has_voted AS hasVoted
+    FROM voters
+    WHERE id = ?
+  `).get(pendingVerification.voterId);
+
+  if (!voterRecord) {
+    clearVoterSession(req);
+    setFlash(req, "error", "Your voter record is no longer available. Please sign in again.");
+    return res.redirect("/vote/login");
+  }
+
+  if (voterRecord.phoneNumber !== pendingVerification.phoneNumber) {
+    clearVoterSession(req);
+    setFlash(
+      req,
+      "error",
+      "Your registered phone number was updated. Please sign in again to receive a new OTP.",
+    );
+    return res.redirect("/vote/login");
+  }
+
+  if (voterRecord.hasVoted) {
+    clearVoterSession(req);
+    logAudit(req, "voter", voterRecord.staffId, "voter_login_rejected", {
+      reason: "already_voted",
+    });
+    setFlash(req, "error", "You have already voted. You cannot vote again.");
+    return res.redirect("/vote/login");
+  }
+
+  try {
+    const verification = await verifyOtpChallenge(pendingVerification, code);
+
+    if (!verification.approved) {
+      pendingVerification.attempts = parseInteger(pendingVerification.attempts, 0) + 1;
+      req.session.pendingVoterVerification = pendingVerification;
+      logAudit(req, "voter", voterRecord.staffId, "voter_otp_failed", {
+        attempts: pendingVerification.attempts,
+      });
+      setFlash(req, "error", verification.errorMessage);
+      return res.redirect("/vote/verify-otp");
+    }
+  } catch (error) {
+    setFlash(req, "error", error.message);
+    return res.redirect("/vote/verify-otp");
+  }
+
+  beginAuthenticatedVoterSession(req, voterRecord);
+  logAudit(req, "voter", voterRecord.staffId, "voter_otp_verified", {
+    provider: pendingVerification.provider || otpProvider,
+  });
+  logAudit(req, "voter", voterRecord.staffId, "voter_login_success", {
+    otpProvider: pendingVerification.provider || otpProvider,
+  });
+  return res.redirect("/vote");
+});
+
+app.post("/vote/resend-otp", async (req, res) => {
+  const pendingVerification = req.session.pendingVoterVerification || null;
+
+  if (!pendingVerification) {
+    setFlash(req, "error", "Sign in first so we can send your OTP code.");
+    return res.redirect("/vote/login");
+  }
+
+  const settings = getElectionSettings();
+  const electionState = computeElectionState(settings);
+
+  if (!electionState.isOpen) {
+    clearVoterSession(req);
+    setFlash(req, "error", electionState.message);
+    return res.redirect("/vote/login");
+  }
+
+  const resendAvailableAt = pendingVerification.resendAvailableAt
+    ? dayjs(pendingVerification.resendAvailableAt)
+    : null;
+  if (resendAvailableAt?.isValid() && dayjs().isBefore(resendAvailableAt)) {
+    const secondsRemaining = Math.max(resendAvailableAt.diff(dayjs(), "second"), 1);
+    setFlash(req, "error", `Please wait ${secondsRemaining} more seconds before requesting a new OTP.`);
+    return res.redirect("/vote/verify-otp");
+  }
+
+  const voterRecord = db.prepare(`
+    SELECT
+      id,
+      staff_id AS staffId,
+      phone_number AS phoneNumber,
+      full_name AS fullName,
+      has_voted AS hasVoted
+    FROM voters
+    WHERE id = ?
+  `).get(pendingVerification.voterId);
+
+  if (!voterRecord) {
+    clearVoterSession(req);
+    setFlash(req, "error", "Your voter record is no longer available. Please sign in again.");
+    return res.redirect("/vote/login");
+  }
+
+  if (voterRecord.hasVoted) {
+    clearVoterSession(req);
+    setFlash(req, "error", "You have already voted. You cannot vote again.");
+    return res.redirect("/vote/login");
+  }
+
+  const smsPhoneNumber = toSmsPhoneNumber(voterRecord.phoneNumber);
+  if (!smsPhoneNumber) {
+    clearVoterSession(req);
+    setFlash(
+      req,
+      "error",
+      "Your phone number is registered, but it is not in a valid SMS format for OTP delivery. Please contact the election committee.",
+    );
+    return res.redirect("/vote/login");
+  }
+
+  try {
+    const challenge = await sendOtpChallenge(smsPhoneNumber);
+    req.session.pendingVoterVerification = buildPendingVoterVerification(
+      voterRecord,
+      voterRecord.phoneNumber,
+      smsPhoneNumber,
+      challenge,
+    );
+
+    logAudit(req, "voter", voterRecord.staffId, "voter_otp_resent", {
+      provider: otpProvider,
+      phoneNumber: maskPhoneNumber(voterRecord.phoneNumber),
+    });
+    setFlash(
+      req,
+      "success",
+      `A new OTP code has been sent to ${maskPhoneNumber(voterRecord.phoneNumber)}.`,
+    );
+  } catch (error) {
+    logAudit(req, "voter", voterRecord.staffId, "voter_otp_send_failed", {
+      reason: "resend_provider_error",
+      message: error.message,
+    });
+    setFlash(req, "error", error.message);
+  }
+
+  return res.redirect("/vote/verify-otp");
+});
+
+app.post("/vote/cancel-otp", (req, res) => {
+  req.session.pendingVoterVerification = null;
+  req.session.pendingBallot = null;
+  req.session.ballotSelections = null;
+  res.redirect("/vote/login");
 });
 
 app.get("/vote", requireVoter, (req, res) => {
@@ -1140,9 +1679,7 @@ app.get("/vote", requireVoter, (req, res) => {
   `).get(req.session.voter.voterId);
 
   if (!voterRecord || voterRecord.hasVoted) {
-    req.session.voter = null;
-    req.session.ballotSelections = null;
-    req.session.pendingBallot = null;
+    clearVoterSession(req);
     setFlash(req, "error", "You have already voted. You cannot vote again.");
     return res.redirect("/vote/login");
   }
@@ -1182,9 +1719,7 @@ app.get("/vote/step/:stepNumber", requireVoter, (req, res) => {
   `).get(req.session.voter.voterId);
 
   if (!voterRecord || voterRecord.hasVoted) {
-    req.session.voter = null;
-    req.session.ballotSelections = null;
-    req.session.pendingBallot = null;
+    clearVoterSession(req);
     setFlash(req, "error", "You have already voted. You cannot vote again.");
     return res.redirect("/vote/login");
   }
@@ -1467,9 +2002,7 @@ app.post("/vote/submit", requireVoter, (req, res) => {
     voterName: req.session.voter.fullName,
     submittedAt: nowIso(),
   };
-  req.session.voter = null;
-  req.session.ballotSelections = null;
-  req.session.pendingBallot = null;
+  clearVoterSession(req);
 
   return res.redirect("/vote/complete");
 });
@@ -1486,9 +2019,7 @@ app.get("/vote/complete", (req, res) => {
 });
 
 app.post("/vote/logout", (req, res) => {
-  req.session.voter = null;
-  req.session.ballotSelections = null;
-  req.session.pendingBallot = null;
+  clearVoterSession(req);
   req.session.voteComplete = null;
   res.redirect("/vote/login");
 });

@@ -28,3 +28,15 @@ services:
         sync: false
       - key: ELECTION_NAME
         sync: false
+      - key: OTP_PROVIDER
+        value: disabled
+      - key: OTP_TTL_MINUTES
+        value: "10"
+      - key: OTP_RESEND_COOLDOWN_SECONDS
+        value: "30"
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_VERIFY_SERVICE_SID
+        sync: false
