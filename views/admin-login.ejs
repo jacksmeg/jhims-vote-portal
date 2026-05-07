@@ -8,6 +8,9 @@
       Sign in here to import voters, register positions and candidates, control the voting
       window, create backups, review audit activity, and unlock final results.
     </p>
+    <% if (adminTwoFactorEnabled) { %>
+      <p class="note-block">After your password is accepted, you will also enter a 6-digit authenticator code.</p>
+    <% } %>
   </div>
 
   <div class="panel panel-light">

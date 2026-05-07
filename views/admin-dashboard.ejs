@@ -575,6 +575,85 @@
   </article>
 
   <div class="dashboard-stack-grid">
+    <article class="panel panel-light stack-md" id="security-panel">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">Admin Security</span>
+          <h2>Two-factor authentication</h2>
+        </div>
+        <p>Protect administrator access with an authenticator app like Google Authenticator or Microsoft Authenticator.</p>
+      </div>
+
+      <% if (adminTwoFactorState.enabled) { %>
+        <div class="note-block">
+          <strong>Status:</strong> Two-factor authentication is currently enabled for the admin account.
+        </div>
+
+        <form class="stack-md" action="/admin/2fa/disable" method="post">
+          <label class="field">
+            <span>Current Authenticator Code</span>
+            <input
+              name="verificationCode"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              placeholder="123456"
+              maxlength="6"
+              required
+            />
+          </label>
+
+          <button class="button button-danger" type="submit">Disable 2FA</button>
+        </form>
+      <% } else if (pendingAdminTwoFactorSetup) { %>
+        <div class="stack-md">
+          <div class="note-block">
+            <strong>Step 1:</strong> Add this account to your authenticator app.
+          </div>
+
+          <div class="mini-card stack-sm">
+            <div class="info-row"><span>Issuer</span><strong><%= pendingAdminTwoFactorSetup.issuer %></strong></div>
+            <div class="info-row"><span>Account</span><strong><%= pendingAdminTwoFactorSetup.accountName %></strong></div>
+            <div class="info-row"><span>Setup Key</span><strong><%= pendingAdminTwoFactorSetup.formattedSecret %></strong></div>
+          </div>
+
+          <label class="field">
+            <span>Manual Setup Link</span>
+            <textarea rows="3" readonly><%- pendingAdminTwoFactorSetup.otpauthUri %></textarea>
+          </label>
+
+          <form class="stack-md" action="/admin/2fa/enable" method="post">
+            <label class="field">
+              <span>Step 2: Enter the 6-digit code from your app</span>
+              <input
+                name="verificationCode"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                placeholder="123456"
+                maxlength="6"
+                required
+              />
+            </label>
+
+            <div class="button-row">
+              <button class="button" type="submit">Activate 2FA</button>
+            </div>
+          </form>
+
+          <form action="/admin/2fa/cancel-setup" method="post">
+            <button class="button button-ghost button-small" type="submit">Cancel Setup</button>
+          </form>
+        </div>
+      <% } else { %>
+        <div class="note-block">
+          <strong>Status:</strong> Two-factor authentication is currently turned off for the admin account.
+        </div>
+
+        <form action="/admin/2fa/setup" method="post">
+          <button class="button" type="submit">Start 2FA Setup</button>
+        </form>
+      <% } %>
+    </article>
+
     <article class="panel panel-light stack-md">
       <div class="section-heading">
         <div>

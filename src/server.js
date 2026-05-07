@@ -122,6 +122,11 @@ const themeOptions = [
   },
 ];
 
+const totpTimeStepSeconds = 30;
+const totpDigits = 6;
+const totpSecretBytes = 20;
+const base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
 function ensureDirectories() {
   [
     publicDirectory,
@@ -168,6 +173,140 @@ function toSafeFilename(value) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "") || "election-results"
   );
+}
+
+function encodeBase32(buffer) {
+  let bits = 0;
+  let value = 0;
+  let output = "";
+
+  for (const byte of buffer) {
+    value = (value << 8) | byte;
+    bits += 8;
+
+    while (bits >= 5) {
+      output += base32Alphabet[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+
+  if (bits > 0) {
+    output += base32Alphabet[(value << (5 - bits)) & 31];
+  }
+
+  return output;
+}
+
+function decodeBase32(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/=+$/g, "")
+    .replace(/\s+/g, "");
+
+  let bits = 0;
+  let output = [];
+  let currentValue = 0;
+
+  for (const character of normalized) {
+    const characterIndex = base32Alphabet.indexOf(character);
+
+    if (characterIndex < 0) {
+      throw new Error("The two-factor secret contains invalid characters.");
+    }
+
+    currentValue = (currentValue << 5) | characterIndex;
+    bits += 5;
+
+    if (bits >= 8) {
+      output.push((currentValue >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+
+  return Buffer.from(output);
+}
+
+function formatTotpSecret(secret) {
+  return String(secret || "")
+    .replace(/\s+/g, "")
+    .match(/.{1,4}/g)
+    ?.join(" ") || "";
+}
+
+function normalizeTotpToken(value) {
+  return String(value || "").replace(/\D+/g, "");
+}
+
+function generateTotpSecret() {
+  return encodeBase32(crypto.randomBytes(totpSecretBytes));
+}
+
+function getTotpCounter(timestamp = Date.now()) {
+  return Math.floor(timestamp / 1000 / totpTimeStepSeconds);
+}
+
+function generateTotpToken(secret, timestamp = Date.now()) {
+  const secretBuffer = decodeBase32(secret);
+  const counter = getTotpCounter(timestamp);
+  const counterBuffer = Buffer.alloc(8);
+  counterBuffer.writeBigUInt64BE(BigInt(counter));
+
+  const hmac = crypto.createHmac("sha1", secretBuffer).update(counterBuffer).digest();
+  const offset = hmac[hmac.length - 1] & 15;
+  const binaryCode =
+    ((hmac[offset] & 127) << 24) |
+    ((hmac[offset + 1] & 255) << 16) |
+    ((hmac[offset + 2] & 255) << 8) |
+    (hmac[offset + 3] & 255);
+
+  return String(binaryCode % 10 ** totpDigits).padStart(totpDigits, "0");
+}
+
+function verifyTotpToken(secret, token, windowSteps = 1) {
+  const normalizedToken = normalizeTotpToken(token);
+
+  if (!secret || normalizedToken.length !== totpDigits) {
+    return false;
+  }
+
+  for (let offset = -windowSteps; offset <= windowSteps; offset += 1) {
+    if (
+      generateTotpToken(
+        secret,
+        Date.now() + offset * totpTimeStepSeconds * 1000,
+      ) === normalizedToken
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function getAdminTwoFactorState(settings = getAllSettings()) {
+  const secret = String(settings.admin_2fa_secret || "").trim();
+  const enabled = String(settings.admin_2fa_enabled || "false").trim().toLowerCase() === "true";
+
+  return {
+    enabled: enabled && Boolean(secret),
+    secret,
+  };
+}
+
+function buildAdminTotpUri(secret, issuerName) {
+  const issuer = String(issuerName || defaultElectionName || "Election Portal").trim();
+  const accountName = adminUsername;
+  const label = `${issuer}:${accountName}`;
+  const params = new URLSearchParams({
+    secret,
+    issuer,
+    algorithm: "SHA1",
+    digits: String(totpDigits),
+    period: String(totpTimeStepSeconds),
+  });
+
+  return `otpauth://totp/${encodeURIComponent(label)}?${params.toString()}`;
 }
 
 function normalizeReferenceCode(value) {
@@ -650,6 +789,11 @@ function clearVoterSession(req) {
   req.session.ballotSelections = null;
   req.session.pendingBallot = null;
   req.session.pendingVoterVerification = null;
+}
+
+function clearAdminAccess(req) {
+  req.session.admin = null;
+  req.session.pendingAdminTwoFactor = null;
 }
 
 function clearNominationSession(req) {
@@ -3561,12 +3705,20 @@ app.get("/admin/login", (req, res) => {
     return res.redirect("/admin");
   }
 
-  return res.render("admin-login", { pageTitle: "Admin Login" });
+  if (req.session.pendingAdminTwoFactor) {
+    return res.redirect("/admin/verify-2fa");
+  }
+
+  return res.render("admin-login", {
+    pageTitle: "Admin Login",
+    adminTwoFactorEnabled: getAdminTwoFactorState().enabled,
+  });
 });
 
 app.post("/admin/login", (req, res) => {
   const username = String(req.body.username || "").trim();
   const password = String(req.body.password || "");
+  const twoFactorState = getAdminTwoFactorState();
 
   if (username !== adminUsername || !bcrypt.compareSync(password, adminPasswordHash)) {
     logAudit(req, "admin", username || "unknown", "admin_login_failed");
@@ -3574,20 +3726,75 @@ app.post("/admin/login", (req, res) => {
     return res.redirect("/admin/login");
   }
 
+  if (twoFactorState.enabled) {
+    req.session.pendingAdminTwoFactor = {
+      username,
+      issuedAt: nowIso(),
+    };
+    logAudit(req, "admin", username, "admin_login_password_verified");
+    setFlash(req, "success", "Password accepted. Enter your authenticator code to finish signing in.");
+    return res.redirect("/admin/verify-2fa");
+  }
+
   req.session.admin = { username };
   logAudit(req, "admin", username, "admin_login_success");
   return res.redirect("/admin");
 });
 
+app.get("/admin/verify-2fa", (req, res) => {
+  if (req.session.admin) {
+    return res.redirect("/admin");
+  }
+
+  if (!req.session.pendingAdminTwoFactor) {
+    setFlash(req, "error", "Sign in with your administrator credentials first.");
+    return res.redirect("/admin/login");
+  }
+
+  return res.render("admin-verify-2fa", {
+    pageTitle: "Admin Two-Factor Verification",
+  });
+});
+
+app.post("/admin/verify-2fa", (req, res) => {
+  const pendingAdminTwoFactor = req.session.pendingAdminTwoFactor;
+  const verificationCode = normalizeTotpToken(req.body.verificationCode);
+  const twoFactorState = getAdminTwoFactorState();
+
+  if (!pendingAdminTwoFactor || !twoFactorState.enabled) {
+    setFlash(req, "error", "Sign in with your administrator credentials first.");
+    return res.redirect("/admin/login");
+  }
+
+  if (!verifyTotpToken(twoFactorState.secret, verificationCode)) {
+    logAudit(
+      req,
+      "admin",
+      pendingAdminTwoFactor.username || "unknown",
+      "admin_2fa_verification_failed",
+    );
+    setFlash(req, "error", "Invalid two-factor code. Enter the latest code from your authenticator app.");
+    return res.redirect("/admin/verify-2fa");
+  }
+
+  req.session.admin = { username: pendingAdminTwoFactor.username };
+  req.session.pendingAdminTwoFactor = null;
+  logAudit(req, "admin", pendingAdminTwoFactor.username, "admin_login_success");
+  setFlash(req, "success", "Two-factor verification complete.");
+  return res.redirect("/admin");
+});
+
 app.post("/admin/logout", requireAdmin, (req, res) => {
   logAudit(req, "admin", req.session.admin.username, "admin_logout");
-  req.session.admin = null;
+  clearAdminAccess(req);
   res.redirect("/admin/login");
 });
 
 app.get("/admin", requireAdmin, (req, res) => {
   const metrics = getDashboardMetrics();
   const settings = getElectionSettings();
+  const adminTwoFactorState = getAdminTwoFactorState();
+  const pendingAdminTwoFactorSetup = req.session.adminTwoFactorSetup || null;
   const electionState = computeElectionState(settings);
   const archives = getElectionArchives().slice(0, 5);
   const turnoutRate = metrics.totalVoters ? metrics.votedCount / metrics.totalVoters : 0;
@@ -3626,7 +3833,91 @@ app.get("/admin", requireAdmin, (req, res) => {
     timelineSeries,
     timelineChart,
     themeOptions: getThemeOptions(),
+    adminTwoFactorState,
+    pendingAdminTwoFactorSetup,
   });
+});
+
+app.post("/admin/2fa/setup", requireAdmin, (req, res) => {
+  const adminTwoFactorState = getAdminTwoFactorState();
+
+  if (adminTwoFactorState.enabled) {
+    setFlash(req, "error", "Admin two-factor authentication is already enabled.");
+    return res.redirect("/admin#security-panel");
+  }
+
+  const secret = generateTotpSecret();
+  const settings = getElectionSettings();
+
+  req.session.adminTwoFactorSetup = {
+    secret,
+    formattedSecret: formatTotpSecret(secret),
+    issuer: settings.electionName,
+    accountName: adminUsername,
+    otpauthUri: buildAdminTotpUri(secret, settings.electionName),
+    generatedAt: nowIso(),
+  };
+
+  logAudit(req, "admin", req.session.admin.username, "admin_2fa_setup_started");
+  setFlash(
+    req,
+    "success",
+    "Two-factor setup secret generated. Add it to your authenticator app, then enter the 6-digit code to activate it.",
+  );
+  return res.redirect("/admin#security-panel");
+});
+
+app.post("/admin/2fa/cancel-setup", requireAdmin, (req, res) => {
+  req.session.adminTwoFactorSetup = null;
+  setFlash(req, "success", "Pending two-factor setup was cancelled.");
+  return res.redirect("/admin#security-panel");
+});
+
+app.post("/admin/2fa/enable", requireAdmin, (req, res) => {
+  const pendingAdminTwoFactorSetup = req.session.adminTwoFactorSetup;
+  const verificationCode = normalizeTotpToken(req.body.verificationCode);
+
+  if (!pendingAdminTwoFactorSetup?.secret) {
+    setFlash(req, "error", "Start two-factor setup first before trying to enable it.");
+    return res.redirect("/admin#security-panel");
+  }
+
+  if (!verifyTotpToken(pendingAdminTwoFactorSetup.secret, verificationCode)) {
+    logAudit(req, "admin", req.session.admin.username, "admin_2fa_enable_failed");
+    setFlash(req, "error", "Invalid authenticator code. Enter the latest 6-digit code and try again.");
+    return res.redirect("/admin#security-panel");
+  }
+
+  setSetting("admin_2fa_secret", pendingAdminTwoFactorSetup.secret);
+  setSetting("admin_2fa_enabled", "true");
+  req.session.adminTwoFactorSetup = null;
+  logAudit(req, "admin", req.session.admin.username, "admin_2fa_enabled");
+  setFlash(req, "success", "Admin two-factor authentication is now enabled.");
+  return res.redirect("/admin#security-panel");
+});
+
+app.post("/admin/2fa/disable", requireAdmin, (req, res) => {
+  const adminTwoFactorState = getAdminTwoFactorState();
+  const verificationCode = normalizeTotpToken(req.body.verificationCode);
+
+  if (!adminTwoFactorState.enabled) {
+    setFlash(req, "error", "Admin two-factor authentication is not enabled right now.");
+    return res.redirect("/admin#security-panel");
+  }
+
+  if (!verifyTotpToken(adminTwoFactorState.secret, verificationCode)) {
+    logAudit(req, "admin", req.session.admin.username, "admin_2fa_disable_failed");
+    setFlash(req, "error", "Invalid authenticator code. Enter the latest 6-digit code to disable 2FA.");
+    return res.redirect("/admin#security-panel");
+  }
+
+  setSetting("admin_2fa_secret", "");
+  setSetting("admin_2fa_enabled", "false");
+  req.session.adminTwoFactorSetup = null;
+  clearAdminAccess(req);
+  logAudit(req, "admin", adminUsername, "admin_2fa_disabled");
+  setFlash(req, "success", "Admin two-factor authentication has been disabled. Sign in again to continue.");
+  return res.redirect("/admin/login");
 });
 
 app.get("/admin/nominations", requireAdmin, (req, res) => {

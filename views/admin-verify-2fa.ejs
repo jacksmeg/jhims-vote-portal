@@ -1,0 +1,39 @@
+<%- include("partials/public-shell-start", { pageTitle }) %>
+
+<section class="split-stage">
+  <div class="panel panel-dark stack-lg">
+    <span class="eyebrow">Administrator Security</span>
+    <h2>Enter your authenticator code to complete sign-in.</h2>
+    <p>
+      Two-factor authentication is enabled for the election committee. Open your
+      authenticator app and enter the current 6-digit code to continue to the dashboard.
+    </p>
+  </div>
+
+  <div class="panel panel-light">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Admin 2FA</span>
+        <h3>Finish secure sign-in</h3>
+      </div>
+    </div>
+
+    <form class="stack-md" action="/admin/verify-2fa" method="post">
+      <label class="field">
+        <span>Authenticator Code</span>
+        <input
+          name="verificationCode"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="123456"
+          maxlength="6"
+          required
+        />
+      </label>
+
+      <button class="button" type="submit">Verify and Open Dashboard</button>
+    </form>
+  </div>
+</section>
+
+<%- include("partials/public-shell-end") %>

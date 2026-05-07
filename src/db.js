@@ -316,6 +316,8 @@ function initDatabase(defaultElectionName) {
     ["nomination_phase", "setup"],
     ["nomination_opens_at", ""],
     ["nomination_closes_at", ""],
+    ["admin_2fa_enabled", "false"],
+    ["admin_2fa_secret", ""],
   ];
 
   for (const [key, value] of defaults) {
