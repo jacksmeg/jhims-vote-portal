@@ -1,7 +1,7 @@
 <%- include("partials/admin-shell-start", {
   pageTitle,
   pageHeading: "Nomination Management",
-  pageIntro: "Control the nomination window, review submissions, and publish approved nominees as candidates.",
+  pageIntro: "Control the nomination window, issue reference codes, review submissions, and publish approved nominees as candidates.",
   currentSection: "nominations"
 }) %>
 
@@ -26,6 +26,16 @@
     <strong><%= nominationMetrics.publishedCount %></strong>
     <small>Already added to the candidate list</small>
   </article>
+  <article class="metric-card">
+    <span>Unused Codes</span>
+    <strong><%= accessCodeMetrics.unusedCount %></strong>
+    <small>Available for sale and activation</small>
+  </article>
+  <article class="metric-card">
+    <span>Used Codes</span>
+    <strong><%= accessCodeMetrics.usedCount %></strong>
+    <small>Already linked to submitted nominations</small>
+  </article>
 </section>
 
 <section class="admin-grid">
@@ -35,7 +45,7 @@
         <span class="eyebrow">Nomination Window</span>
         <h2>Schedule nominations</h2>
       </div>
-      <p>Use dates to control when staff can submit nomination forms.</p>
+      <p>Use dates to control when applicants can submit nomination forms after buying a code.</p>
     </div>
 
     <form class="stack-md" action="/admin/nominations/settings" method="post">
@@ -62,10 +72,45 @@
   <article class="panel panel-light stack-md">
     <div class="section-heading">
       <div>
+        <span class="eyebrow">Reference Codes</span>
+        <h2>Load nomination access codes</h2>
+      </div>
+      <p>Generate random one-time codes or import your own custom paid codes into the system.</p>
+    </div>
+
+    <form class="stack-md" action="/admin/nominations/codes/generate" method="post">
+      <label class="field">
+        <span>Generate Quantity</span>
+        <input name="codeCount" type="number" min="1" max="500" value="100" required />
+      </label>
+      <button class="button" type="submit">Generate Reference Codes</button>
+    </form>
+
+    <form class="stack-md" action="/admin/nominations/codes/import" method="post">
+      <label class="field">
+        <span>Import Custom Codes</span>
+        <textarea
+          name="codes"
+          rows="5"
+          placeholder="Paste codes separated by new lines or commas&#10;Example:&#10;NOM-1201&#10;NOM-1202&#10;VIP-001"
+          required
+        ></textarea>
+      </label>
+      <button class="button button-ghost" type="submit">Import Codes</button>
+    </form>
+
+    <div class="note-block">
+      <strong>Tip:</strong> Each reference code can unlock only one nomination form and becomes used immediately after submission.
+    </div>
+  </article>
+
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
         <span class="eyebrow">Committee Actions</span>
         <h2>Open, close, and export</h2>
       </div>
-      <p>These actions control public access to the nomination flow.</p>
+      <p>These actions control the public nomination portal and reporting.</p>
     </div>
 
     <div class="button-stack">
@@ -84,6 +129,49 @@
 <section class="panel panel-light stack-md">
   <div class="section-heading">
     <div>
+      <span class="eyebrow">Reference Code Inventory</span>
+      <h2>Issued nomination access codes</h2>
+    </div>
+    <p>Track which codes are still available and which ones have already been used to submit nominations.</p>
+  </div>
+
+  <% if (accessCodes.length === 0) { %>
+    <div class="empty-state">No nomination reference codes have been loaded yet.</div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Reference Code</th>
+            <th>Status</th>
+            <th>Linked Nominee</th>
+            <th>Position</th>
+            <th>Used At</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% accessCodes.forEach((accessCode) => { %>
+            <tr>
+              <td><strong><%= accessCode.code %></strong></td>
+              <td>
+                <span class="inline-badge <%= accessCode.statusMeta.className %>">
+                  <%= accessCode.statusMeta.label %>
+                </span>
+              </td>
+              <td><%= accessCode.nomineeName || '—' %></td>
+              <td><%= accessCode.positionName || '—' %></td>
+              <td><%= accessCode.usedAt ? formatDateTime(accessCode.usedAt) : 'Not used yet' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<section class="panel panel-light stack-md">
+  <div class="section-heading">
+    <div>
       <span class="eyebrow">Applications</span>
       <h2>Submitted nominations</h2>
     </div>
@@ -97,10 +185,10 @@
       <table>
         <thead>
           <tr>
+            <th>Reference Code</th>
             <th>Staff ID</th>
             <th>Name</th>
             <th>Position</th>
-            <th>Department</th>
             <th>Status</th>
             <th>Submitted</th>
             <th>Action</th>
@@ -109,10 +197,10 @@
         <tbody>
           <% nominations.forEach((nomination) => { %>
             <tr>
+              <td><strong><%= nomination.accessCode || 'Legacy Entry' %></strong></td>
               <td><strong><%= nomination.staffId %></strong></td>
               <td><%= nomination.fullName %></td>
               <td><%= nomination.positionName %></td>
-              <td><%= nomination.department || '—' %></td>
               <td>
                 <span class="inline-badge <%= nomination.statusMeta.className %>">
                   <%= nomination.statusMeta.label %>

@@ -4,17 +4,19 @@
   <div class="section-heading">
     <div>
       <span class="eyebrow">Nomination Status</span>
-      <h2>Track your nomination applications</h2>
+      <h2>Track your nomination application</h2>
     </div>
     <p>
-      Signed in as <strong><%= applicant.staffId %></strong>.
-      Use this page to follow review decisions and continue any corrections requested by the committee.
+      Reference code <strong><%= accessCode.code %></strong> is signed in.
+      Use this page to follow committee decisions and continue any correction requested by the committee.
     </p>
   </div>
 
   <div class="button-row">
-    <% if (nominationState.isOpen) { %>
-      <a class="button" href="/nomination/form">Submit Another Nomination</a>
+    <% if (!nomination && nominationState.isOpen) { %>
+      <a class="button" href="/nomination/form">Open Nomination Form</a>
+    <% } else if (nominationState.isOpen && nomination?.statusMeta.canApplicantEdit) { %>
+      <a class="button" href="/nomination/form?edit=<%= nomination.id %>">Continue Correction</a>
     <% } else { %>
       <a class="button button-ghost" href="/nomination/form/download">Download Nomination Form PDF</a>
     <% } %>
@@ -23,36 +25,47 @@
     </form>
   </div>
 
-  <% if (nominations.length === 0) { %>
-    <div class="empty-state">No nomination applications have been submitted with this staff record yet.</div>
-  <% } else { %>
-    <div class="nomination-status-grid">
-      <% nominations.forEach((nomination) => { %>
-        <article class="panel panel-light nomination-status-card">
-          <div class="nomination-status-card__topline">
-            <div>
-              <span class="eyebrow">Position</span>
-              <h3><%= nomination.positionName %></h3>
-            </div>
-            <span class="inline-badge <%= nomination.statusMeta.className %>"><%= nomination.statusMeta.label %></span>
-          </div>
-
-          <div class="stack-sm">
-            <div class="info-row"><span>Submitted</span><strong><%= formatDateTime(nomination.submittedAt) %></strong></div>
-            <div class="info-row"><span>Proposer</span><strong><%= nomination.proposerName %></strong></div>
-            <div class="info-row"><span>Seconder</span><strong><%= nomination.seconderName %></strong></div>
-          </div>
-
-          <% if (nomination.adminNotes) { %>
-            <p class="note-block"><strong>Committee Note:</strong> <%= nomination.adminNotes %></p>
-          <% } %>
-
-          <% if (nomination.statusMeta.canApplicantEdit) { %>
-            <a class="button" href="/nomination/form?edit=<%= nomination.id %>">Continue Correction</a>
-          <% } %>
-        </article>
-      <% }) %>
+  <% if (!nomination) { %>
+    <div class="empty-state">
+      This reference code has not been used to submit a nomination yet.
+      <% if (nominationState.isOpen) { %>
+        You can still open the nomination form while the window remains active.
+      <% } %>
     </div>
+  <% } else { %>
+    <article class="panel panel-light nomination-status-card">
+      <div class="nomination-status-card__topline">
+        <div>
+          <span class="eyebrow">Position</span>
+          <h3><%= nomination.positionName %></h3>
+        </div>
+        <span class="inline-badge <%= nomination.statusMeta.className %>"><%= nomination.statusMeta.label %></span>
+      </div>
+
+      <div class="nomination-status-grid">
+        <div class="stack-sm">
+          <div class="info-row"><span>Submitted</span><strong><%= formatDateTime(nomination.submittedAt) %></strong></div>
+          <div class="info-row"><span>Staff ID</span><strong><%= nomination.staffId %></strong></div>
+          <div class="info-row"><span>Phone Number</span><strong><%= nomination.phoneNumber %></strong></div>
+          <div class="info-row"><span>Department</span><strong><%= nomination.department %></strong></div>
+        </div>
+
+        <div class="stack-sm">
+          <div class="info-row"><span>Reference Code</span><strong><%= nomination.accessCode || accessCode.code %></strong></div>
+          <div class="info-row"><span>Proposer</span><strong><%= nomination.proposerName %></strong></div>
+          <div class="info-row"><span>Seconder</span><strong><%= nomination.seconderName %></strong></div>
+          <div class="info-row"><span>Committee Review</span><strong><%= nomination.reviewedAt ? formatDateTime(nomination.reviewedAt) : 'Pending review' %></strong></div>
+        </div>
+      </div>
+
+      <% if (nomination.adminNotes) { %>
+        <p class="note-block"><strong>Committee Note:</strong> <%= nomination.adminNotes %></p>
+      <% } %>
+
+      <% if (nomination.statusMeta.canApplicantEdit) { %>
+        <a class="button" href="/nomination/form?edit=<%= nomination.id %>">Continue Correction</a>
+      <% } %>
+    </article>
   <% } %>
 </section>
 

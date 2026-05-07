@@ -170,6 +170,41 @@ function toSafeFilename(value) {
   );
 }
 
+function normalizeReferenceCode(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function createNominationReferenceCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const segmentLength = 4;
+  const segments = [];
+
+  for (let segmentIndex = 0; segmentIndex < 2; segmentIndex += 1) {
+    let segment = "";
+
+    for (let characterIndex = 0; characterIndex < segmentLength; characterIndex += 1) {
+      segment += alphabet[crypto.randomInt(0, alphabet.length)];
+    }
+
+    segments.push(segment);
+  }
+
+  return `NOM-${segments.join("-")}`;
+}
+
+function parseReferenceCodeList(rawValue) {
+  const candidates = String(rawValue || "")
+    .split(/[\r\n,;]+/)
+    .map((value) => normalizeReferenceCode(value))
+    .filter(Boolean);
+
+  return [...new Set(candidates)];
+}
+
 function getInitials(name) {
   return String(name || "")
     .split(/\s+/)
@@ -347,9 +382,14 @@ function getElectionReadiness(settings = getElectionSettings()) {
 function getNominationReadiness(settings = getElectionSettings()) {
   const issues = [];
   const positions = getPositions();
+  const availableAccessCodeCount = getUnusedNominationAccessCodeCount();
 
   if (positions.length === 0) {
     issues.push("Add at least one position before opening nominations.");
+  }
+
+  if (availableAccessCodeCount === 0) {
+    issues.push("Generate or load at least one unused nomination reference code.");
   }
 
   if (!settings.nominationOpensAt || !settings.nominationClosesAt) {
@@ -462,7 +502,8 @@ function computeNominationState(settings) {
       message = `Nominations closed on ${formatDateTime(settings.nominationClosesAt)}.`;
     } else {
       status = "open";
-      message = "Nominations are currently open for registered staff members.";
+      message =
+        "Nominations are currently open for applicants who hold a valid nomination reference code.";
     }
   } else if (settings.nominationPhase === "closed") {
     status = "closed";
@@ -695,13 +736,12 @@ function beginAuthenticatedVoterSession(req, voterRecord) {
   req.session.voteComplete = null;
 }
 
-function beginNominationApplicantSession(req, voterRecord) {
+function beginNominationApplicantSession(req, accessCodeRecord, nomination = null) {
   req.session.nominationApplicant = {
-    voterId: voterRecord.id,
-    staffId: voterRecord.staffId,
-    fullName: voterRecord.fullName,
-    phoneNumber: voterRecord.phoneNumber,
-    department: voterRecord.department || "",
+    accessCodeId: accessCodeRecord.id,
+    referenceCode: accessCodeRecord.code,
+    codeStatus: accessCodeRecord.status,
+    nominationId: nomination?.id || accessCodeRecord.linkedNominationId || null,
   };
 }
 
@@ -1312,6 +1352,7 @@ function renderNominationFormPdf(document, payload) {
     "Staff ID: ______________________",
     "Phone Number: ______________________",
     "Department: ______________________________________________",
+    "Reference Code: ___________________________________________",
     "",
     "Position Applying For: ____________________________________",
     "Proposer Name: ____________________________________________",
@@ -1418,6 +1459,7 @@ function renderNominationReportPdf(document, payload) {
       .font("Helvetica")
       .fontSize(10)
       .fillColor("#42586f")
+      .text(`Reference Code: ${nomination.accessCode || "Not assigned"}`)
       .text(`Staff ID: ${nomination.staffId}`)
       .text(`Position: ${nomination.positionName}`)
       .text(`Department: ${nomination.department || "Not provided"}`)
@@ -1511,6 +1553,37 @@ function getRegisteredStaffRecord(staffId, phoneNumber) {
   return voterRecord;
 }
 
+function getNominationAccessCodeStatusMeta(status) {
+  const normalizedStatus = String(status || "unused").trim().toLowerCase();
+
+  switch (normalizedStatus) {
+    case "used":
+      return {
+        value: "used",
+        label: "Used",
+        className: "inline-badge--success",
+      };
+    case "cancelled":
+      return {
+        value: "cancelled",
+        label: "Cancelled",
+        className: "inline-badge--danger",
+      };
+    case "expired":
+      return {
+        value: "expired",
+        label: "Expired",
+        className: "inline-badge--warning",
+      };
+    default:
+      return {
+        value: "unused",
+        label: "Unused",
+        className: "inline-badge--muted",
+      };
+  }
+}
+
 function getNominationStatusMeta(status) {
   const normalizedStatus = String(status || "pending").trim().toLowerCase();
 
@@ -1561,6 +1634,81 @@ function mapNominationRow(row) {
   };
 }
 
+function mapNominationAccessCodeRow(row) {
+  return {
+    ...row,
+    statusMeta: getNominationAccessCodeStatusMeta(row.status),
+  };
+}
+
+function getUnusedNominationAccessCodeCount() {
+  const totals = db.prepare(`
+    SELECT COUNT(*) AS total
+    FROM nomination_access_codes
+    WHERE status = 'unused'
+  `).get();
+
+  return Number(totals?.total || 0);
+}
+
+function getNominationAccessCodeMetrics() {
+  const totals = db.prepare(`
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN status = 'unused' THEN 1 ELSE 0 END) AS unusedCount,
+      SUM(CASE WHEN status = 'used' THEN 1 ELSE 0 END) AS usedCount,
+      SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelledCount,
+      SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) AS expiredCount
+    FROM nomination_access_codes
+  `).get();
+
+  return {
+    total: Number(totals?.total || 0),
+    unusedCount: Number(totals?.unusedCount || 0),
+    usedCount: Number(totals?.usedCount || 0),
+    cancelledCount: Number(totals?.cancelledCount || 0),
+    expiredCount: Number(totals?.expiredCount || 0),
+  };
+}
+
+function getNominationAccessCodeByCode(referenceCode) {
+  const normalizedCode = normalizeReferenceCode(referenceCode);
+
+  if (!normalizedCode) {
+    return null;
+  }
+
+  return db.prepare(`
+    SELECT
+      id,
+      code,
+      status,
+      linked_nomination_id AS linkedNominationId,
+      used_at AS usedAt,
+      notes,
+      created_at AS createdAt,
+      updated_at AS updatedAt
+    FROM nomination_access_codes
+    WHERE code = ?
+  `).get(normalizedCode);
+}
+
+function getNominationAccessCodeById(accessCodeId) {
+  return db.prepare(`
+    SELECT
+      id,
+      code,
+      status,
+      linked_nomination_id AS linkedNominationId,
+      used_at AS usedAt,
+      notes,
+      created_at AS createdAt,
+      updated_at AS updatedAt
+    FROM nomination_access_codes
+    WHERE id = ?
+  `).get(accessCodeId);
+}
+
 function getNominationMetrics() {
   const totals = db.prepare(`
     SELECT
@@ -1588,6 +1736,8 @@ function getNominationList() {
     SELECT
       n.id,
       n.voter_id AS voterId,
+      n.access_code_id AS accessCodeId,
+      n.access_code AS accessCode,
       n.position_id AS positionId,
       n.staff_id AS staffId,
       n.full_name AS fullName,
@@ -1607,20 +1757,24 @@ function getNominationList() {
       n.submitted_at AS submittedAt,
       n.created_at AS createdAt,
       n.updated_at AS updatedAt,
-      p.name AS positionName
+      p.name AS positionName,
+      ac.status AS accessCodeStatus
     FROM nominations n
     INNER JOIN positions p ON p.id = n.position_id
+    LEFT JOIN nomination_access_codes ac ON ac.id = n.access_code_id
     ORDER BY n.submitted_at DESC, n.id DESC
   `).all();
 
   return rows.map(mapNominationRow);
 }
 
-function getNominationsForVoter(voterId) {
-  const rows = db.prepare(`
+function getNominationForAccessCode(accessCodeId) {
+  const row = db.prepare(`
     SELECT
       n.id,
       n.voter_id AS voterId,
+      n.access_code_id AS accessCodeId,
+      n.access_code AS accessCode,
       n.position_id AS positionId,
       n.staff_id AS staffId,
       n.full_name AS fullName,
@@ -1640,14 +1794,15 @@ function getNominationsForVoter(voterId) {
       n.submitted_at AS submittedAt,
       n.created_at AS createdAt,
       n.updated_at AS updatedAt,
-      p.name AS positionName
+      p.name AS positionName,
+      ac.status AS accessCodeStatus
     FROM nominations n
     INNER JOIN positions p ON p.id = n.position_id
-    WHERE n.voter_id = ?
-    ORDER BY n.submitted_at DESC, n.id DESC
-  `).all(voterId);
+    LEFT JOIN nomination_access_codes ac ON ac.id = n.access_code_id
+    WHERE n.access_code_id = ?
+  `).get(accessCodeId);
 
-  return rows.map(mapNominationRow);
+  return row ? mapNominationRow(row) : null;
 }
 
 function getNominationById(nominationId) {
@@ -1655,6 +1810,8 @@ function getNominationById(nominationId) {
     SELECT
       n.id,
       n.voter_id AS voterId,
+      n.access_code_id AS accessCodeId,
+      n.access_code AS accessCode,
       n.position_id AS positionId,
       n.staff_id AS staffId,
       n.full_name AS fullName,
@@ -1674,13 +1831,40 @@ function getNominationById(nominationId) {
       n.submitted_at AS submittedAt,
       n.created_at AS createdAt,
       n.updated_at AS updatedAt,
-      p.name AS positionName
+      p.name AS positionName,
+      ac.status AS accessCodeStatus
     FROM nominations n
     INNER JOIN positions p ON p.id = n.position_id
+    LEFT JOIN nomination_access_codes ac ON ac.id = n.access_code_id
     WHERE n.id = ?
   `).get(nominationId);
 
   return row ? mapNominationRow(row) : null;
+}
+
+function getNominationAccessCodeList(limit = 250) {
+  const rows = db.prepare(`
+    SELECT
+      ac.id,
+      ac.code,
+      ac.status,
+      ac.linked_nomination_id AS linkedNominationId,
+      ac.used_at AS usedAt,
+      ac.notes,
+      ac.created_at AS createdAt,
+      ac.updated_at AS updatedAt,
+      n.full_name AS nomineeName,
+      n.staff_id AS staffId,
+      n.position_id AS positionId,
+      p.name AS positionName
+    FROM nomination_access_codes ac
+    LEFT JOIN nominations n ON n.id = ac.linked_nomination_id
+    LEFT JOIN positions p ON p.id = n.position_id
+    ORDER BY ac.created_at DESC, ac.id DESC
+    LIMIT ?
+  `).all(limit);
+
+  return rows.map(mapNominationAccessCodeRow);
 }
 
 function getAuditLogs(limit = 150) {
@@ -2161,13 +2345,12 @@ app.get("/nomination/login", (req, res) => {
 });
 
 app.post("/nomination/login", (req, res) => {
-  const staffId = normalizeStaffId(req.body.staffId);
-  const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
+  const referenceCode = normalizeReferenceCode(req.body.referenceCode);
   const settings = getElectionSettings();
   const nominationState = computeNominationState(settings);
 
-  if (!staffId || !phoneNumber) {
-    setFlash(req, "error", "Enter both your staff ID and phone number.");
+  if (!referenceCode) {
+    setFlash(req, "error", "Enter your nomination reference code to continue.");
     return res.redirect("/nomination/login");
   }
 
@@ -2176,22 +2359,34 @@ app.post("/nomination/login", (req, res) => {
     return res.redirect("/nomination/login");
   }
 
-  const voterRecord = getRegisteredStaffRecord(staffId, phoneNumber);
+  const accessCode = getNominationAccessCodeByCode(referenceCode);
 
-  if (!voterRecord) {
-    logAudit(req, "nomination", staffId || "unknown", "nomination_login_failed", {
-      reason: "invalid_credentials",
+  if (!accessCode || accessCode.status === "cancelled" || accessCode.status === "expired") {
+    logAudit(req, "nomination", referenceCode || "unknown", "nomination_code_login_failed", {
+      reason: "invalid_or_inactive_code",
     });
     setFlash(
       req,
       "error",
-      "Your staff ID and phone number do not match a registered staff record.",
+      "That nomination reference code is invalid or no longer active.",
     );
     return res.redirect("/nomination/login");
   }
 
-  beginNominationApplicantSession(req, voterRecord);
-  logAudit(req, "nomination", voterRecord.staffId, "nomination_login_success");
+  const linkedNomination = getNominationForAccessCode(accessCode.id);
+  beginNominationApplicantSession(req, accessCode, linkedNomination);
+
+  if (linkedNomination || accessCode.status === "used") {
+    logAudit(req, "nomination", accessCode.code, "nomination_code_reused_for_status");
+    setFlash(
+      req,
+      "success",
+      "This reference code is already linked to a nomination. Review the status below.",
+    );
+    return res.redirect("/nomination/status");
+  }
+
+  logAudit(req, "nomination", accessCode.code, "nomination_code_login_success");
   return res.redirect("/nomination/form");
 });
 
@@ -2207,30 +2402,32 @@ app.get("/nomination/status/login", (req, res) => {
 });
 
 app.post("/nomination/status/login", (req, res) => {
-  const staffId = normalizeStaffId(req.body.staffId);
-  const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
+  const referenceCode = normalizeReferenceCode(req.body.referenceCode);
 
-  if (!staffId || !phoneNumber) {
-    setFlash(req, "error", "Enter both your staff ID and phone number.");
+  if (!referenceCode) {
+    setFlash(req, "error", "Enter your nomination reference code to check status.");
     return res.redirect("/nomination/status/login");
   }
 
-  const voterRecord = getRegisteredStaffRecord(staffId, phoneNumber);
+  const accessCode = getNominationAccessCodeByCode(referenceCode);
 
-  if (!voterRecord) {
-    logAudit(req, "nomination", staffId || "unknown", "nomination_status_login_failed", {
-      reason: "invalid_credentials",
+  if (!accessCode || accessCode.status === "cancelled" || accessCode.status === "expired") {
+    logAudit(req, "nomination", referenceCode || "unknown", "nomination_status_login_failed", {
+      reason: "invalid_or_inactive_code",
     });
     setFlash(
       req,
       "error",
-      "Your staff ID and phone number do not match a registered staff record.",
+      "That nomination reference code is invalid or no longer active.",
     );
     return res.redirect("/nomination/status/login");
   }
 
-  beginNominationApplicantSession(req, voterRecord);
-  logAudit(req, "nomination", voterRecord.staffId, "nomination_status_login_success");
+  const linkedNomination = getNominationForAccessCode(accessCode.id);
+  beginNominationApplicantSession(req, accessCode, linkedNomination);
+  logAudit(req, "nomination", accessCode.code, "nomination_status_login_success", {
+    hasNomination: Boolean(linkedNomination),
+  });
   return res.redirect("/nomination/status");
 });
 
@@ -2238,33 +2435,66 @@ app.get("/nomination/form", (req, res) => {
   const applicant = req.session.nominationApplicant;
 
   if (!applicant) {
-    setFlash(req, "error", "Sign in with your staff ID and phone number to continue.");
+    setFlash(req, "error", "Sign in with your nomination reference code to continue.");
+    return res.redirect("/nomination/login");
+  }
+
+  const accessCode = getNominationAccessCodeById(applicant.accessCodeId);
+
+  if (!accessCode || accessCode.status === "cancelled" || accessCode.status === "expired") {
+    clearNominationSession(req);
+    setFlash(req, "error", "This nomination reference code is no longer available.");
     return res.redirect("/nomination/login");
   }
 
   const settings = getElectionSettings();
   const nominationState = computeNominationState(settings);
   const positions = getPositions();
-  const nominations = getNominationsForVoter(applicant.voterId);
+  const currentNomination = getNominationForAccessCode(accessCode.id);
+  if (accessCode.status === "used" && !currentNomination) {
+    setFlash(
+      req,
+      "error",
+      "This reference code is already marked as used. Contact the election committee for help.",
+    );
+    return res.redirect("/nomination/status");
+  }
+
   const editNominationId = parseInteger(req.query.edit, 0);
   const editableNomination =
-    editNominationId > 0
-      ? nominations.find(
-          (nomination) =>
-            nomination.id === editNominationId && nomination.statusMeta.canApplicantEdit,
-        ) || null
+    currentNomination &&
+    currentNomination.statusMeta.canApplicantEdit &&
+    (!editNominationId || editNominationId === currentNomination.id)
+      ? currentNomination
       : null;
+
+  if (currentNomination && !editableNomination) {
+    setFlash(
+      req,
+      "error",
+      "This reference code has already been used. Review the nomination status below.",
+    );
+    return res.redirect("/nomination/status");
+  }
 
   if (!nominationState.isOpen && !editableNomination) {
     setFlash(req, "error", nominationState.message);
     return res.redirect("/nomination/status");
   }
 
+  req.session.nominationApplicant = {
+    ...applicant,
+    referenceCode: accessCode.code,
+    codeStatus: accessCode.status,
+    nominationId: currentNomination?.id || null,
+  };
+
   return res.render("nomination-form", {
     pageTitle: "Apply for Nomination",
-    applicant,
+    applicant: req.session.nominationApplicant,
+    accessCode,
     positions,
-    nominations,
+    currentNomination,
     editableNomination,
   });
 });
@@ -2279,7 +2509,18 @@ app.post(
       if (req.file) {
         await safeRemoveFile(req.file.path);
       }
-      setFlash(req, "error", "Sign in with your staff ID and phone number to continue.");
+      setFlash(req, "error", "Sign in with your nomination reference code to continue.");
+      return res.redirect("/nomination/login");
+    }
+
+    const accessCode = getNominationAccessCodeById(applicant.accessCodeId);
+
+    if (!accessCode || accessCode.status === "cancelled" || accessCode.status === "expired") {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      clearNominationSession(req);
+      setFlash(req, "error", "This nomination reference code is no longer available.");
       return res.redirect("/nomination/login");
     }
 
@@ -2287,6 +2528,8 @@ app.post(
     const nominationState = computeNominationState(settings);
     const nominationId = parseInteger(req.body.nominationId, 0);
     const fullName = String(req.body.fullName || "").trim();
+    const staffId = normalizeStaffId(req.body.staffId);
+    const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
     const department = String(req.body.department || "").trim();
     const positionId = parseInteger(req.body.positionId, 0);
     const bio = String(req.body.bio || "").trim();
@@ -2294,13 +2537,39 @@ app.post(
     const proposerName = String(req.body.proposerName || "").trim();
     const seconderName = String(req.body.seconderName || "").trim();
     const declarationAccepted = req.body.declarationAccepted === "on";
+    const currentNomination = getNominationForAccessCode(accessCode.id);
+
+    if (accessCode.status === "used" && !currentNomination) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(
+        req,
+        "error",
+        "This reference code is already marked as used. Contact the election committee for help.",
+      );
+      return res.redirect("/nomination/status");
+    }
 
     const existingEditableNomination =
-      nominationId > 0 ? getNominationById(nominationId) : null;
+      currentNomination && nominationId > 0 && currentNomination.id === nominationId
+        ? currentNomination
+        : currentNomination;
     const isCorrectionResubmission =
       existingEditableNomination &&
-      existingEditableNomination.voterId === applicant.voterId &&
       existingEditableNomination.statusMeta.canApplicantEdit;
+
+    if (currentNomination && !isCorrectionResubmission) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(
+        req,
+        "error",
+        "This reference code has already been used. Review the nomination status below.",
+      );
+      return res.redirect("/nomination/status");
+    }
 
     if (!nominationState.isOpen && !isCorrectionResubmission) {
       if (req.file) {
@@ -2312,6 +2581,8 @@ app.post(
 
     if (
       !fullName ||
+      !staffId ||
+      !phoneNumber ||
       !department ||
       !positionId ||
       !bio ||
@@ -2326,7 +2597,7 @@ app.post(
       setFlash(
         req,
         "error",
-        "Complete every nomination field and confirm the declaration before submitting.",
+        "Complete every nomination field, including your staff details, before submitting.",
       );
       return res.redirect(
         isCorrectionResubmission ? `/nomination/form?edit=${existingEditableNomination.id}` : "/nomination/form",
@@ -2353,10 +2624,10 @@ app.post(
     const duplicateNomination = db.prepare(`
       SELECT id, status
       FROM nominations
-      WHERE voter_id = ?
+      WHERE staff_id = ?
         AND position_id = ?
         AND id <> ?
-    `).get(applicant.voterId, positionId, isCorrectionResubmission ? existingEditableNomination.id : 0);
+    `).get(staffId, positionId, isCorrectionResubmission ? existingEditableNomination.id : 0);
 
     if (duplicateNomination) {
       if (req.file) {
@@ -2390,7 +2661,10 @@ app.post(
         db.prepare(`
           UPDATE nominations
           SET
+            access_code_id = ?,
+            access_code = ?,
             position_id = ?,
+            staff_id = ?,
             full_name = ?,
             phone_number = ?,
             department = ?,
@@ -2407,9 +2681,12 @@ app.post(
             updated_at = ?
           WHERE id = ?
         `).run(
+          accessCode.id,
+          accessCode.code,
           positionId,
+          staffId,
           fullName,
-          applicant.phoneNumber,
+          phoneNumber,
           department,
           nextPhotoPath,
           bio,
@@ -2425,14 +2702,28 @@ app.post(
           await safeRemoveFile(resolveAssetPath(existingEditableNomination.photoPath));
         }
 
-        logAudit(req, "nomination", applicant.staffId, "nomination_resubmitted", {
+        db.prepare(`
+          UPDATE nomination_access_codes
+          SET
+            status = 'used',
+            linked_nomination_id = ?,
+            used_at = COALESCE(used_at, ?),
+            updated_at = ?
+          WHERE id = ?
+        `).run(existingEditableNomination.id, submittedAt, submittedAt, accessCode.id);
+
+        logAudit(req, "nomination", accessCode.code, "nomination_resubmitted", {
+          accessCode: accessCode.code,
+          staffId,
           nominationId: existingEditableNomination.id,
           positionName: position.name,
         });
       } else {
-        db.prepare(`
+        const insertResult = db.prepare(`
           INSERT INTO nominations (
             voter_id,
+            access_code_id,
+            access_code,
             position_id,
             staff_id,
             full_name,
@@ -2450,13 +2741,14 @@ app.post(
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'pending', '', ?, ?, ?)
+          VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'pending', '', ?, ?, ?)
         `).run(
-          applicant.voterId,
+          accessCode.id,
+          accessCode.code,
           positionId,
-          applicant.staffId,
+          staffId,
           fullName,
-          applicant.phoneNumber,
+          phoneNumber,
           department,
           nextPhotoPath,
           bio,
@@ -2468,13 +2760,34 @@ app.post(
           submittedAt,
         );
 
-        logAudit(req, "nomination", applicant.staffId, "nomination_submitted", {
+        const createdNominationId = Number(insertResult.lastInsertRowid);
+
+        db.prepare(`
+          UPDATE nomination_access_codes
+          SET
+            status = 'used',
+            linked_nomination_id = ?,
+            used_at = COALESCE(used_at, ?),
+            updated_at = ?
+          WHERE id = ?
+        `).run(createdNominationId, submittedAt, submittedAt, accessCode.id);
+
+        req.session.nominationApplicant.nominationId = createdNominationId;
+
+        logAudit(req, "nomination", accessCode.code, "nomination_submitted", {
+          accessCode: accessCode.code,
+          staffId,
+          nominationId: createdNominationId,
           positionName: position.name,
         });
       }
 
-      req.session.nominationApplicant.fullName = fullName;
-      req.session.nominationApplicant.department = department;
+      req.session.nominationApplicant.referenceCode = accessCode.code;
+      req.session.nominationApplicant.codeStatus = "used";
+      req.session.nominationApplicant.nominationId =
+        isCorrectionResubmission
+          ? existingEditableNomination.id
+          : req.session.nominationApplicant.nominationId;
 
       setFlash(
         req,
@@ -2500,15 +2813,31 @@ app.get("/nomination/status", (req, res) => {
   const applicant = req.session.nominationApplicant;
 
   if (!applicant) {
-    setFlash(req, "error", "Sign in with your staff ID and phone number to check nomination status.");
+    setFlash(req, "error", "Sign in with your nomination reference code to check status.");
     return res.redirect("/nomination/status/login");
   }
 
-  const nominations = getNominationsForVoter(applicant.voterId);
+  const accessCode = getNominationAccessCodeById(applicant.accessCodeId);
+
+  if (!accessCode || accessCode.status === "cancelled" || accessCode.status === "expired") {
+    clearNominationSession(req);
+    setFlash(req, "error", "This nomination reference code is no longer available.");
+    return res.redirect("/nomination/status/login");
+  }
+
+  const nomination = getNominationForAccessCode(accessCode.id);
+  req.session.nominationApplicant = {
+    ...applicant,
+    referenceCode: accessCode.code,
+    codeStatus: accessCode.status,
+    nominationId: nomination?.id || null,
+  };
+
   return res.render("nomination-status", {
     pageTitle: "Nomination Status",
-    applicant,
-    nominations,
+    applicant: req.session.nominationApplicant,
+    accessCode,
+    nomination,
   });
 });
 
@@ -3305,14 +3634,105 @@ app.get("/admin/nominations", requireAdmin, (req, res) => {
   const nominationState = computeNominationState(settings);
   const nominations = getNominationList();
   const nominationMetrics = getNominationMetrics();
+  const accessCodeMetrics = getNominationAccessCodeMetrics();
+  const accessCodes = getNominationAccessCodeList();
 
   return res.render("admin-nominations", {
     pageTitle: "Nominations",
     nominations,
     nominationMetrics,
+    accessCodeMetrics,
+    accessCodes,
     nominationState,
     positions: getPositions(),
   });
+});
+
+app.post("/admin/nominations/codes/generate", requireAdmin, (req, res) => {
+  const requestedCount = Math.min(Math.max(parseInteger(req.body.codeCount, 100), 1), 500);
+  const timestamp = nowIso();
+  const insertCode = db.prepare(`
+    INSERT OR IGNORE INTO nomination_access_codes (
+      code,
+      status,
+      linked_nomination_id,
+      used_at,
+      notes,
+      created_at,
+      updated_at
+    )
+    VALUES (?, 'unused', NULL, NULL, '', ?, ?)
+  `);
+
+  let createdCount = 0;
+  let attempts = 0;
+
+  while (createdCount < requestedCount && attempts < requestedCount * 20) {
+    attempts += 1;
+    const result = insertCode.run(createNominationReferenceCode(), timestamp, timestamp);
+    createdCount += Number(result.changes || 0);
+  }
+
+  if (createdCount === 0) {
+    setFlash(req, "error", "No nomination reference codes could be generated right now.");
+    return res.redirect("/admin/nominations");
+  }
+
+  logAudit(req, "admin", req.session.admin.username, "nomination_access_codes_generated", {
+    requestedCount,
+    createdCount,
+  });
+  setFlash(
+    req,
+    "success",
+    `${createdCount} nomination reference code${createdCount === 1 ? "" : "s"} generated successfully.`,
+  );
+  return res.redirect("/admin/nominations");
+});
+
+app.post("/admin/nominations/codes/import", requireAdmin, (req, res) => {
+  const codes = parseReferenceCodeList(req.body.codes);
+  const timestamp = nowIso();
+  const insertCode = db.prepare(`
+    INSERT OR IGNORE INTO nomination_access_codes (
+      code,
+      status,
+      linked_nomination_id,
+      used_at,
+      notes,
+      created_at,
+      updated_at
+    )
+    VALUES (?, 'unused', NULL, NULL, '', ?, ?)
+  `);
+
+  if (codes.length === 0) {
+    setFlash(req, "error", "Paste at least one valid nomination reference code to import.");
+    return res.redirect("/admin/nominations");
+  }
+
+  let importedCount = 0;
+
+  for (const code of codes) {
+    const result = insertCode.run(code, timestamp, timestamp);
+    importedCount += Number(result.changes || 0);
+  }
+
+  const skippedCount = codes.length - importedCount;
+
+  logAudit(req, "admin", req.session.admin.username, "nomination_access_codes_imported", {
+    importedCount,
+    skippedCount,
+  });
+
+  setFlash(
+    req,
+    importedCount > 0 ? "success" : "error",
+    importedCount > 0
+      ? `${importedCount} nomination reference code${importedCount === 1 ? "" : "s"} imported.${skippedCount > 0 ? ` ${skippedCount} duplicate code${skippedCount === 1 ? " was" : "s were"} skipped.` : ""}`
+      : "All pasted nomination reference codes already exist in the system.",
+  );
+  return res.redirect("/admin/nominations");
 });
 
 app.get("/admin/nominations/pdf", requireAdmin, (req, res) => {
@@ -3458,6 +3878,8 @@ app.post(
     }
 
     const fullName = String(req.body.fullName || "").trim();
+    const staffId = normalizeStaffId(req.body.staffId);
+    const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
     const department = String(req.body.department || "").trim();
     const positionId = parseInteger(req.body.positionId, 0);
     const bio = String(req.body.bio || "").trim();
@@ -3465,7 +3887,17 @@ app.post(
     const proposerName = String(req.body.proposerName || "").trim();
     const seconderName = String(req.body.seconderName || "").trim();
 
-    if (!fullName || !department || !positionId || !bio || !manifesto || !proposerName || !seconderName) {
+    if (
+      !fullName ||
+      !staffId ||
+      !phoneNumber ||
+      !department ||
+      !positionId ||
+      !bio ||
+      !manifesto ||
+      !proposerName ||
+      !seconderName
+    ) {
       if (req.file) {
         await safeRemoveFile(req.file.path);
       }
@@ -3491,10 +3923,10 @@ app.post(
     const duplicateNomination = db.prepare(`
       SELECT id
       FROM nominations
-      WHERE voter_id = ?
+      WHERE staff_id = ?
         AND position_id = ?
         AND id <> ?
-    `).get(nomination.voterId, positionId, nominationId);
+    `).get(staffId, positionId, nominationId);
 
     if (duplicateNomination) {
       if (req.file) {
@@ -3514,7 +3946,9 @@ app.post(
       UPDATE nominations
       SET
         position_id = ?,
+        staff_id = ?,
         full_name = ?,
+        phone_number = ?,
         department = ?,
         photo_path = ?,
         bio = ?,
@@ -3525,7 +3959,9 @@ app.post(
       WHERE id = ?
     `).run(
       positionId,
+      staffId,
       fullName,
+      phoneNumber,
       department,
       nextPhotoPath,
       bio,
@@ -3979,10 +4415,11 @@ app.post("/admin/election/archive-reset", requireAdmin, async (req, res) => {
 
     db.prepare("DELETE FROM ballot_entries").run();
     db.prepare("DELETE FROM ballots").run();
-    db.prepare("DELETE FROM voters").run();
     db.prepare("DELETE FROM nominations").run();
+    db.prepare("DELETE FROM nomination_access_codes").run();
     db.prepare("DELETE FROM candidates").run();
     db.prepare("DELETE FROM positions").run();
+    db.prepare("DELETE FROM voters").run();
 
     setSetting("election_phase", "setup");
     setSetting("opens_at", "");

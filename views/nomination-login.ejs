@@ -2,10 +2,12 @@
 
 <%
   const isStatusMode = mode === 'status';
-  const entryTitle = isStatusMode ? 'Check your nomination status.' : 'Apply for nomination with your staff ID and phone number.';
+  const entryTitle = isStatusMode
+    ? 'Check your nomination status with your reference code.'
+    : 'Enter your paid nomination reference code to open the form.';
   const entryBody = isStatusMode
-    ? 'Use your registered staff details to review your nomination record, see committee feedback, and continue any corrections requested.'
-    : 'Only registered staff can apply. After verification, you will complete the nomination form for the position you want to contest.';
+    ? 'Use the same code that was issued to you by the committee to review your nomination, see committee feedback, and continue any requested correction.'
+    : 'Each reference code opens one nomination form only. After submission, the same code becomes your tracker for status updates and corrections.';
 %>
 
 <section class="split-stage">
@@ -15,35 +17,30 @@
     <p><%= entryBody %></p>
 
     <div class="check-list">
-      <div>Registered staff ID is required</div>
-      <div>Phone number must match the imported staff record</div>
-      <div>One nomination per position for each staff member</div>
-      <div>Committee approval is required before publishing to the ballot</div>
+      <div>One reference code unlocks one nomination record</div>
+      <div>Applicants fill their staff details inside the form</div>
+      <div>Committee approval is required before anyone reaches the ballot</div>
+      <div>The same code is used later for tracking and corrections</div>
     </div>
   </div>
 
   <div class="panel panel-light stack-lg narrow-panel">
     <div class="section-heading">
       <div>
-        <span class="eyebrow"><%= isStatusMode ? 'Status Check' : 'Nomination Login' %></span>
-        <h3><%= isStatusMode ? 'Open your nomination record' : 'Verify before continuing' %></h3>
+        <span class="eyebrow"><%= isStatusMode ? 'Status Check' : 'Nomination Access Code' %></span>
+        <h3><%= isStatusMode ? 'Open your nomination record' : 'Enter code to continue' %></h3>
       </div>
       <p class="muted-text"><%= nominationState.badgeLabel %></p>
     </div>
 
     <form class="stack-md" action="<%= isStatusMode ? '/nomination/status/login' : '/nomination/login' %>" method="post">
       <label class="field">
-        <span>Staff ID</span>
-        <input name="staffId" placeholder="STF0234" required />
-      </label>
-
-      <label class="field">
-        <span>Phone Number</span>
-        <input name="phoneNumber" placeholder="0240000000" required />
+        <span>Reference Code</span>
+        <input name="referenceCode" placeholder="NOM-8K4P-21QX" required />
       </label>
 
       <button class="button" type="submit" <%= !isStatusMode && !nominationState.isOpen ? 'disabled' : '' %>>
-        <%= isStatusMode ? 'Check Status' : 'Continue to Nomination Form' %>
+        <%= isStatusMode ? 'Check Status' : 'Open Nomination Form' %>
       </button>
     </form>
 
@@ -51,7 +48,7 @@
       <p class="note-block"><%= nominationState.message %></p>
       <a class="button button-ghost" href="/nomination/form/download">Download Nomination Form PDF</a>
     <% } else { %>
-      <p class="note-block">You can check status even after nominations have closed.</p>
+      <p class="note-block">Status remains available even after the nomination window closes.</p>
     <% } %>
   </div>
 </section>

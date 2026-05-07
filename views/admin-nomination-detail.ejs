@@ -25,6 +25,7 @@
       </div>
 
       <div class="stack-sm">
+        <div class="info-row"><span>Reference Code</span><strong><%= nomination.accessCode || 'Legacy Entry' %></strong></div>
         <div class="info-row"><span>Staff ID</span><strong><%= nomination.staffId %></strong></div>
         <div class="info-row"><span>Phone Number</span><strong><%= nomination.phoneNumber %></strong></div>
         <div class="info-row"><span>Department</span><strong><%= nomination.department %></strong></div>
@@ -61,6 +62,18 @@
         <div class="empty-state">This nomination has already been published and is now read-only.</div>
       <% } else { %>
         <form class="stack-md" action="/admin/nominations/<%= nomination.id %>/update" method="post" enctype="multipart/form-data">
+          <div class="form-grid">
+            <label class="field">
+              <span>Staff ID</span>
+              <input name="staffId" value="<%= nomination.staffId %>" required />
+            </label>
+
+            <label class="field">
+              <span>Phone Number</span>
+              <input name="phoneNumber" value="<%= nomination.phoneNumber %>" required />
+            </label>
+          </div>
+
           <div class="form-grid">
             <label class="field">
               <span>Full Name</span>
