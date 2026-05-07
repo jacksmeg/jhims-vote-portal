@@ -11,6 +11,7 @@ const session = require("express-session");
 const helmet = require("helmet");
 const multer = require("multer");
 const PDFDocument = require("pdfkit");
+const QRCode = require("qrcode");
 
 const {
   databasePath,
@@ -307,6 +308,26 @@ function buildAdminTotpUri(secret, issuerName) {
   });
 
   return `otpauth://totp/${encodeURIComponent(label)}?${params.toString()}`;
+}
+
+async function buildAdminTotpQrCodeDataUrl(otpauthUri) {
+  if (!otpauthUri) {
+    return "";
+  }
+
+  try {
+    return await QRCode.toDataURL(otpauthUri, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 220,
+      color: {
+        dark: "#102338",
+        light: "#FFFFFFFF",
+      },
+    });
+  } catch (_error) {
+    return "";
+  }
 }
 
 function normalizeReferenceCode(value) {
@@ -3790,11 +3811,11 @@ app.post("/admin/logout", requireAdmin, (req, res) => {
   res.redirect("/admin/login");
 });
 
-app.get("/admin", requireAdmin, (req, res) => {
+app.get("/admin", requireAdmin, async (req, res) => {
   const metrics = getDashboardMetrics();
   const settings = getElectionSettings();
   const adminTwoFactorState = getAdminTwoFactorState();
-  const pendingAdminTwoFactorSetup = req.session.adminTwoFactorSetup || null;
+  let pendingAdminTwoFactorSetup = req.session.adminTwoFactorSetup || null;
   const electionState = computeElectionState(settings);
   const archives = getElectionArchives().slice(0, 5);
   const turnoutRate = metrics.totalVoters ? metrics.votedCount / metrics.totalVoters : 0;
@@ -3817,6 +3838,15 @@ app.get("/admin", requireAdmin, (req, res) => {
     GROUP BY p.id
     ORDER BY p.sort_order ASC, p.name ASC
   `).all();
+
+  if (pendingAdminTwoFactorSetup?.otpauthUri) {
+    pendingAdminTwoFactorSetup = {
+      ...pendingAdminTwoFactorSetup,
+      qrCodeDataUrl: await buildAdminTotpQrCodeDataUrl(
+        pendingAdminTwoFactorSetup.otpauthUri,
+      ),
+    };
+  }
 
   return res.render("admin-dashboard", {
     pageTitle: "Admin Dashboard",
@@ -3862,7 +3892,7 @@ app.post("/admin/2fa/setup", requireAdmin, (req, res) => {
   setFlash(
     req,
     "success",
-    "Two-factor setup secret generated. Add it to your authenticator app, then enter the 6-digit code to activate it.",
+    "Two-factor setup is ready. Scan the QR code with your authenticator app, then enter the 6-digit code to activate it.",
   );
   return res.redirect("/admin#security-panel");
 });

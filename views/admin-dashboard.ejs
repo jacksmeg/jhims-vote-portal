@@ -607,17 +607,32 @@
       <% } else if (pendingAdminTwoFactorSetup) { %>
         <div class="stack-md">
           <div class="note-block">
-            <strong>Step 1:</strong> Add this account to your authenticator app.
+            <strong>Step 1:</strong> Scan this QR code with your authenticator app.
           </div>
 
-          <div class="mini-card stack-sm">
-            <div class="info-row"><span>Issuer</span><strong><%= pendingAdminTwoFactorSetup.issuer %></strong></div>
-            <div class="info-row"><span>Account</span><strong><%= pendingAdminTwoFactorSetup.accountName %></strong></div>
-            <div class="info-row"><span>Setup Key</span><strong><%= pendingAdminTwoFactorSetup.formattedSecret %></strong></div>
+          <div class="two-factor-setup-grid">
+            <article class="two-factor-qr-card">
+              <% if (pendingAdminTwoFactorSetup.qrCodeDataUrl) { %>
+                <img
+                  class="two-factor-qr-card__image"
+                  src="<%= pendingAdminTwoFactorSetup.qrCodeDataUrl %>"
+                  alt="QR code for admin two-factor authenticator setup"
+                />
+              <% } else { %>
+                <div class="brand-upload-panel__fallback">QR code preview unavailable right now</div>
+              <% } %>
+              <strong>Scan with Google Authenticator or Microsoft Authenticator</strong>
+            </article>
+
+            <div class="mini-card stack-sm">
+              <div class="info-row"><span>Issuer</span><strong><%= pendingAdminTwoFactorSetup.issuer %></strong></div>
+              <div class="info-row"><span>Account</span><strong><%= pendingAdminTwoFactorSetup.accountName %></strong></div>
+              <div class="info-row"><span>Setup Key</span><strong><%= pendingAdminTwoFactorSetup.formattedSecret %></strong></div>
+            </div>
           </div>
 
           <label class="field">
-            <span>Manual Setup Link</span>
+            <span>Manual Setup Link (Optional Backup)</span>
             <textarea rows="3" readonly><%- pendingAdminTwoFactorSetup.otpauthUri %></textarea>
           </label>
 

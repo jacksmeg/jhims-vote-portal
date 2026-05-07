@@ -1558,6 +1558,7 @@ code {
   .brand-upload-panel,
   .candidate-edit-layout,
   .declaration-settings-layout,
+  .two-factor-setup-grid,
   .wizard-progress,
   .countdown-banner {
     grid-template-columns: 1fr;
@@ -2034,6 +2035,39 @@ body {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: rgba(255, 228, 228, 0.8);
+}
+
+.two-factor-setup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.two-factor-qr-card {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(245, 249, 255, 0.98), rgba(236, 245, 255, 0.94));
+  border: 1px solid rgba(18, 50, 93, 0.08);
+}
+
+.two-factor-qr-card__image {
+  width: min(100%, 188px);
+  height: auto;
+  display: block;
+  border-radius: 14px;
+  padding: 10px;
+  background: #ffffff;
+  box-shadow: 0 14px 24px rgba(16, 35, 56, 0.12);
+}
+
+.two-factor-qr-card strong {
+  text-align: center;
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 
 .field span {
