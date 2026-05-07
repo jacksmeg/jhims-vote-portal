@@ -1,8 +1,9 @@
 <%- include("head", { pageTitle }) %>
 <% const isVotePortal = currentPath.startsWith('/vote'); %>
-<% const showVoteCountdown = isVotePortal && electionState.isOpen && voteClosesAtMs; %>
+<% const isVoteLogin = currentPath === '/vote/login'; %>
+<% const showVoteCountdown = isVotePortal && electionState.isOpen && voteClosesAtMs && !isVoteLogin; %>
 <div class="site-shell">
-  <header class="site-header">
+  <header class="site-header <%= isVotePortal ? 'site-header--portal' : '' %>">
     <a class="brand-mark" href="<%= isVotePortal ? '/vote/login' : '/' %>">
       <% if (settings.organizationLogoPath) { %>
         <img class="brand-mark__logo" src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
@@ -11,14 +12,28 @@
       <% } %>
       <span>
         <strong><%= settings.electionName %></strong>
-        <small>Secure internal ballot system</small>
+        <small><%= isVotePortal ? 'Election Portal' : 'Secure internal ballot system' %></small>
       </span>
     </a>
 
-    <nav class="site-nav">
-      <% if (isVotePortal) { %>
-        <a class="active" href="/vote/login">Vote</a>
-      <% } else { %>
+    <% if (isVotePortal) { %>
+      <div class="site-header__utility">
+        <a
+          class="site-utility-link"
+          href="https://wa.me/233592934612"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Help Center
+        </a>
+
+        <div class="status-badge <%= electionState.badgeClass %>">
+          <span class="status-dot"></span>
+          <%= electionState.badgeLabel %>
+        </div>
+      </div>
+    <% } else { %>
+      <nav class="site-nav">
         <a class="<%= currentPath === '/' ? 'active' : '' %>" href="/">Home</a>
         <a class="<%= currentPath.startsWith('/vote') ? 'active' : '' %>" href="/vote/login">
           Vote
@@ -29,24 +44,29 @@
         >
           Admin
         </a>
-      <% } %>
-    </nav>
+      </nav>
 
-    <div class="status-badge <%= electionState.badgeClass %>">
-      <span class="status-dot"></span>
-      <%= electionState.badgeLabel %>
-    </div>
+      <div class="status-badge <%= electionState.badgeClass %>">
+        <span class="status-dot"></span>
+        <%= electionState.badgeLabel %>
+      </div>
+    <% } %>
   </header>
 
   <main class="site-main">
     <%- include("flash") %>
 
     <% if (showVoteCountdown) { %>
-      <section class="countdown-banner" data-countdown-root data-countdown-target="<%= voteClosesAtMs %>">
+      <section
+        class="countdown-banner"
+        data-countdown-root
+        data-countdown-target="<%= voteClosesAtMs %>"
+        data-countdown-ended-label="Voting has closed"
+      >
         <div class="countdown-banner__copy">
           <span class="eyebrow">Time Left to Vote</span>
-          <h2>Voting closes in</h2>
-          <p>
+          <h2 data-countdown-title>Voting closes in</h2>
+          <p data-countdown-copy>
             Finish your ballot before
             <strong><%= formatDateTime(settings.closesAt) %></strong>.
           </p>

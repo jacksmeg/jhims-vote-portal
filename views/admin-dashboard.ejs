@@ -1,42 +1,358 @@
 <%- include("partials/admin-shell-start", {
   pageTitle,
-  pageHeading: "Election Dashboard",
-  pageIntro: "Monitor readiness, set the voting window, and control the election lifecycle.",
+  pageHeading: "Admin Dashboard",
+  pageIntro: "Monitor readiness, control the election lifecycle, and keep the live portal organized from one workspace.",
   currentSection: "dashboard"
 }) %>
 
-<section class="metric-grid">
-  <article class="metric-card">
-    <span>Total Voters</span>
-    <strong><%= metrics.totalVoters %></strong>
-    <small><%= metrics.votedCount %> already marked as voted</small>
+<%
+  const turnoutStrokeCircumference = 276.46;
+  const turnoutStroke = (turnoutRate * turnoutStrokeCircumference).toFixed(2);
+  const scheduleStateLabel = electionState.isOpen
+    ? 'Open'
+    : electionState.isScheduled
+      ? 'Scheduled'
+      : electionState.isClosed
+        ? 'Closed'
+        : 'Setup';
+  const scheduleMetaLabel = electionState.isOpen
+    ? 'Live voting in progress'
+    : electionState.isScheduled
+      ? 'Auto-open enabled'
+      : electionState.isClosed
+        ? 'Ballot locked and finalized'
+        : 'Awaiting setup completion';
+%>
+
+<section class="dashboard-summary-grid">
+  <article class="dashboard-summary-card dashboard-summary-card--cyan">
+    <div class="dashboard-summary-card__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.31 0-6 1.79-6 4v1h12v-1c0-2.21-2.69-4-6-4Z" fill="currentColor"/>
+      </svg>
+    </div>
+    <div>
+      <span>Registered Voters</span>
+      <strong><%= metrics.totalVoters.toLocaleString() %></strong>
+      <small>Total eligible voters</small>
+    </div>
   </article>
-  <article class="metric-card">
-    <span>Ballots Submitted</span>
-    <strong><%= metrics.totalBallots %></strong>
-    <small>
-      <%= metrics.totalVoters ? formatPercent(metrics.votedCount / metrics.totalVoters) : '0.0%' %>
-      turnout
-    </small>
+
+  <article class="dashboard-summary-card dashboard-summary-card--green">
+    <div class="dashboard-summary-card__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M5 19h14v2H3V5h2v14Zm3-8h2v6H8v-6Zm4-4h2v10h-2V7Zm4 2h2v8h-2V9Z" fill="currentColor"/>
+      </svg>
+    </div>
+    <div>
+      <span>Voters Turned Out</span>
+      <strong><%= metrics.votedCount.toLocaleString() %></strong>
+      <small><%= formatPercent(turnoutRate) %> turnout</small>
+    </div>
   </article>
-  <article class="metric-card">
-    <span>Positions</span>
-    <strong><%= metrics.totalPositions %></strong>
-    <small>Configured ballot categories</small>
+
+  <article class="dashboard-summary-card dashboard-summary-card--violet">
+    <div class="dashboard-summary-card__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M5 4h14a1 1 0 0 1 1 1v3H4V5a1 1 0 0 1 1-1Zm-1 6h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Zm3 2v2h2v-2H7Zm4 0v2h6v-2h-6Zm-4 4v2h2v-2H7Zm4 0v2h4v-2h-4Z" fill="currentColor"/>
+      </svg>
+    </div>
+    <div>
+      <span>Positions</span>
+      <strong><%= metrics.totalPositions.toLocaleString() %></strong>
+      <small>Active election positions</small>
+    </div>
   </article>
-  <article class="metric-card">
-    <span>Candidates</span>
-    <strong><%= metrics.totalCandidates %></strong>
-    <small>Registered across all positions</small>
+
+  <article class="dashboard-summary-card dashboard-summary-card--mint">
+    <div class="dashboard-summary-card__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm-1.07 13.82L7.76 12.65l1.41-1.41 1.76 1.76 4.24-4.24 1.41 1.41-5.65 5.65Z" fill="currentColor"/>
+      </svg>
+    </div>
+    <div>
+      <span>Election Status</span>
+      <strong><%= scheduleStateLabel %></strong>
+      <small><%= scheduleMetaLabel %></small>
+    </div>
   </article>
 </section>
 
-<section class="admin-grid">
+<section class="dashboard-hero-grid">
+  <article class="panel panel-light dashboard-schedule-card">
+    <div class="section-heading section-heading--tight">
+      <div>
+        <span class="eyebrow">Election Schedule</span>
+        <h2>Voting window</h2>
+      </div>
+      <span class="inline-badge <%= electionState.badgeClass %>"><%= scheduleMetaLabel %></span>
+    </div>
+
+    <div class="dashboard-schedule-list">
+      <div class="dashboard-schedule-list__item">
+        <span>Opens At</span>
+        <strong><%= settings.opensAt ? formatDateTime(settings.opensAt) : 'Not scheduled yet' %></strong>
+      </div>
+      <div class="dashboard-schedule-list__item">
+        <span>Closes At</span>
+        <strong><%= settings.closesAt ? formatDateTime(settings.closesAt) : 'Not scheduled yet' %></strong>
+      </div>
+    </div>
+
+    <div class="dashboard-schedule-footer">
+      <div class="dashboard-schedule-footer__status">
+        <strong><%= scheduleStateLabel %></strong>
+        <span><%= electionState.message %></span>
+      </div>
+
+      <div class="dashboard-inline-actions">
+        <a class="button button-ghost button-small" href="/admin/voters">Manage Voters</a>
+        <a class="button button-ghost button-small" href="/admin/results">View Results</a>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel panel-light dashboard-turnout-card">
+    <div class="section-heading section-heading--tight">
+      <div>
+        <span class="eyebrow">Live Turnout</span>
+        <h2>Participation</h2>
+      </div>
+      <a class="button button-ghost button-small" href="/admin/results">View Live</a>
+    </div>
+
+    <div class="dashboard-turnout-card__content">
+      <div
+        class="turnout-donut"
+        style="--turnout-circumference: <%= turnoutStrokeCircumference %>; --turnout-progress: <%= turnoutStroke %>;"
+      >
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle cx="60" cy="60" r="44"></circle>
+          <circle class="turnout-donut__progress" cx="60" cy="60" r="44"></circle>
+        </svg>
+        <div class="turnout-donut__label">
+          <strong><%= formatPercent(turnoutRate) %></strong>
+        </div>
+      </div>
+
+      <div class="dashboard-turnout-card__legend">
+        <div>
+          <span class="dashboard-turnout-card__dot dashboard-turnout-card__dot--green"></span>
+          <span>Voted</span>
+          <strong><%= metrics.votedCount.toLocaleString() %></strong>
+        </div>
+        <div>
+          <span class="dashboard-turnout-card__dot dashboard-turnout-card__dot--slate"></span>
+          <span>Not Voted</span>
+          <strong><%= notVotedCount.toLocaleString() %></strong>
+        </div>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="dashboard-analytics-grid">
+  <article class="panel panel-light dashboard-chart-card">
+    <div class="section-heading section-heading--tight">
+      <div>
+        <span class="eyebrow">Votes Over Time</span>
+        <h2>Voting trend</h2>
+      </div>
+      <span class="inline-badge">Today</span>
+    </div>
+
+    <div class="dashboard-line-chart">
+      <svg viewBox="0 0 <%= timelineChart.width %> <%= timelineChart.height %>" aria-hidden="true">
+        <defs>
+          <linearGradient id="dashboardTrendFill" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#2ac0c1" stop-opacity="0.34"></stop>
+            <stop offset="100%" stop-color="#2ac0c1" stop-opacity="0.04"></stop>
+          </linearGradient>
+        </defs>
+        <polygon points="<%= timelineChart.areaPoints %>" fill="url(#dashboardTrendFill)"></polygon>
+        <polyline points="<%= timelineChart.points %>" fill="none"></polyline>
+      </svg>
+
+      <div class="dashboard-line-chart__axis">
+        <% timelineSeries.forEach((point) => { %>
+          <span><%= point.label %></span>
+        <% }) %>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel panel-light dashboard-bars-card">
+    <div class="section-heading section-heading--tight">
+      <div>
+        <span class="eyebrow">Votes By Position</span>
+        <h2>Position performance</h2>
+      </div>
+      <span class="inline-badge">All positions</span>
+    </div>
+
+    <div class="dashboard-bars-list">
+      <% if (positionBars.length === 0) { %>
+        <div class="empty-state">No positions have been added yet.</div>
+      <% } else { %>
+        <% positionBars.forEach((position) => { %>
+          <div class="dashboard-bar">
+            <div class="dashboard-bar__label">
+              <span><%= position.name %></span>
+              <strong><%= position.totalVotes.toLocaleString() %></strong>
+            </div>
+            <div class="dashboard-bar__track">
+              <span class="dashboard-bar__fill <%= position.toneClass %>" style="width: <%= position.fillWidth %>;"></span>
+            </div>
+          </div>
+        <% }) %>
+      <% } %>
+    </div>
+  </article>
+</section>
+
+<section class="dashboard-support-grid">
+  <article class="panel panel-light dashboard-actions-card">
+    <div class="section-heading section-heading--tight">
+      <div>
+        <span class="eyebrow">Quick Actions</span>
+        <h2>Command center</h2>
+      </div>
+    </div>
+
+    <div class="dashboard-actions-grid">
+      <a class="dashboard-action-tile" href="/admin/voters">
+        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--blue" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.31 0-6 1.79-6 4v1h12v-1c0-2.21-2.69-4-6-4Z" fill="currentColor"/>
+          </svg>
+        </span>
+        <strong>Voters</strong>
+        <small>Manage voter records</small>
+      </a>
+
+      <a class="dashboard-action-tile" href="/admin/setup">
+        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--amber" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M5 4h14a1 1 0 0 1 1 1v3H4V5a1 1 0 0 1 1-1Zm-1 6h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Z" fill="currentColor"/>
+          </svg>
+        </span>
+        <strong>Positions</strong>
+        <small>Manage positions</small>
+      </a>
+
+      <a class="dashboard-action-tile" href="/admin/setup">
+        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--coral" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M12 2.5 3 7v5c0 4.97 3.25 9.54 9 11.5 5.75-1.96 9-6.53 9-11.5V7l-9-4.5Zm0 5a2.5 2.5 0 1 1-2.5 2.5A2.5 2.5 0 0 1 12 7.5Zm0 10c-2.16 0-4.06-.83-5.47-2.19.12-1.81 3.65-2.81 5.47-2.81 1.81 0 5.35 1 5.47 2.81A7.54 7.54 0 0 1 12 17.5Z" fill="currentColor"/>
+          </svg>
+        </span>
+        <strong>Candidates</strong>
+        <small>Manage candidates</small>
+      </a>
+
+      <a class="dashboard-action-tile" href="/admin/results">
+        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--green" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M5 19h14v2H3V5h2v14Zm3-8h2v6H8v-6Zm4-4h2v10h-2V7Zm4 2h2v8h-2V9Z" fill="currentColor"/>
+          </svg>
+        </span>
+        <strong>Results</strong>
+        <small>View live results</small>
+      </a>
+
+      <a class="dashboard-action-tile" href="/admin/audit">
+        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--violet" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M12 3a9 9 0 1 0 9 9 9.01 9.01 0 0 0-9-9Zm1 9.59 3.3 3.3-1.41 1.41L11 13V7h2Z" fill="currentColor"/>
+          </svg>
+        </span>
+        <strong>Audit Logs</strong>
+        <small>Review activity</small>
+      </a>
+
+      <a class="dashboard-action-tile" href="/admin/archives">
+        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--sky" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3H4V5Zm0 5h16v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9Zm5 2v2h6v-2H9Z" fill="currentColor"/>
+          </svg>
+        </span>
+        <strong>Backup</strong>
+        <small>Archive election data</small>
+      </a>
+    </div>
+  </article>
+
+  <article class="panel panel-light dashboard-activity-card">
+    <div class="section-heading section-heading--tight">
+      <div>
+        <span class="eyebrow">Recent Activity</span>
+        <h2>Latest updates</h2>
+      </div>
+    </div>
+
+    <div class="dashboard-activity-list">
+      <% if (activityFeed.length === 0) { %>
+        <div class="empty-state">No activity has been recorded yet.</div>
+      <% } else { %>
+        <% activityFeed.forEach((entry) => { %>
+          <div class="dashboard-activity-item">
+            <span class="dashboard-activity__dot <%= entry.accentClass %>"></span>
+            <div class="dashboard-activity-item__body">
+              <strong><%= entry.actionLabel %></strong>
+              <span><%= entry.detailLabel || entry.actorIdentifier %></span>
+            </div>
+            <small><%= entry.timeAgo %></small>
+          </div>
+        <% }) %>
+      <% } %>
+    </div>
+  </article>
+
+  <article class="panel panel-light dashboard-top-candidates-card">
+    <div class="section-heading section-heading--tight">
+      <div>
+        <span class="eyebrow">Top Candidates</span>
+        <h2>Live standings</h2>
+      </div>
+    </div>
+
+    <div class="dashboard-candidate-list">
+      <% if (topCandidates.length === 0) { %>
+        <div class="empty-state">Candidates will appear here after setup.</div>
+      <% } else { %>
+        <% topCandidates.forEach((candidate) => { %>
+          <div class="dashboard-candidate-row">
+            <% if (candidate.photoPath) { %>
+              <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+            <% } else { %>
+              <span class="candidate-avatar-fallback"><%= getInitials(candidate.name) %></span>
+            <% } %>
+
+            <div class="dashboard-candidate-row__body">
+              <strong><%= candidate.name %></strong>
+              <span><%= candidate.positionName %></span>
+              <div class="dashboard-candidate-row__meter">
+                <span style="width: <%= candidate.shareRatio ? `${Math.max(candidate.shareRatio * 100, 12)}%` : '0%' %>;"></span>
+              </div>
+            </div>
+
+            <div class="dashboard-candidate-row__totals">
+              <strong><%= candidate.voteCount.toLocaleString() %></strong>
+              <small><%= formatPercent(candidate.shareRatio || 0) %></small>
+            </div>
+          </div>
+        <% }) %>
+      <% } %>
+    </div>
+  </article>
+</section>
+
+<section class="dashboard-config-grid">
   <article class="panel panel-light stack-md">
     <div class="section-heading">
       <div>
-        <span class="eyebrow">Election Settings</span>
-        <h2>Voting window and title</h2>
+        <span class="eyebrow">Election Control</span>
+        <h2>Voting window and controls</h2>
       </div>
       <p>These settings stay editable only while the election is in setup, and a ready election can open automatically at the scheduled time.</p>
     </div>
@@ -80,16 +396,6 @@
         Save Settings
       </button>
     </form>
-  </article>
-
-  <article class="panel panel-light stack-md">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Election Controls</span>
-        <h2>Open, close, and protect the process</h2>
-      </div>
-      <p>Use the schedule for automatic opening, or open manually at once when you need to lock setup immediately.</p>
-    </div>
 
     <div class="button-stack">
       <form action="/admin/election/open" method="post">
@@ -113,208 +419,210 @@
       <strong>Status:</strong> <%= electionState.message %>
     </div>
   </article>
-</section>
 
-<section class="panel panel-light stack-md">
-  <div class="section-heading">
-    <div>
-      <span class="eyebrow">Branding</span>
-      <h2>Organization logo</h2>
-    </div>
-    <p>Upload the logo once and it will appear on the admin and voter pages.</p>
-  </div>
-
-  <div class="brand-upload-panel">
-    <div class="brand-upload-panel__preview">
-      <% if (settings.organizationLogoPath) { %>
-        <img
-          class="brand-upload-panel__image"
-          src="<%= settings.organizationLogoPath %>"
-          alt="<%= settings.electionName %> logo"
-        />
-      <% } else { %>
-        <div class="brand-upload-panel__fallback">No logo uploaded yet</div>
-      <% } %>
-    </div>
-
-    <form class="stack-md brand-upload-panel__form" action="/admin/logo" method="post" enctype="multipart/form-data">
-      <label class="field">
-        <span>Upload Organization Logo</span>
-        <input name="logo" type="file" accept="image/*" required />
-      </label>
-
-      <button class="button" type="submit">Save Logo</button>
-    </form>
-  </div>
-</section>
-
-<section class="panel panel-light stack-md">
-  <div class="section-heading">
-    <div>
-      <span class="eyebrow">Declaration Settings</span>
-      <h2>Official sign-off details</h2>
-    </div>
-    <p>Set the report title, committee name, office holders, and upload the official signatures.</p>
-  </div>
-
-  <div class="declaration-settings-layout">
-    <form
-      class="stack-md declaration-settings-layout__form"
-      action="/admin/declaration"
-      method="post"
-      enctype="multipart/form-data"
-    >
-      <div class="form-grid">
-        <label class="field">
-          <span>Declaration Title</span>
-          <input
-            name="declarationTitle"
-            value="<%= settings.declarationTitle %>"
-            placeholder="Official Declaration Block"
-            required
-          />
-        </label>
-
-        <label class="field">
-          <span>Committee Name</span>
-          <input
-            name="committeeName"
-            value="<%= settings.committeeName %>"
-            placeholder="Election Committee"
-            required
-          />
-        </label>
-      </div>
-
-      <div class="form-grid">
-        <label class="field">
-          <span>Chairman Name</span>
-          <input
-            name="chairmanName"
-            value="<%= settings.chairmanName %>"
-            placeholder="Chairman Name"
-          />
-        </label>
-
-        <label class="field">
-          <span>Secretary Name</span>
-          <input
-            name="secretaryName"
-            value="<%= settings.secretaryName %>"
-            placeholder="Secretary Name"
-          />
-        </label>
-      </div>
-
-      <div class="form-grid">
-        <label class="field">
-          <span>Chairman Signature</span>
-          <input name="chairmanSignature" type="file" accept="image/*" />
-        </label>
-
-        <label class="field">
-          <span>Secretary Signature</span>
-          <input name="secretarySignature" type="file" accept="image/*" />
-        </label>
-      </div>
-
-      <button class="button" type="submit">Save Declaration Settings</button>
-    </form>
-
-    <div class="signature-preview-grid">
-      <article class="signature-preview-card">
-        <span class="eyebrow">Chairman Preview</span>
-        <div class="signature-preview-card__canvas">
-          <% if (settings.chairmanSignaturePath) { %>
-            <img
-              class="signature-preview-card__image"
-              src="<%= settings.chairmanSignaturePath %>"
-              alt="<%= settings.chairmanName || 'Chairman' %> signature"
-            />
-          <% } else { %>
-            <div class="brand-upload-panel__fallback">No chairman signature uploaded yet</div>
-          <% } %>
-        </div>
-        <strong><%= settings.chairmanName || 'Chairman' %></strong>
-      </article>
-
-      <article class="signature-preview-card">
-        <span class="eyebrow">Secretary Preview</span>
-        <div class="signature-preview-card__canvas">
-          <% if (settings.secretarySignaturePath) { %>
-            <img
-              class="signature-preview-card__image"
-              src="<%= settings.secretarySignaturePath %>"
-              alt="<%= settings.secretaryName || 'Secretary' %> signature"
-            />
-          <% } else { %>
-            <div class="brand-upload-panel__fallback">No secretary signature uploaded yet</div>
-          <% } %>
-        </div>
-        <strong><%= settings.secretaryName || 'Secretary' %></strong>
-      </article>
-    </div>
-  </div>
-</section>
-
-<section class="admin-grid">
-  <article class="panel panel-light stack-md">
+  <article class="panel panel-light stack-md" id="branding-panel">
     <div class="section-heading">
       <div>
-        <span class="eyebrow">Software Theme</span>
-        <h2>Choose the portal appearance</h2>
+        <span class="eyebrow">Branding</span>
+        <h2>Organization logo</h2>
       </div>
-      <p>The selected theme applies to both voter and admin pages.</p>
+      <p>Upload the logo once and it will appear on both the admin and voter pages.</p>
     </div>
 
-    <form class="stack-md" action="/admin/theme" method="post">
-      <div class="theme-card-grid">
-        <% themeOptions.forEach((theme) => { %>
-          <label class="theme-option-card theme-option-card--<%= theme.value %>">
-            <input type="radio" name="themeName" value="<%= theme.value %>" <%= settings.themeName === theme.value ? 'checked' : '' %> />
-            <div class="theme-option-card__swatches">
-              <span></span><span></span><span></span>
-            </div>
-            <strong><%= theme.label %></strong>
-            <small><%= theme.description %></small>
+    <div class="brand-upload-panel">
+      <div class="brand-upload-panel__preview">
+        <% if (settings.organizationLogoPath) { %>
+          <img
+            class="brand-upload-panel__image"
+            src="<%= settings.organizationLogoPath %>"
+            alt="<%= settings.electionName %> logo"
+          />
+        <% } else { %>
+          <div class="brand-upload-panel__fallback">No logo uploaded yet</div>
+        <% } %>
+      </div>
+
+      <form class="stack-md brand-upload-panel__form" action="/admin/logo" method="post" enctype="multipart/form-data">
+        <label class="field">
+          <span>Upload Organization Logo</span>
+          <input name="logo" type="file" accept="image/*" required />
+        </label>
+
+        <button class="button" type="submit">Save Logo</button>
+      </form>
+    </div>
+  </article>
+</section>
+
+<section class="dashboard-config-grid dashboard-config-grid--bottom">
+  <article class="panel panel-light stack-md" id="declaration-panel">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Declaration Settings</span>
+        <h2>Official sign-off details</h2>
+      </div>
+      <p>Set the report title, committee name, office holders, and upload the official signatures.</p>
+    </div>
+
+    <div class="declaration-settings-layout">
+      <form
+        class="stack-md declaration-settings-layout__form"
+        action="/admin/declaration"
+        method="post"
+        enctype="multipart/form-data"
+      >
+        <div class="form-grid">
+          <label class="field">
+            <span>Declaration Title</span>
+            <input
+              name="declarationTitle"
+              value="<%= settings.declarationTitle %>"
+              placeholder="Official Declaration Block"
+              required
+            />
           </label>
-        <% }) %>
-      </div>
 
-      <button class="button" type="submit">Apply Theme</button>
-    </form>
-  </article>
+          <label class="field">
+            <span>Committee Name</span>
+            <input
+              name="committeeName"
+              value="<%= settings.committeeName %>"
+              placeholder="Election Committee"
+              required
+            />
+          </label>
+        </div>
 
-  <article class="panel panel-light stack-md">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Election History</span>
-        <h2>Recent archived elections</h2>
+        <div class="form-grid">
+          <label class="field">
+            <span>Chairman Name</span>
+            <input
+              name="chairmanName"
+              value="<%= settings.chairmanName %>"
+              placeholder="Chairman Name"
+            />
+          </label>
+
+          <label class="field">
+            <span>Secretary Name</span>
+            <input
+              name="secretaryName"
+              value="<%= settings.secretaryName %>"
+              placeholder="Secretary Name"
+            />
+          </label>
+        </div>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>Chairman Signature</span>
+            <input name="chairmanSignature" type="file" accept="image/*" />
+          </label>
+
+          <label class="field">
+            <span>Secretary Signature</span>
+            <input name="secretarySignature" type="file" accept="image/*" />
+          </label>
+        </div>
+
+        <button class="button" type="submit">Save Declaration Settings</button>
+      </form>
+
+      <div class="signature-preview-grid">
+        <article class="signature-preview-card">
+          <span class="eyebrow">Chairman Preview</span>
+          <div class="signature-preview-card__canvas">
+            <% if (settings.chairmanSignaturePath) { %>
+              <img
+                class="signature-preview-card__image"
+                src="<%= settings.chairmanSignaturePath %>"
+                alt="<%= settings.chairmanName || 'Chairman' %> signature"
+              />
+            <% } else { %>
+              <div class="brand-upload-panel__fallback">No chairman signature uploaded yet</div>
+            <% } %>
+          </div>
+          <strong><%= settings.chairmanName || 'Chairman' %></strong>
+        </article>
+
+        <article class="signature-preview-card">
+          <span class="eyebrow">Secretary Preview</span>
+          <div class="signature-preview-card__canvas">
+            <% if (settings.secretarySignaturePath) { %>
+              <img
+                class="signature-preview-card__image"
+                src="<%= settings.secretarySignaturePath %>"
+                alt="<%= settings.secretaryName || 'Secretary' %> signature"
+              />
+            <% } else { %>
+              <div class="brand-upload-panel__fallback">No secretary signature uploaded yet</div>
+            <% } %>
+          </div>
+          <strong><%= settings.secretaryName || 'Secretary' %></strong>
+        </article>
       </div>
-      <a class="button button-ghost button-small" href="/admin/archives">View All Archives</a>
     </div>
-
-    <% if (archives.length === 0) { %>
-      <div class="empty-state">No archived elections yet. Close and archive a completed election to save it here.</div>
-    <% } else { %>
-      <div class="archive-grid">
-        <% archives.forEach((archive) => { %>
-          <article class="archive-card">
-            <div class="archive-card__topline">
-              <strong><%= archive.electionName %></strong>
-              <span><%= formatDateTime(archive.archivedAt) %></span>
-            </div>
-            <div class="mini-metrics-grid">
-              <div><strong><%= archive.totalVoters %></strong><span>Voters</span></div>
-              <div><strong><%= archive.votesCast %></strong><span>Votes</span></div>
-              <div><strong><%= formatPercent(archive.turnoutRate || 0) %></strong><span>Turnout</span></div>
-            </div>
-            <a class="button button-ghost button-small" href="/admin/archives/<%= archive.id %>">Open Archive</a>
-          </article>
-        <% }) %>
-      </div>
-    <% } %>
   </article>
+
+  <div class="dashboard-stack-grid">
+    <article class="panel panel-light stack-md">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">Software Theme</span>
+          <h2>Portal appearance</h2>
+        </div>
+        <p>The selected theme applies to both voter and admin pages.</p>
+      </div>
+
+      <form class="stack-md" action="/admin/theme" method="post">
+        <div class="theme-card-grid">
+          <% themeOptions.forEach((theme) => { %>
+            <label class="theme-option-card theme-option-card--<%= theme.value %>">
+              <input type="radio" name="themeName" value="<%= theme.value %>" <%= settings.themeName === theme.value ? 'checked' : '' %> />
+              <div class="theme-option-card__swatches">
+                <span></span><span></span><span></span>
+              </div>
+              <strong><%= theme.label %></strong>
+              <small><%= theme.description %></small>
+            </label>
+          <% }) %>
+        </div>
+
+        <button class="button" type="submit">Apply Theme</button>
+      </form>
+    </article>
+
+    <article class="panel panel-light stack-md">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">Election History</span>
+          <h2>Recent archived elections</h2>
+        </div>
+        <a class="button button-ghost button-small" href="/admin/archives">View All Archives</a>
+      </div>
+
+      <% if (archives.length === 0) { %>
+        <div class="empty-state">No archived elections yet. Close and archive a completed election to save it here.</div>
+      <% } else { %>
+        <div class="archive-grid">
+          <% archives.forEach((archive) => { %>
+            <article class="archive-card">
+              <div class="archive-card__topline">
+                <strong><%= archive.electionName %></strong>
+                <span><%= formatDateTime(archive.archivedAt) %></span>
+              </div>
+              <div class="mini-metrics-grid">
+                <div><strong><%= archive.totalVoters %></strong><span>Voters</span></div>
+                <div><strong><%= archive.votesCast %></strong><span>Votes</span></div>
+                <div><strong><%= formatPercent(archive.turnoutRate || 0) %></strong><span>Turnout</span></div>
+              </div>
+              <a class="button button-ghost button-small" href="/admin/archives/<%= archive.id %>">Open Archive</a>
+            </article>
+          <% }) %>
+        </div>
+      <% } %>
+    </article>
+  </div>
 </section>
 
 <section class="panel panel-light stack-md">

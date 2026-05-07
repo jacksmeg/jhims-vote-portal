@@ -1287,6 +1287,188 @@ function getResultsSummary() {
   return summaries;
 }
 
+function formatDashboardAuditAction(action) {
+  return String(action || "activity")
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatDashboardRelativeTime(value) {
+  const target = dayjs(value);
+
+  if (!target.isValid()) {
+    return "Just now";
+  }
+
+  const seconds = Math.max(dayjs().diff(target, "second"), 0);
+
+  if (seconds < 60) {
+    return `${seconds}s ago`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+
+  return target.format("DD MMM");
+}
+
+function summarizeAuditDetails(details) {
+  if (!details || typeof details !== "object") {
+    return "";
+  }
+
+  return (
+    details.candidateName ||
+    details.positionName ||
+    details.staffId ||
+    details.electionName ||
+    details.reason ||
+    details.position ||
+    ""
+  );
+}
+
+function getDashboardActivity(limit = 5) {
+  return getAuditLogs(limit).map((log) => {
+    const details = safeJsonParse(log.detailsJson, {});
+    return {
+      ...log,
+      actionLabel: formatDashboardAuditAction(log.action),
+      detailLabel: summarizeAuditDetails(details),
+      timeAgo: formatDashboardRelativeTime(log.createdAt),
+      accentClass:
+        log.actorType === "voter"
+          ? "dashboard-activity__dot--cyan"
+          : log.actorType === "system"
+            ? "dashboard-activity__dot--amber"
+            : "dashboard-activity__dot--green",
+    };
+  });
+}
+
+function getDashboardTimeline(settings, pointCount = 6) {
+  const safePointCount = Math.max(pointCount, 2);
+  const now = dayjs();
+  const configuredOpen = settings.opensAt ? dayjs(settings.opensAt) : null;
+  const configuredClose = settings.closesAt ? dayjs(settings.closesAt) : null;
+
+  let end = configuredClose?.isValid() && configuredClose.isBefore(now) ? configuredClose : now;
+  if (!end?.isValid()) {
+    end = now;
+  }
+
+  let start = configuredOpen?.isValid() ? configuredOpen : end.subtract(safePointCount - 1, "hour");
+  if (!start?.isValid() || !start.isBefore(end)) {
+    start = end.subtract(safePointCount - 1, "hour");
+  }
+
+  const totalSpanMs = Math.max(end.valueOf() - start.valueOf(), 1);
+  const ballotTimes = db
+    .prepare(`
+      SELECT submitted_at AS submittedAt
+      FROM ballots
+      ORDER BY submitted_at ASC
+    `)
+    .all()
+    .map((row) => dayjs(row.submittedAt))
+    .filter((value) => value.isValid())
+    .map((value) => value.valueOf());
+
+  const series = [];
+  let cursor = 0;
+  let runningTotal = 0;
+
+  for (let index = 0; index < safePointCount; index += 1) {
+    const ratio = safePointCount === 1 ? 1 : index / (safePointCount - 1);
+    const pointMs = start.valueOf() + totalSpanMs * ratio;
+
+    while (cursor < ballotTimes.length && ballotTimes[cursor] <= pointMs) {
+      runningTotal += 1;
+      cursor += 1;
+    }
+
+    series.push({
+      label: dayjs(pointMs).format(totalSpanMs >= 86400000 ? "DD MMM" : "h A"),
+      value: runningTotal,
+    });
+  }
+
+  return series;
+}
+
+function buildLineChartShape(series, width = 340, height = 168) {
+  const values = series.map((point) => Number(point.value || 0));
+  const maxValue = Math.max(...values, 1);
+  const inset = 14;
+  const plotWidth = Math.max(width - inset * 2, 1);
+  const plotHeight = Math.max(height - inset * 2, 1);
+
+  const points = values.map((value, index) => {
+    const x =
+      values.length === 1
+        ? width / 2
+        : inset + (plotWidth * index) / Math.max(values.length - 1, 1);
+    const y = inset + plotHeight - (value / maxValue) * plotHeight;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+
+  return {
+    width,
+    height,
+    maxValue,
+    points: points.join(" "),
+    areaPoints: `${inset},${height - inset} ${points.join(" ")} ${width - inset},${height - inset}`,
+  };
+}
+
+function getDashboardTopCandidates(results, limit = 4) {
+  return results
+    .flatMap((position) =>
+      position.candidates.map((candidate) => ({
+        ...candidate,
+        positionName: position.name,
+        totalVotesForPosition: position.totalVotes,
+      })),
+    )
+    .sort((left, right) => {
+      if (right.voteCount !== left.voteCount) {
+        return right.voteCount - left.voteCount;
+      }
+
+      if (right.shareRatio !== left.shareRatio) {
+        return right.shareRatio - left.shareRatio;
+      }
+
+      return left.name.localeCompare(right.name);
+    })
+    .slice(0, limit);
+}
+
+function getDashboardPositionBars(results, limit = 5) {
+  const positions = results.slice(0, limit);
+  const maxVotes = Math.max(...positions.map((position) => position.totalVotes), 1);
+
+  return positions.map((position, index) => ({
+    ...position,
+    fillWidth: `${Math.max((position.totalVotes / maxVotes) * 100, position.totalVotes > 0 ? 12 : 0)}%`,
+    toneClass: `dashboard-bar--tone-${(index % 5) + 1}`,
+  }));
+}
+
 function ensureSetupMode(req, res) {
   const settings = getElectionSettings();
 
@@ -2165,6 +2347,14 @@ app.get("/admin", requireAdmin, (req, res) => {
   const settings = getElectionSettings();
   const electionState = computeElectionState(settings);
   const archives = getElectionArchives().slice(0, 5);
+  const turnoutRate = metrics.totalVoters ? metrics.votedCount / metrics.totalVoters : 0;
+  const notVotedCount = Math.max(metrics.totalVoters - metrics.votedCount, 0);
+  const resultsPreview = getResultsSummary();
+  const activityFeed = getDashboardActivity(5);
+  const topCandidates = getDashboardTopCandidates(resultsPreview);
+  const positionBars = getDashboardPositionBars(resultsPreview);
+  const timelineSeries = getDashboardTimeline(settings);
+  const timelineChart = buildLineChartShape(timelineSeries);
   const positionReadiness = db.prepare(`
     SELECT
       p.name AS positionName,
@@ -2185,6 +2375,13 @@ app.get("/admin", requireAdmin, (req, res) => {
     electionState,
     positionReadiness,
     archives,
+    turnoutRate,
+    notVotedCount,
+    activityFeed,
+    topCandidates,
+    positionBars,
+    timelineSeries,
+    timelineChart,
     themeOptions: getThemeOptions(),
   });
 });
