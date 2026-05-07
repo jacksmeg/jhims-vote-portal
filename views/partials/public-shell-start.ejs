@@ -40,12 +40,6 @@
         <a class="<%= currentPath.startsWith('/vote') ? 'active' : '' %>" href="/vote/login">
           Vote
         </a>
-        <a
-          class="<%= currentPath.startsWith('/admin') ? 'active' : '' %>"
-          href="/admin/login"
-        >
-          Admin
-        </a>
       </nav>
 
       <div class="status-badge <%= electionState.badgeClass %>">
