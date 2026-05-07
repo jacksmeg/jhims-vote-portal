@@ -1,0 +1,180 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Nomination Review",
+  pageIntro: "Inspect the submission, update the record when necessary, and make a committee decision.",
+  currentSection: "nominations"
+}) %>
+
+<section class="admin-grid">
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Applicant</span>
+        <h2><%= nomination.fullName %></h2>
+      </div>
+      <span class="inline-badge <%= nomination.statusMeta.className %>"><%= nomination.statusMeta.label %></span>
+    </div>
+
+    <div class="nomination-detail-grid">
+      <div class="nomination-detail-grid__media">
+        <% if (nomination.photoPath) { %>
+          <img src="<%= nomination.photoPath %>" alt="<%= nomination.fullName %>" />
+        <% } else { %>
+          <div class="candidate-avatar-fallback candidate-avatar-fallback--large"><%= getInitials(nomination.fullName) %></div>
+        <% } %>
+      </div>
+
+      <div class="stack-sm">
+        <div class="info-row"><span>Staff ID</span><strong><%= nomination.staffId %></strong></div>
+        <div class="info-row"><span>Phone Number</span><strong><%= nomination.phoneNumber %></strong></div>
+        <div class="info-row"><span>Department</span><strong><%= nomination.department %></strong></div>
+        <div class="info-row"><span>Position</span><strong><%= nomination.positionName %></strong></div>
+        <div class="info-row"><span>Submitted</span><strong><%= formatDateTime(nomination.submittedAt) %></strong></div>
+      </div>
+    </div>
+
+    <div class="stack-sm">
+      <div class="note-block"><strong>Bio:</strong> <%= nomination.bio %></div>
+      <div class="note-block"><strong>Manifesto:</strong> <%= nomination.manifesto %></div>
+      <div class="info-row"><span>Proposer</span><strong><%= nomination.proposerName %></strong></div>
+      <div class="info-row"><span>Seconder</span><strong><%= nomination.seconderName %></strong></div>
+      <div class="info-row"><span>Reviewed By</span><strong><%= nomination.reviewedBy || 'Not reviewed yet' %></strong></div>
+      <div class="info-row"><span>Reviewed At</span><strong><%= nomination.reviewedAt ? formatDateTime(nomination.reviewedAt) : 'Not reviewed yet' %></strong></div>
+    </div>
+
+    <% if (nomination.adminNotes) { %>
+      <p class="note-block"><strong>Committee Notes:</strong> <%= nomination.adminNotes %></p>
+    <% } %>
+  </article>
+
+  <div class="stack-lg">
+    <article class="panel panel-light stack-md">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">Edit Nomination</span>
+          <h2>Update record details</h2>
+        </div>
+        <p>Use this section to correct the application before publishing it.</p>
+      </div>
+
+      <% if (nomination.publishedCandidateId) { %>
+        <div class="empty-state">This nomination has already been published and is now read-only.</div>
+      <% } else { %>
+        <form class="stack-md" action="/admin/nominations/<%= nomination.id %>/update" method="post" enctype="multipart/form-data">
+          <div class="form-grid">
+            <label class="field">
+              <span>Full Name</span>
+              <input name="fullName" value="<%= nomination.fullName %>" required />
+            </label>
+
+            <label class="field">
+              <span>Department</span>
+              <input name="department" value="<%= nomination.department %>" required />
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Position</span>
+            <select name="positionId" required>
+              <% positions.forEach((position) => { %>
+                <option value="<%= position.id %>" <%= nomination.positionId === position.id ? 'selected' : '' %>>
+                  <%= position.name %>
+                </option>
+              <% }) %>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Replace Photo</span>
+            <input name="photo" type="file" accept="image/*" />
+          </label>
+
+          <label class="field">
+            <span>Bio</span>
+            <textarea name="bio" rows="4" required><%= nomination.bio %></textarea>
+          </label>
+
+          <label class="field">
+            <span>Manifesto</span>
+            <textarea name="manifesto" rows="5" required><%= nomination.manifesto %></textarea>
+          </label>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Proposer Name</span>
+              <input name="proposerName" value="<%= nomination.proposerName %>" required />
+            </label>
+
+            <label class="field">
+              <span>Seconder Name</span>
+              <input name="seconderName" value="<%= nomination.seconderName %>" required />
+            </label>
+          </div>
+
+          <button class="button" type="submit">Save Changes</button>
+        </form>
+      <% } %>
+    </article>
+
+    <article class="panel panel-light stack-md">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">Committee Decision</span>
+          <h2>Approve or send feedback</h2>
+        </div>
+      </div>
+
+      <% if (!nomination.publishedCandidateId) { %>
+        <form class="stack-md" action="/admin/nominations/<%= nomination.id %>/review" method="post">
+          <label class="field">
+            <span>Decision</span>
+            <select name="status" required>
+              <option value="approved" <%= nomination.statusMeta.value === 'approved' ? 'selected' : '' %>>Approve</option>
+              <option value="rejected" <%= nomination.statusMeta.value === 'rejected' ? 'selected' : '' %>>Reject</option>
+              <option value="correction_requested" <%= nomination.statusMeta.value === 'correction_requested' ? 'selected' : '' %>>Request Correction</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Committee Notes</span>
+            <textarea name="adminNotes" rows="4" placeholder="Required for rejection or correction request"><%= nomination.adminNotes %></textarea>
+          </label>
+
+          <button class="button" type="submit">Save Decision</button>
+        </form>
+      <% } else { %>
+        <div class="empty-state">This nomination is already published to the candidate list.</div>
+      <% } %>
+    </article>
+
+    <article class="panel panel-light stack-md">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">Publish to Ballot</span>
+          <h2>Convert approved nomination</h2>
+        </div>
+        <p>Publishing adds this nominee directly to the candidate list for the selected position.</p>
+      </div>
+
+      <form action="/admin/nominations/<%= nomination.id %>/publish" method="post">
+        <button
+          class="button"
+          type="submit"
+          <%= nomination.statusMeta.value === 'approved' && !nomination.publishedCandidateId && electionState.canEditSetup ? '' : 'disabled' %>
+        >
+          Publish as Candidate
+        </button>
+      </form>
+
+      <% if (!electionState.canEditSetup) { %>
+        <p class="note-block">Candidate publishing is locked once voting has been opened.</p>
+      <% } else if (nomination.statusMeta.value !== 'approved') { %>
+        <p class="note-block">Approve this nomination first before publishing it to the ballot.</p>
+      <% } else if (nomination.publishedCandidateId) { %>
+        <p class="note-block">This nomination is already part of the candidate list.</p>
+      <% } %>
+    </article>
+  </div>
+</section>
+
+<%- include("partials/admin-shell-end") %>

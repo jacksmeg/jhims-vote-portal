@@ -1,0 +1,59 @@
+<%- include("partials/public-shell-start", { pageTitle }) %>
+
+<%
+  const isStatusMode = mode === 'status';
+  const entryTitle = isStatusMode ? 'Check your nomination status.' : 'Apply for nomination with your staff ID and phone number.';
+  const entryBody = isStatusMode
+    ? 'Use your registered staff details to review your nomination record, see committee feedback, and continue any corrections requested.'
+    : 'Only registered staff can apply. After verification, you will complete the nomination form for the position you want to contest.';
+%>
+
+<section class="split-stage">
+  <div class="panel panel-dark stack-lg">
+    <span class="eyebrow"><%= isStatusMode ? 'Nomination Status' : 'Nomination Access' %></span>
+    <h2><%= entryTitle %></h2>
+    <p><%= entryBody %></p>
+
+    <div class="check-list">
+      <div>Registered staff ID is required</div>
+      <div>Phone number must match the imported staff record</div>
+      <div>One nomination per position for each staff member</div>
+      <div>Committee approval is required before publishing to the ballot</div>
+    </div>
+  </div>
+
+  <div class="panel panel-light stack-lg narrow-panel">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow"><%= isStatusMode ? 'Status Check' : 'Nomination Login' %></span>
+        <h3><%= isStatusMode ? 'Open your nomination record' : 'Verify before continuing' %></h3>
+      </div>
+      <p class="muted-text"><%= nominationState.badgeLabel %></p>
+    </div>
+
+    <form class="stack-md" action="<%= isStatusMode ? '/nomination/status/login' : '/nomination/login' %>" method="post">
+      <label class="field">
+        <span>Staff ID</span>
+        <input name="staffId" placeholder="STF0234" required />
+      </label>
+
+      <label class="field">
+        <span>Phone Number</span>
+        <input name="phoneNumber" placeholder="0240000000" required />
+      </label>
+
+      <button class="button" type="submit" <%= !isStatusMode && !nominationState.isOpen ? 'disabled' : '' %>>
+        <%= isStatusMode ? 'Check Status' : 'Continue to Nomination Form' %>
+      </button>
+    </form>
+
+    <% if (!isStatusMode) { %>
+      <p class="note-block"><%= nominationState.message %></p>
+      <a class="button button-ghost" href="/nomination/form/download">Download Nomination Form PDF</a>
+    <% } else { %>
+      <p class="note-block">You can check status even after nominations have closed.</p>
+    <% } %>
+  </div>
+</section>
+
+<%- include("partials/public-shell-end") %>

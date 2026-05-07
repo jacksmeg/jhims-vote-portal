@@ -1,0 +1,148 @@
+<%- include("partials/public-shell-start", { pageTitle }) %>
+
+<section class="panel panel-light stack-lg">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Nomination Form</span>
+      <h2><%= editableNomination ? 'Update and resubmit your nomination' : 'Submit your nomination application' %></h2>
+    </div>
+    <p>
+      Logged in as <strong><%= applicant.staffId %></strong>.
+      <% if (editableNomination) { %>
+        The committee requested correction on this submission. Update the details below and resubmit.
+      <% } else { %>
+        Fill every field carefully before you submit.
+      <% } %>
+    </p>
+  </div>
+
+  <% if (editableNomination && editableNomination.adminNotes) { %>
+    <p class="note-block"><strong>Committee Note:</strong> <%= editableNomination.adminNotes %></p>
+  <% } %>
+
+  <div class="nomination-layout">
+    <form class="stack-md" action="/nomination/form" method="post" enctype="multipart/form-data">
+      <% if (editableNomination) { %>
+        <input type="hidden" name="nominationId" value="<%= editableNomination.id %>" />
+      <% } %>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Full Name</span>
+          <input
+            name="fullName"
+            value="<%= editableNomination ? editableNomination.fullName : applicant.fullName %>"
+            required
+          />
+        </label>
+
+        <label class="field">
+          <span>Department</span>
+          <input
+            name="department"
+            value="<%= editableNomination ? editableNomination.department : applicant.department %>"
+            required
+          />
+        </label>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Staff ID</span>
+          <input value="<%= applicant.staffId %>" disabled />
+        </label>
+
+        <label class="field">
+          <span>Phone Number</span>
+          <input value="<%= applicant.phoneNumber %>" disabled />
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Position Applying For</span>
+        <select name="positionId" required>
+          <option value="">Select a position</option>
+          <% positions.forEach((position) => { %>
+            <option
+              value="<%= position.id %>"
+              <%= (editableNomination ? editableNomination.positionId : '') === position.id ? 'selected' : '' %>
+            >
+              <%= position.name %>
+            </option>
+          <% }) %>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Candidate Photo</span>
+        <input name="photo" type="file" accept="image/*" <%= editableNomination ? '' : 'required' %> />
+      </label>
+
+      <label class="field">
+        <span>Short Profile / Bio</span>
+        <textarea name="bio" rows="4" required><%= editableNomination ? editableNomination.bio : '' %></textarea>
+      </label>
+
+      <label class="field">
+        <span>Manifesto / Message</span>
+        <textarea name="manifesto" rows="5" required><%= editableNomination ? editableNomination.manifesto : '' %></textarea>
+      </label>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Proposer Name</span>
+          <input name="proposerName" value="<%= editableNomination ? editableNomination.proposerName : '' %>" required />
+        </label>
+
+        <label class="field">
+          <span>Seconder Name</span>
+          <input name="seconderName" value="<%= editableNomination ? editableNomination.seconderName : '' %>" required />
+        </label>
+      </div>
+
+      <label class="field-checkbox">
+        <input type="checkbox" name="declarationAccepted" <%= editableNomination?.declarationAccepted ? 'checked' : '' %> required />
+        <span>I confirm that all details in this nomination form are accurate and submitted by me.</span>
+      </label>
+
+      <div class="button-row">
+        <button class="button" type="submit">
+          <%= editableNomination ? 'Resubmit Nomination' : 'Submit Nomination' %>
+        </button>
+        <a class="button button-ghost" href="/nomination/status">Check Status</a>
+      </div>
+    </form>
+
+    <aside class="panel panel-light nomination-sidebar-card">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">Your Records</span>
+          <h3>Existing nomination submissions</h3>
+        </div>
+      </div>
+
+      <% if (nominations.length === 0) { %>
+        <div class="empty-state">You have not submitted any nomination yet.</div>
+      <% } else { %>
+        <div class="stack-sm">
+          <% nominations.forEach((nomination) => { %>
+            <article class="mini-card nomination-mini-card">
+              <div>
+                <strong><%= nomination.positionName %></strong>
+                <span><%= formatDateTime(nomination.submittedAt) %></span>
+              </div>
+              <span class="inline-badge <%= nomination.statusMeta.className %>"><%= nomination.statusMeta.label %></span>
+              <% if (nomination.statusMeta.canApplicantEdit) { %>
+                <a class="button button-ghost button-small" href="/nomination/form?edit=<%= nomination.id %>">
+                  Continue Correction
+                </a>
+              <% } %>
+            </article>
+          <% }) %>
+        </div>
+      <% } %>
+    </aside>
+  </div>
+</section>
+
+<%- include("partials/public-shell-end") %>

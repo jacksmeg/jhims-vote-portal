@@ -1,0 +1,135 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Nomination Management",
+  pageIntro: "Control the nomination window, review submissions, and publish approved nominees as candidates.",
+  currentSection: "nominations"
+}) %>
+
+<section class="metric-grid">
+  <article class="metric-card">
+    <span>Total Applications</span>
+    <strong><%= nominationMetrics.total %></strong>
+    <small>All nomination submissions received</small>
+  </article>
+  <article class="metric-card">
+    <span>Pending Review</span>
+    <strong><%= nominationMetrics.pendingCount %></strong>
+    <small>Awaiting committee decision</small>
+  </article>
+  <article class="metric-card">
+    <span>Approved</span>
+    <strong><%= nominationMetrics.approvedCount %></strong>
+    <small>Ready for publishing</small>
+  </article>
+  <article class="metric-card">
+    <span>Published</span>
+    <strong><%= nominationMetrics.publishedCount %></strong>
+    <small>Already added to the candidate list</small>
+  </article>
+</section>
+
+<section class="admin-grid">
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Nomination Window</span>
+        <h2>Schedule nominations</h2>
+      </div>
+      <p>Use dates to control when staff can submit nomination forms.</p>
+    </div>
+
+    <form class="stack-md" action="/admin/nominations/settings" method="post">
+      <div class="form-grid">
+        <label class="field">
+          <span>Nomination Opens</span>
+          <input name="nominationOpensAt" type="datetime-local" value="<%= settings.nominationOpensAt %>" required />
+        </label>
+
+        <label class="field">
+          <span>Nomination Closes</span>
+          <input name="nominationClosesAt" type="datetime-local" value="<%= settings.nominationClosesAt %>" required />
+        </label>
+      </div>
+
+      <button class="button" type="submit">Save Nomination Settings</button>
+    </form>
+
+    <div class="note-block">
+      <strong>Status:</strong> <%= nominationState.message %>
+    </div>
+  </article>
+
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Committee Actions</span>
+        <h2>Open, close, and export</h2>
+      </div>
+      <p>These actions control public access to the nomination flow.</p>
+    </div>
+
+    <div class="button-stack">
+      <form action="/admin/nominations/open" method="post">
+        <button class="button" type="submit">Open Nominations</button>
+      </form>
+      <form action="/admin/nominations/close" method="post">
+        <button class="button button-danger" type="submit">Close Nominations</button>
+      </form>
+      <a class="button button-ghost" href="/admin/nominations/pdf">Export Nomination PDF</a>
+      <a class="button button-ghost" href="/nomination/form/download">Download Blank Form PDF</a>
+    </div>
+  </article>
+</section>
+
+<section class="panel panel-light stack-md">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Applications</span>
+      <h2>Submitted nominations</h2>
+    </div>
+    <p>Approve, reject, request correction, or publish approved nominations as candidates.</p>
+  </div>
+
+  <% if (nominations.length === 0) { %>
+    <div class="empty-state">No nomination applications have been submitted yet.</div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Staff ID</th>
+            <th>Name</th>
+            <th>Position</th>
+            <th>Department</th>
+            <th>Status</th>
+            <th>Submitted</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% nominations.forEach((nomination) => { %>
+            <tr>
+              <td><strong><%= nomination.staffId %></strong></td>
+              <td><%= nomination.fullName %></td>
+              <td><%= nomination.positionName %></td>
+              <td><%= nomination.department || '—' %></td>
+              <td>
+                <span class="inline-badge <%= nomination.statusMeta.className %>">
+                  <%= nomination.statusMeta.label %>
+                </span>
+              </td>
+              <td><%= formatDateTime(nomination.submittedAt) %></td>
+              <td>
+                <a class="button button-ghost button-small" href="/admin/nominations/<%= nomination.id %>">
+                  Review
+                </a>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<%- include("partials/admin-shell-end") %>

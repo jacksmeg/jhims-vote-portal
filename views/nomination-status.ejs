@@ -1,0 +1,59 @@
+<%- include("partials/public-shell-start", { pageTitle }) %>
+
+<section class="panel panel-light stack-lg">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Nomination Status</span>
+      <h2>Track your nomination applications</h2>
+    </div>
+    <p>
+      Signed in as <strong><%= applicant.staffId %></strong>.
+      Use this page to follow review decisions and continue any corrections requested by the committee.
+    </p>
+  </div>
+
+  <div class="button-row">
+    <% if (nominationState.isOpen) { %>
+      <a class="button" href="/nomination/form">Submit Another Nomination</a>
+    <% } else { %>
+      <a class="button button-ghost" href="/nomination/form/download">Download Nomination Form PDF</a>
+    <% } %>
+    <form action="/nomination/logout" method="post">
+      <button class="button button-ghost" type="submit">Sign Out</button>
+    </form>
+  </div>
+
+  <% if (nominations.length === 0) { %>
+    <div class="empty-state">No nomination applications have been submitted with this staff record yet.</div>
+  <% } else { %>
+    <div class="nomination-status-grid">
+      <% nominations.forEach((nomination) => { %>
+        <article class="panel panel-light nomination-status-card">
+          <div class="nomination-status-card__topline">
+            <div>
+              <span class="eyebrow">Position</span>
+              <h3><%= nomination.positionName %></h3>
+            </div>
+            <span class="inline-badge <%= nomination.statusMeta.className %>"><%= nomination.statusMeta.label %></span>
+          </div>
+
+          <div class="stack-sm">
+            <div class="info-row"><span>Submitted</span><strong><%= formatDateTime(nomination.submittedAt) %></strong></div>
+            <div class="info-row"><span>Proposer</span><strong><%= nomination.proposerName %></strong></div>
+            <div class="info-row"><span>Seconder</span><strong><%= nomination.seconderName %></strong></div>
+          </div>
+
+          <% if (nomination.adminNotes) { %>
+            <p class="note-block"><strong>Committee Note:</strong> <%= nomination.adminNotes %></p>
+          <% } %>
+
+          <% if (nomination.statusMeta.canApplicantEdit) { %>
+            <a class="button" href="/nomination/form?edit=<%= nomination.id %>">Continue Correction</a>
+          <% } %>
+        </article>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<%- include("partials/public-shell-end") %>

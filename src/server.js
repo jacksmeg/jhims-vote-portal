@@ -93,6 +93,7 @@ const storageRoot = process.env.STORAGE_ROOT
 const uploadsRootDirectory = path.join(storageRoot, "uploads");
 const candidateUploadsDirectory = path.join(uploadsRootDirectory, "candidates");
 const brandingUploadsDirectory = path.join(uploadsRootDirectory, "branding");
+const nominationUploadsDirectory = path.join(uploadsRootDirectory, "nominations");
 const importUploadsDirectory = path.join(storageRoot, "imports");
 const backupsDirectory = path.join(storageRoot, "backups");
 const templatePath = path.join(
@@ -129,6 +130,7 @@ function ensureDirectories() {
     uploadsRootDirectory,
     candidateUploadsDirectory,
     brandingUploadsDirectory,
+    nominationUploadsDirectory,
     importUploadsDirectory,
     backupsDirectory,
   ].forEach((directoryPath) => {
@@ -265,6 +267,9 @@ function getElectionSettings() {
     secretaryName: settings.secretary_name || "",
     chairmanSignaturePath: settings.chairman_signature_path || "",
     secretarySignaturePath: settings.secretary_signature_path || "",
+    nominationPhase: settings.nomination_phase || "setup",
+    nominationOpensAt: settings.nomination_opens_at || "",
+    nominationClosesAt: settings.nomination_closes_at || "",
   };
 }
 
@@ -339,6 +344,26 @@ function getElectionReadiness(settings = getElectionSettings()) {
   };
 }
 
+function getNominationReadiness(settings = getElectionSettings()) {
+  const issues = [];
+  const positions = getPositions();
+
+  if (positions.length === 0) {
+    issues.push("Add at least one position before opening nominations.");
+  }
+
+  if (!settings.nominationOpensAt || !settings.nominationClosesAt) {
+    issues.push("Set both the nomination opening and closing time.");
+  } else if (!dayjs(settings.nominationOpensAt).isBefore(dayjs(settings.nominationClosesAt))) {
+    issues.push("The nomination closing time must be later than the opening time.");
+  }
+
+  return {
+    isReady: issues.length === 0,
+    issues,
+  };
+}
+
 function computeElectionState(settings) {
   const now = dayjs();
   const opensAt = settings.opensAt ? dayjs(settings.opensAt) : null;
@@ -407,6 +432,69 @@ function computeElectionState(settings) {
   };
 }
 
+function computeNominationState(settings) {
+  const now = dayjs();
+  const opensAt = settings.nominationOpensAt ? dayjs(settings.nominationOpensAt) : null;
+  const closesAt = settings.nominationClosesAt ? dayjs(settings.nominationClosesAt) : null;
+  const readiness = getNominationReadiness(settings);
+
+  let status = "setup";
+  let message =
+    "Nominations are in setup. Set the nomination window before candidates can apply.";
+
+  if (settings.nominationPhase === "setup") {
+    if (readiness.isReady && opensAt?.isValid() && closesAt?.isValid()) {
+      if (now.isBefore(opensAt)) {
+        status = "scheduled";
+        message = `Nominations are scheduled to open on ${formatDateTime(settings.nominationOpensAt)}.`;
+      } else if (!now.isBefore(closesAt)) {
+        message = `The nomination window ended on ${formatDateTime(settings.nominationClosesAt)}. Update the dates to reopen nominations.`;
+      }
+    }
+  } else if (settings.nominationPhase === "open") {
+    if (opensAt?.isValid() && now.isBefore(opensAt)) {
+      status = "scheduled";
+      message = `Nominations have been opened by the committee and will start on ${formatDateTime(
+        settings.nominationOpensAt,
+      )}.`;
+    } else if (closesAt?.isValid() && !now.isBefore(closesAt)) {
+      status = "closed";
+      message = `Nominations closed on ${formatDateTime(settings.nominationClosesAt)}.`;
+    } else {
+      status = "open";
+      message = "Nominations are currently open for registered staff members.";
+    }
+  } else if (settings.nominationPhase === "closed") {
+    status = "closed";
+    message = "Nominations have been closed for this election cycle.";
+  }
+
+  return {
+    status,
+    message,
+    isOpen: status === "open",
+    isScheduled: status === "scheduled",
+    isClosed: status === "closed",
+    canSubmit: status === "open",
+    badgeLabel:
+      status === "open"
+        ? "Nominations Open"
+        : status === "scheduled"
+          ? "Scheduled"
+          : status === "closed"
+            ? "Closed"
+            : "Setup",
+    badgeClass:
+      status === "open"
+        ? "status-open"
+        : status === "scheduled"
+          ? "status-scheduled"
+          : status === "closed"
+            ? "status-closed"
+            : "status-setup",
+  };
+}
+
 function syncAutomaticClosure() {
   const settings = getElectionSettings();
   const readiness = getElectionReadiness(settings);
@@ -434,6 +522,41 @@ function syncAutomaticClosure() {
     setSetting("election_phase", "closed");
     logSystemAudit("election_auto_closed", {
       closesAt: settings.closesAt,
+    });
+  }
+}
+
+function syncAutomaticNominationLifecycle() {
+  const settings = getElectionSettings();
+  const readiness = getNominationReadiness(settings);
+  const now = dayjs();
+  const opensAt = settings.nominationOpensAt ? dayjs(settings.nominationOpensAt) : null;
+  const closesAt = settings.nominationClosesAt ? dayjs(settings.nominationClosesAt) : null;
+
+  if (
+    settings.nominationPhase === "setup" &&
+    readiness.isReady &&
+    opensAt?.isValid() &&
+    closesAt?.isValid() &&
+    !now.isBefore(opensAt) &&
+    now.isBefore(closesAt)
+  ) {
+    setSetting("nomination_phase", "open");
+    logSystemAudit("nomination_auto_opened", {
+      opensAt: settings.nominationOpensAt,
+      closesAt: settings.nominationClosesAt,
+    });
+    return;
+  }
+
+  if (
+    settings.nominationPhase === "open" &&
+    closesAt?.isValid() &&
+    !now.isBefore(closesAt)
+  ) {
+    setSetting("nomination_phase", "closed");
+    logSystemAudit("nomination_auto_closed", {
+      closesAt: settings.nominationClosesAt,
     });
   }
 }
@@ -486,6 +609,10 @@ function clearVoterSession(req) {
   req.session.ballotSelections = null;
   req.session.pendingBallot = null;
   req.session.pendingVoterVerification = null;
+}
+
+function clearNominationSession(req) {
+  req.session.nominationApplicant = null;
 }
 
 function maskPhoneNumber(value) {
@@ -566,6 +693,16 @@ function beginAuthenticatedVoterSession(req, voterRecord) {
   req.session.pendingBallot = null;
   req.session.pendingVoterVerification = null;
   req.session.voteComplete = null;
+}
+
+function beginNominationApplicantSession(req, voterRecord) {
+  req.session.nominationApplicant = {
+    voterId: voterRecord.id,
+    staffId: voterRecord.staffId,
+    fullName: voterRecord.fullName,
+    phoneNumber: voterRecord.phoneNumber,
+    department: voterRecord.department || "",
+  };
 }
 
 async function parseOtpApiResponse(response) {
@@ -1126,6 +1263,182 @@ function renderResultsPdf(document, payload) {
     .text("Secretary Signature", 350, signatureY + 22);
 }
 
+function renderNominationFormPdf(document, payload) {
+  const { settings, positions, generatedAt } = payload;
+  const logoPath = settings.organizationLogoPath
+    ? resolveAssetPath(settings.organizationLogoPath)
+    : "";
+
+  if (logoPath && fs.existsSync(logoPath)) {
+    try {
+      document.image(logoPath, 50, 42, { fit: [56, 56], align: "left" });
+    } catch (_error) {
+      // Ignore image parsing errors and continue with the PDF.
+    }
+  }
+
+  document
+    .font("Helvetica-Bold")
+    .fontSize(21)
+    .fillColor("#102338")
+    .text(settings.electionName, 120, 48, { align: "left" })
+    .fontSize(12)
+    .text("Nomination Form", 120, 78);
+
+  document
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor("#5d6d80")
+    .text(`Generated: ${formatDateTime(generatedAt)}`, 120, 96)
+    .text(`Nomination opens: ${formatDateTime(settings.nominationOpensAt)}`, 120, 112)
+    .text(`Nomination closes: ${formatDateTime(settings.nominationClosesAt)}`, 120, 128);
+
+  document
+    .moveTo(50, 148)
+    .lineTo(545, 148)
+    .strokeColor("#d8c197")
+    .lineWidth(1)
+    .stroke();
+
+  document.y = 172;
+  document
+    .font("Helvetica-Bold")
+    .fontSize(12)
+    .fillColor("#102338")
+    .text("Applicant Information");
+
+  const sections = [
+    "Full Name: ________________________________________________",
+    "Staff ID: ______________________",
+    "Phone Number: ______________________",
+    "Department: ______________________________________________",
+    "",
+    "Position Applying For: ____________________________________",
+    "Proposer Name: ____________________________________________",
+    "Seconder Name: ____________________________________________",
+    "",
+    "Short Profile / Bio:",
+    "____________________________________________________________",
+    "____________________________________________________________",
+    "____________________________________________________________",
+    "",
+    "Manifesto / Message:",
+    "____________________________________________________________",
+    "____________________________________________________________",
+    "____________________________________________________________",
+    "",
+    "Declaration:",
+    "I confirm that the information provided for this nomination is accurate.",
+    "Applicant Signature: _______________________________________",
+  ];
+
+  document
+    .moveDown(0.6)
+    .font("Helvetica")
+    .fontSize(11)
+    .fillColor("#102338");
+
+  sections.forEach((line) => {
+    ensurePdfSpace(document, 24);
+    document.text(line);
+  });
+
+  document.moveDown(1);
+  document.font("Helvetica-Bold").text("Available Positions");
+  document.font("Helvetica");
+  positions.forEach((position, index) => {
+    ensurePdfSpace(document, 20);
+    document.text(`${index + 1}. ${position.name}`);
+  });
+}
+
+function renderNominationReportPdf(document, payload) {
+  const { settings, nominations, generatedAt } = payload;
+  const logoPath = settings.organizationLogoPath
+    ? resolveAssetPath(settings.organizationLogoPath)
+    : "";
+
+  if (logoPath && fs.existsSync(logoPath)) {
+    try {
+      document.image(logoPath, 50, 42, { fit: [56, 56], align: "left" });
+    } catch (_error) {
+      // Ignore image parsing errors and continue with the PDF.
+    }
+  }
+
+  document
+    .font("Helvetica-Bold")
+    .fontSize(20)
+    .fillColor("#102338")
+    .text(settings.electionName, 120, 48, { align: "left" })
+    .fontSize(12)
+    .text("Nomination Applications Report", 120, 78);
+
+  document
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor("#5d6d80")
+    .text(`Generated: ${formatDateTime(generatedAt)}`, 120, 96)
+    .text(
+      `Nomination window: ${formatDateTime(settings.nominationOpensAt)} to ${formatDateTime(
+        settings.nominationClosesAt,
+      )}`,
+      120,
+      112,
+    );
+
+  document
+    .moveTo(50, 142)
+    .lineTo(545, 142)
+    .strokeColor("#d8c197")
+    .lineWidth(1)
+    .stroke();
+
+  document.y = 160;
+
+  if (nominations.length === 0) {
+    document
+      .font("Helvetica-Bold")
+      .fontSize(13)
+      .fillColor("#102338")
+      .text("No nomination applications have been submitted yet.");
+    return;
+  }
+
+  nominations.forEach((nomination, index) => {
+    ensurePdfSpace(document, 132);
+    document
+      .font("Helvetica-Bold")
+      .fontSize(13)
+      .fillColor("#102338")
+      .text(`${index + 1}. ${nomination.fullName}`);
+
+    document
+      .moveDown(0.25)
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#42586f")
+      .text(`Staff ID: ${nomination.staffId}`)
+      .text(`Position: ${nomination.positionName}`)
+      .text(`Department: ${nomination.department || "Not provided"}`)
+      .text(`Status: ${nomination.statusMeta.label}`)
+      .text(`Submitted: ${formatDateTime(nomination.submittedAt)}`)
+      .text(`Proposer: ${nomination.proposerName}`)
+      .text(`Seconder: ${nomination.seconderName}`)
+      .text(`Manifesto: ${nomination.manifesto || "Not provided"}`)
+      .text(`Admin Notes: ${nomination.adminNotes || "None"}`);
+
+    document
+      .moveDown(0.55)
+      .moveTo(50, document.y)
+      .lineTo(545, document.y)
+      .strokeColor("#e3d7c0")
+      .lineWidth(1)
+      .stroke()
+      .moveDown(0.7);
+  });
+}
+
 function getVoters() {
   return db.prepare(`
     SELECT
@@ -1170,6 +1483,204 @@ function getCandidates() {
     WHERE c.is_active = 1
     ORDER BY p.sort_order ASC, p.name ASC, c.sort_order ASC, c.name ASC
   `).all();
+}
+
+function getRegisteredStaffRecord(staffId, phoneNumber) {
+  const normalizedStaffId = normalizeStaffId(staffId);
+  const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
+
+  if (!normalizedStaffId || !normalizedPhoneNumber) {
+    return null;
+  }
+
+  const voterRecord = db.prepare(`
+    SELECT
+      id,
+      staff_id AS staffId,
+      phone_number AS phoneNumber,
+      full_name AS fullName,
+      department
+    FROM voters
+    WHERE staff_id = ?
+  `).get(normalizedStaffId);
+
+  if (!voterRecord || voterRecord.phoneNumber !== normalizedPhoneNumber) {
+    return null;
+  }
+
+  return voterRecord;
+}
+
+function getNominationStatusMeta(status) {
+  const normalizedStatus = String(status || "pending").trim().toLowerCase();
+
+  switch (normalizedStatus) {
+    case "approved":
+      return {
+        value: "approved",
+        label: "Approved",
+        className: "inline-badge--success",
+        canApplicantEdit: false,
+      };
+    case "rejected":
+      return {
+        value: "rejected",
+        label: "Rejected",
+        className: "inline-badge--danger",
+        canApplicantEdit: false,
+      };
+    case "correction_requested":
+      return {
+        value: "correction_requested",
+        label: "Correction Requested",
+        className: "inline-badge--warning",
+        canApplicantEdit: true,
+      };
+    case "published":
+      return {
+        value: "published",
+        label: "Published as Candidate",
+        className: "inline-badge--info",
+        canApplicantEdit: false,
+      };
+    default:
+      return {
+        value: "pending",
+        label: "Pending Review",
+        className: "inline-badge--muted",
+        canApplicantEdit: false,
+      };
+  }
+}
+
+function mapNominationRow(row) {
+  const statusMeta = getNominationStatusMeta(row.status);
+  return {
+    ...row,
+    statusMeta,
+  };
+}
+
+function getNominationMetrics() {
+  const totals = db.prepare(`
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pendingCount,
+      SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approvedCount,
+      SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejectedCount,
+      SUM(CASE WHEN status = 'correction_requested' THEN 1 ELSE 0 END) AS correctionCount,
+      SUM(CASE WHEN status = 'published' THEN 1 ELSE 0 END) AS publishedCount
+    FROM nominations
+  `).get();
+
+  return {
+    total: Number(totals.total || 0),
+    pendingCount: Number(totals.pendingCount || 0),
+    approvedCount: Number(totals.approvedCount || 0),
+    rejectedCount: Number(totals.rejectedCount || 0),
+    correctionCount: Number(totals.correctionCount || 0),
+    publishedCount: Number(totals.publishedCount || 0),
+  };
+}
+
+function getNominationList() {
+  const rows = db.prepare(`
+    SELECT
+      n.id,
+      n.voter_id AS voterId,
+      n.position_id AS positionId,
+      n.staff_id AS staffId,
+      n.full_name AS fullName,
+      n.phone_number AS phoneNumber,
+      n.department,
+      n.photo_path AS photoPath,
+      n.bio,
+      n.manifesto,
+      n.proposer_name AS proposerName,
+      n.seconder_name AS seconderName,
+      n.declaration_accepted AS declarationAccepted,
+      n.status,
+      n.admin_notes AS adminNotes,
+      n.reviewed_at AS reviewedAt,
+      n.reviewed_by AS reviewedBy,
+      n.published_candidate_id AS publishedCandidateId,
+      n.submitted_at AS submittedAt,
+      n.created_at AS createdAt,
+      n.updated_at AS updatedAt,
+      p.name AS positionName
+    FROM nominations n
+    INNER JOIN positions p ON p.id = n.position_id
+    ORDER BY n.submitted_at DESC, n.id DESC
+  `).all();
+
+  return rows.map(mapNominationRow);
+}
+
+function getNominationsForVoter(voterId) {
+  const rows = db.prepare(`
+    SELECT
+      n.id,
+      n.voter_id AS voterId,
+      n.position_id AS positionId,
+      n.staff_id AS staffId,
+      n.full_name AS fullName,
+      n.phone_number AS phoneNumber,
+      n.department,
+      n.photo_path AS photoPath,
+      n.bio,
+      n.manifesto,
+      n.proposer_name AS proposerName,
+      n.seconder_name AS seconderName,
+      n.declaration_accepted AS declarationAccepted,
+      n.status,
+      n.admin_notes AS adminNotes,
+      n.reviewed_at AS reviewedAt,
+      n.reviewed_by AS reviewedBy,
+      n.published_candidate_id AS publishedCandidateId,
+      n.submitted_at AS submittedAt,
+      n.created_at AS createdAt,
+      n.updated_at AS updatedAt,
+      p.name AS positionName
+    FROM nominations n
+    INNER JOIN positions p ON p.id = n.position_id
+    WHERE n.voter_id = ?
+    ORDER BY n.submitted_at DESC, n.id DESC
+  `).all(voterId);
+
+  return rows.map(mapNominationRow);
+}
+
+function getNominationById(nominationId) {
+  const row = db.prepare(`
+    SELECT
+      n.id,
+      n.voter_id AS voterId,
+      n.position_id AS positionId,
+      n.staff_id AS staffId,
+      n.full_name AS fullName,
+      n.phone_number AS phoneNumber,
+      n.department,
+      n.photo_path AS photoPath,
+      n.bio,
+      n.manifesto,
+      n.proposer_name AS proposerName,
+      n.seconder_name AS seconderName,
+      n.declaration_accepted AS declarationAccepted,
+      n.status,
+      n.admin_notes AS adminNotes,
+      n.reviewed_at AS reviewedAt,
+      n.reviewed_by AS reviewedBy,
+      n.published_candidate_id AS publishedCandidateId,
+      n.submitted_at AS submittedAt,
+      n.created_at AS createdAt,
+      n.updated_at AS updatedAt,
+      p.name AS positionName
+    FROM nominations n
+    INNER JOIN positions p ON p.id = n.position_id
+    WHERE n.id = ?
+  `).get(nominationId);
+
+  return row ? mapNominationRow(row) : null;
 }
 
 function getAuditLogs(limit = 150) {
@@ -1513,6 +2024,11 @@ const candidateUpload = createImageUpload(
   "Candidate photos must be image files.",
 );
 
+const nominationUpload = createImageUpload(
+  nominationUploadsDirectory,
+  "Nomination photos must be image files.",
+);
+
 const brandingUpload = createImageUpload(
   brandingUploadsDirectory,
   "Organization logos must be image files.",
@@ -1574,15 +2090,19 @@ app.use(
 
 app.use((req, res, next) => {
   syncAutomaticClosure();
+  syncAutomaticNominationLifecycle();
 
   const settings = getElectionSettings();
   const electionState = computeElectionState(settings);
+  const nominationState = computeNominationState(settings);
 
   res.locals.settings = settings;
   res.locals.electionState = electionState;
+  res.locals.nominationState = nominationState;
   res.locals.currentPath = req.path;
   res.locals.admin = req.session.admin || null;
   res.locals.voter = req.session.voter || null;
+  res.locals.nominationApplicant = req.session.nominationApplicant || null;
   res.locals.currentYear = new Date().getFullYear();
   res.locals.formatDateTime = formatDateTime;
   res.locals.formatPercent = formatPercent;
@@ -1601,6 +2121,400 @@ app.get("/", (req, res) => {
 
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true });
+});
+
+app.get("/nomination/form/download", (_req, res) => {
+  const settings = getElectionSettings();
+  const positions = getPositions();
+  const filename = `${toSafeFilename(settings.electionName)}-nomination-form.pdf`;
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  const document = new PDFDocument({
+    size: "A4",
+    margin: 50,
+    info: {
+      Title: `${settings.electionName} Nomination Form`,
+      Author: "Organization Vote Portal",
+    },
+  });
+
+  document.pipe(res);
+  renderNominationFormPdf(document, {
+    settings,
+    positions,
+    generatedAt: nowIso(),
+  });
+  document.end();
+});
+
+app.get("/nomination/login", (req, res) => {
+  if (req.session.nominationApplicant) {
+    return res.redirect("/nomination/form");
+  }
+
+  return res.render("nomination-login", {
+    pageTitle: "Nomination Login",
+    mode: "apply",
+  });
+});
+
+app.post("/nomination/login", (req, res) => {
+  const staffId = normalizeStaffId(req.body.staffId);
+  const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
+  const settings = getElectionSettings();
+  const nominationState = computeNominationState(settings);
+
+  if (!staffId || !phoneNumber) {
+    setFlash(req, "error", "Enter both your staff ID and phone number.");
+    return res.redirect("/nomination/login");
+  }
+
+  if (!nominationState.isOpen) {
+    setFlash(req, "error", nominationState.message);
+    return res.redirect("/nomination/login");
+  }
+
+  const voterRecord = getRegisteredStaffRecord(staffId, phoneNumber);
+
+  if (!voterRecord) {
+    logAudit(req, "nomination", staffId || "unknown", "nomination_login_failed", {
+      reason: "invalid_credentials",
+    });
+    setFlash(
+      req,
+      "error",
+      "Your staff ID and phone number do not match a registered staff record.",
+    );
+    return res.redirect("/nomination/login");
+  }
+
+  beginNominationApplicantSession(req, voterRecord);
+  logAudit(req, "nomination", voterRecord.staffId, "nomination_login_success");
+  return res.redirect("/nomination/form");
+});
+
+app.get("/nomination/status/login", (req, res) => {
+  if (req.session.nominationApplicant) {
+    return res.redirect("/nomination/status");
+  }
+
+  return res.render("nomination-login", {
+    pageTitle: "Nomination Status",
+    mode: "status",
+  });
+});
+
+app.post("/nomination/status/login", (req, res) => {
+  const staffId = normalizeStaffId(req.body.staffId);
+  const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
+
+  if (!staffId || !phoneNumber) {
+    setFlash(req, "error", "Enter both your staff ID and phone number.");
+    return res.redirect("/nomination/status/login");
+  }
+
+  const voterRecord = getRegisteredStaffRecord(staffId, phoneNumber);
+
+  if (!voterRecord) {
+    logAudit(req, "nomination", staffId || "unknown", "nomination_status_login_failed", {
+      reason: "invalid_credentials",
+    });
+    setFlash(
+      req,
+      "error",
+      "Your staff ID and phone number do not match a registered staff record.",
+    );
+    return res.redirect("/nomination/status/login");
+  }
+
+  beginNominationApplicantSession(req, voterRecord);
+  logAudit(req, "nomination", voterRecord.staffId, "nomination_status_login_success");
+  return res.redirect("/nomination/status");
+});
+
+app.get("/nomination/form", (req, res) => {
+  const applicant = req.session.nominationApplicant;
+
+  if (!applicant) {
+    setFlash(req, "error", "Sign in with your staff ID and phone number to continue.");
+    return res.redirect("/nomination/login");
+  }
+
+  const settings = getElectionSettings();
+  const nominationState = computeNominationState(settings);
+  const positions = getPositions();
+  const nominations = getNominationsForVoter(applicant.voterId);
+  const editNominationId = parseInteger(req.query.edit, 0);
+  const editableNomination =
+    editNominationId > 0
+      ? nominations.find(
+          (nomination) =>
+            nomination.id === editNominationId && nomination.statusMeta.canApplicantEdit,
+        ) || null
+      : null;
+
+  if (!nominationState.isOpen && !editableNomination) {
+    setFlash(req, "error", nominationState.message);
+    return res.redirect("/nomination/status");
+  }
+
+  return res.render("nomination-form", {
+    pageTitle: "Apply for Nomination",
+    applicant,
+    positions,
+    nominations,
+    editableNomination,
+  });
+});
+
+app.post(
+  "/nomination/form",
+  nominationUpload.single("photo"),
+  async (req, res) => {
+    const applicant = req.session.nominationApplicant;
+
+    if (!applicant) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(req, "error", "Sign in with your staff ID and phone number to continue.");
+      return res.redirect("/nomination/login");
+    }
+
+    const settings = getElectionSettings();
+    const nominationState = computeNominationState(settings);
+    const nominationId = parseInteger(req.body.nominationId, 0);
+    const fullName = String(req.body.fullName || "").trim();
+    const department = String(req.body.department || "").trim();
+    const positionId = parseInteger(req.body.positionId, 0);
+    const bio = String(req.body.bio || "").trim();
+    const manifesto = String(req.body.manifesto || "").trim();
+    const proposerName = String(req.body.proposerName || "").trim();
+    const seconderName = String(req.body.seconderName || "").trim();
+    const declarationAccepted = req.body.declarationAccepted === "on";
+
+    const existingEditableNomination =
+      nominationId > 0 ? getNominationById(nominationId) : null;
+    const isCorrectionResubmission =
+      existingEditableNomination &&
+      existingEditableNomination.voterId === applicant.voterId &&
+      existingEditableNomination.statusMeta.canApplicantEdit;
+
+    if (!nominationState.isOpen && !isCorrectionResubmission) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(req, "error", nominationState.message);
+      return res.redirect("/nomination/status");
+    }
+
+    if (
+      !fullName ||
+      !department ||
+      !positionId ||
+      !bio ||
+      !manifesto ||
+      !proposerName ||
+      !seconderName ||
+      !declarationAccepted
+    ) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(
+        req,
+        "error",
+        "Complete every nomination field and confirm the declaration before submitting.",
+      );
+      return res.redirect(
+        isCorrectionResubmission ? `/nomination/form?edit=${existingEditableNomination.id}` : "/nomination/form",
+      );
+    }
+
+    const position = db.prepare(`
+      SELECT id, name
+      FROM positions
+      WHERE id = ?
+        AND is_active = 1
+    `).get(positionId);
+
+    if (!position) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(req, "error", "Choose a valid position before submitting the nomination.");
+      return res.redirect(
+        isCorrectionResubmission ? `/nomination/form?edit=${existingEditableNomination.id}` : "/nomination/form",
+      );
+    }
+
+    const duplicateNomination = db.prepare(`
+      SELECT id, status
+      FROM nominations
+      WHERE voter_id = ?
+        AND position_id = ?
+        AND id <> ?
+    `).get(applicant.voterId, positionId, isCorrectionResubmission ? existingEditableNomination.id : 0);
+
+    if (duplicateNomination) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(
+        req,
+        "error",
+        "You already have a nomination record for this position. Use the nomination status page to review it.",
+      );
+      return res.redirect("/nomination/status");
+    }
+
+    if (
+      !req.file &&
+      (!isCorrectionResubmission || !existingEditableNomination.photoPath)
+    ) {
+      setFlash(req, "error", "Upload a candidate photo before submitting the nomination.");
+      return res.redirect(
+        isCorrectionResubmission ? `/nomination/form?edit=${existingEditableNomination.id}` : "/nomination/form",
+      );
+    }
+
+    const submittedAt = nowIso();
+    const nextPhotoPath = req.file
+      ? normalizeAssetPath(req.file.path)
+      : existingEditableNomination?.photoPath || "";
+
+    try {
+      if (isCorrectionResubmission) {
+        db.prepare(`
+          UPDATE nominations
+          SET
+            position_id = ?,
+            full_name = ?,
+            phone_number = ?,
+            department = ?,
+            photo_path = ?,
+            bio = ?,
+            manifesto = ?,
+            proposer_name = ?,
+            seconder_name = ?,
+            declaration_accepted = 1,
+            status = 'pending',
+            reviewed_at = NULL,
+            reviewed_by = '',
+            submitted_at = ?,
+            updated_at = ?
+          WHERE id = ?
+        `).run(
+          positionId,
+          fullName,
+          applicant.phoneNumber,
+          department,
+          nextPhotoPath,
+          bio,
+          manifesto,
+          proposerName,
+          seconderName,
+          submittedAt,
+          submittedAt,
+          existingEditableNomination.id,
+        );
+
+        if (req.file && existingEditableNomination.photoPath) {
+          await safeRemoveFile(resolveAssetPath(existingEditableNomination.photoPath));
+        }
+
+        logAudit(req, "nomination", applicant.staffId, "nomination_resubmitted", {
+          nominationId: existingEditableNomination.id,
+          positionName: position.name,
+        });
+      } else {
+        db.prepare(`
+          INSERT INTO nominations (
+            voter_id,
+            position_id,
+            staff_id,
+            full_name,
+            phone_number,
+            department,
+            photo_path,
+            bio,
+            manifesto,
+            proposer_name,
+            seconder_name,
+            declaration_accepted,
+            status,
+            admin_notes,
+            submitted_at,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'pending', '', ?, ?, ?)
+        `).run(
+          applicant.voterId,
+          positionId,
+          applicant.staffId,
+          fullName,
+          applicant.phoneNumber,
+          department,
+          nextPhotoPath,
+          bio,
+          manifesto,
+          proposerName,
+          seconderName,
+          submittedAt,
+          submittedAt,
+          submittedAt,
+        );
+
+        logAudit(req, "nomination", applicant.staffId, "nomination_submitted", {
+          positionName: position.name,
+        });
+      }
+
+      req.session.nominationApplicant.fullName = fullName;
+      req.session.nominationApplicant.department = department;
+
+      setFlash(
+        req,
+        "success",
+        isCorrectionResubmission
+          ? "Your nomination has been resubmitted for review."
+          : "Your nomination has been submitted successfully.",
+      );
+      return res.redirect("/nomination/status");
+    } catch (error) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(req, "error", `Nomination submission failed: ${error.message}`);
+      return res.redirect(
+        isCorrectionResubmission ? `/nomination/form?edit=${existingEditableNomination.id}` : "/nomination/form",
+      );
+    }
+  },
+);
+
+app.get("/nomination/status", (req, res) => {
+  const applicant = req.session.nominationApplicant;
+
+  if (!applicant) {
+    setFlash(req, "error", "Sign in with your staff ID and phone number to check nomination status.");
+    return res.redirect("/nomination/status/login");
+  }
+
+  const nominations = getNominationsForVoter(applicant.voterId);
+  return res.render("nomination-status", {
+    pageTitle: "Nomination Status",
+    applicant,
+    nominations,
+  });
+});
+
+app.post("/nomination/logout", (req, res) => {
+  clearNominationSession(req);
+  return res.redirect("/nomination/login");
 });
 
 app.get("/vote/login", (req, res) => {
@@ -2386,6 +3300,389 @@ app.get("/admin", requireAdmin, (req, res) => {
   });
 });
 
+app.get("/admin/nominations", requireAdmin, (req, res) => {
+  const settings = getElectionSettings();
+  const nominationState = computeNominationState(settings);
+  const nominations = getNominationList();
+  const nominationMetrics = getNominationMetrics();
+
+  return res.render("admin-nominations", {
+    pageTitle: "Nominations",
+    nominations,
+    nominationMetrics,
+    nominationState,
+    positions: getPositions(),
+  });
+});
+
+app.get("/admin/nominations/pdf", requireAdmin, (req, res) => {
+  const settings = getElectionSettings();
+  const nominations = getNominationList();
+  const filename = `${toSafeFilename(settings.electionName)}-nominations.pdf`;
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  const document = new PDFDocument({
+    size: "A4",
+    margin: 50,
+    info: {
+      Title: `${settings.electionName} Nomination Applications`,
+      Author: "Organization Vote Portal",
+    },
+  });
+
+  document.pipe(res);
+  renderNominationReportPdf(document, {
+    settings,
+    nominations,
+    generatedAt: nowIso(),
+  });
+  document.end();
+});
+
+app.get("/admin/nominations/:id", requireAdmin, (req, res) => {
+  const nomination = getNominationById(parseInteger(req.params.id, 0));
+
+  if (!nomination) {
+    setFlash(req, "error", "Nomination application not found.");
+    return res.redirect("/admin/nominations");
+  }
+
+  return res.render("admin-nomination-detail", {
+    pageTitle: "Nomination Review",
+    nomination,
+    positions: getPositions(),
+  });
+});
+
+app.post("/admin/nominations/settings", requireAdmin, (req, res) => {
+  const opensAt = String(req.body.nominationOpensAt || "").trim();
+  const closesAt = String(req.body.nominationClosesAt || "").trim();
+
+  if (!opensAt || !closesAt) {
+    setFlash(req, "error", "Set both the nomination opening and closing time.");
+    return res.redirect("/admin/nominations");
+  }
+
+  if (!dayjs(opensAt).isBefore(dayjs(closesAt))) {
+    setFlash(req, "error", "The nomination closing time must be later than the opening time.");
+    return res.redirect("/admin/nominations");
+  }
+
+  setSetting("nomination_opens_at", opensAt);
+  setSetting("nomination_closes_at", closesAt);
+
+  const nextSettings = getElectionSettings();
+  const readiness = getNominationReadiness(nextSettings);
+  const opensAtValue = dayjs(nextSettings.nominationOpensAt);
+  const closesAtValue = dayjs(nextSettings.nominationClosesAt);
+  const shouldOpenImmediately =
+    readiness.isReady &&
+    opensAtValue.isValid() &&
+    closesAtValue.isValid() &&
+    !dayjs().isBefore(opensAtValue) &&
+    dayjs().isBefore(closesAtValue);
+
+  setSetting("nomination_phase", shouldOpenImmediately ? "open" : "setup");
+
+  logAudit(req, "admin", req.session.admin.username, "nomination_settings_updated", {
+    opensAt,
+    closesAt,
+  });
+
+  setFlash(
+    req,
+    "success",
+    shouldOpenImmediately
+      ? "Nomination settings saved and nominations are now open."
+      : "Nomination settings updated.",
+  );
+  return res.redirect("/admin/nominations");
+});
+
+app.post("/admin/nominations/open", requireAdmin, (req, res) => {
+  const settings = getElectionSettings();
+  const readiness = getNominationReadiness(settings);
+
+  if (!readiness.isReady) {
+    setFlash(req, "error", readiness.issues[0]);
+    return res.redirect("/admin/nominations");
+  }
+
+  setSetting("nomination_phase", "open");
+  logAudit(req, "admin", req.session.admin.username, "nominations_opened", {
+    opensAt: settings.nominationOpensAt,
+    closesAt: settings.nominationClosesAt,
+  });
+  setFlash(req, "success", "Nominations have been opened.");
+  return res.redirect("/admin/nominations");
+});
+
+app.post("/admin/nominations/close", requireAdmin, (req, res) => {
+  const settings = getElectionSettings();
+
+  if (settings.nominationPhase !== "open") {
+    setFlash(req, "error", "Nominations are not currently open.");
+    return res.redirect("/admin/nominations");
+  }
+
+  setSetting("nomination_phase", "closed");
+  logAudit(req, "admin", req.session.admin.username, "nominations_closed");
+  setFlash(req, "success", "Nominations have been closed.");
+  return res.redirect("/admin/nominations");
+});
+
+app.post(
+  "/admin/nominations/:id/update",
+  requireAdmin,
+  nominationUpload.single("photo"),
+  async (req, res) => {
+    const nominationId = parseInteger(req.params.id, 0);
+    const nomination = getNominationById(nominationId);
+
+    if (!nomination) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(req, "error", "Nomination application not found.");
+      return res.redirect("/admin/nominations");
+    }
+
+    if (nomination.publishedCandidateId) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(req, "error", "Published nominations can no longer be edited.");
+      return res.redirect(`/admin/nominations/${nominationId}`);
+    }
+
+    const fullName = String(req.body.fullName || "").trim();
+    const department = String(req.body.department || "").trim();
+    const positionId = parseInteger(req.body.positionId, 0);
+    const bio = String(req.body.bio || "").trim();
+    const manifesto = String(req.body.manifesto || "").trim();
+    const proposerName = String(req.body.proposerName || "").trim();
+    const seconderName = String(req.body.seconderName || "").trim();
+
+    if (!fullName || !department || !positionId || !bio || !manifesto || !proposerName || !seconderName) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(req, "error", "Complete the nomination details before saving.");
+      return res.redirect(`/admin/nominations/${nominationId}`);
+    }
+
+    const position = db.prepare(`
+      SELECT id, name
+      FROM positions
+      WHERE id = ?
+        AND is_active = 1
+    `).get(positionId);
+
+    if (!position) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(req, "error", "Choose a valid position before saving.");
+      return res.redirect(`/admin/nominations/${nominationId}`);
+    }
+
+    const duplicateNomination = db.prepare(`
+      SELECT id
+      FROM nominations
+      WHERE voter_id = ?
+        AND position_id = ?
+        AND id <> ?
+    `).get(nomination.voterId, positionId, nominationId);
+
+    if (duplicateNomination) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      setFlash(
+        req,
+        "error",
+        "This staff member already has another nomination for the selected position.",
+      );
+      return res.redirect(`/admin/nominations/${nominationId}`);
+    }
+
+    const nextPhotoPath = req.file ? normalizeAssetPath(req.file.path) : nomination.photoPath;
+
+    db.prepare(`
+      UPDATE nominations
+      SET
+        position_id = ?,
+        full_name = ?,
+        department = ?,
+        photo_path = ?,
+        bio = ?,
+        manifesto = ?,
+        proposer_name = ?,
+        seconder_name = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(
+      positionId,
+      fullName,
+      department,
+      nextPhotoPath,
+      bio,
+      manifesto,
+      proposerName,
+      seconderName,
+      nowIso(),
+      nominationId,
+    );
+
+    if (req.file && nomination.photoPath) {
+      await safeRemoveFile(resolveAssetPath(nomination.photoPath));
+    }
+
+    logAudit(req, "admin", req.session.admin.username, "nomination_updated_by_admin", {
+      nominationId,
+      staffId: nomination.staffId,
+      positionName: position.name,
+    });
+    setFlash(req, "success", "Nomination details updated.");
+    return res.redirect(`/admin/nominations/${nominationId}`);
+  },
+);
+
+app.post("/admin/nominations/:id/review", requireAdmin, (req, res) => {
+  const nominationId = parseInteger(req.params.id, 0);
+  const nomination = getNominationById(nominationId);
+
+  if (!nomination) {
+    setFlash(req, "error", "Nomination application not found.");
+    return res.redirect("/admin/nominations");
+  }
+
+  if (nomination.publishedCandidateId) {
+    setFlash(req, "error", "This nomination has already been published as a candidate.");
+    return res.redirect(`/admin/nominations/${nominationId}`);
+  }
+
+  const nextStatus = String(req.body.status || "").trim().toLowerCase();
+  const adminNotes = String(req.body.adminNotes || "").trim();
+  const allowedStatuses = new Set(["approved", "rejected", "correction_requested"]);
+
+  if (!allowedStatuses.has(nextStatus)) {
+    setFlash(req, "error", "Choose a valid review decision.");
+    return res.redirect(`/admin/nominations/${nominationId}`);
+  }
+
+  if ((nextStatus === "rejected" || nextStatus === "correction_requested") && !adminNotes) {
+    setFlash(req, "error", "Add review notes when rejecting a nomination or requesting correction.");
+    return res.redirect(`/admin/nominations/${nominationId}`);
+  }
+
+  db.prepare(`
+    UPDATE nominations
+    SET
+      status = ?,
+      admin_notes = ?,
+      reviewed_at = ?,
+      reviewed_by = ?,
+      updated_at = ?
+    WHERE id = ?
+  `).run(nextStatus, adminNotes, nowIso(), req.session.admin.username, nowIso(), nominationId);
+
+  logAudit(req, "admin", req.session.admin.username, "nomination_reviewed", {
+    nominationId,
+    staffId: nomination.staffId,
+    status: nextStatus,
+  });
+  setFlash(req, "success", `Nomination marked as ${getNominationStatusMeta(nextStatus).label}.`);
+  return res.redirect(`/admin/nominations/${nominationId}`);
+});
+
+app.post("/admin/nominations/:id/publish", requireAdmin, (req, res) => {
+  if (!ensureSetupMode(req, res)) {
+    return;
+  }
+
+  const nominationId = parseInteger(req.params.id, 0);
+  const nomination = getNominationById(nominationId);
+
+  if (!nomination) {
+    setFlash(req, "error", "Nomination application not found.");
+    return res.redirect("/admin/nominations");
+  }
+
+  if (nomination.statusMeta.value !== "approved") {
+    setFlash(req, "error", "Only approved nominations can be published as candidates.");
+    return res.redirect(`/admin/nominations/${nominationId}`);
+  }
+
+  if (nomination.publishedCandidateId) {
+    setFlash(req, "error", "This nomination has already been published as a candidate.");
+    return res.redirect(`/admin/nominations/${nominationId}`);
+  }
+
+  const timestamp = nowIso();
+  const candidateBio = nomination.manifesto
+    ? `${nomination.bio}\n\nManifesto:\n${nomination.manifesto}`
+    : nomination.bio;
+
+  try {
+    const candidateInsert = db.prepare(`
+      INSERT INTO candidates (
+        position_id,
+        name,
+        photo_path,
+        bio,
+        sort_order,
+        is_active,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, 0, 1, ?, ?)
+    `).run(
+      nomination.positionId,
+      nomination.fullName,
+      nomination.photoPath,
+      candidateBio,
+      timestamp,
+      timestamp,
+    );
+
+    db.prepare(`
+      UPDATE nominations
+      SET
+        status = 'published',
+        published_candidate_id = ?,
+        reviewed_at = ?,
+        reviewed_by = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(
+      Number(candidateInsert.lastInsertRowid),
+      timestamp,
+      req.session.admin.username,
+      timestamp,
+      nominationId,
+    );
+
+    logAudit(req, "admin", req.session.admin.username, "nomination_published_as_candidate", {
+      nominationId,
+      staffId: nomination.staffId,
+      candidateId: Number(candidateInsert.lastInsertRowid),
+      positionName: nomination.positionName,
+    });
+    setFlash(req, "success", "Approved nomination has been published to the candidate list.");
+  } catch (error) {
+    setFlash(
+      req,
+      "error",
+      `The nomination could not be published as a candidate: ${error.message}`,
+    );
+  }
+
+  return res.redirect(`/admin/nominations/${nominationId}`);
+});
+
 app.post("/admin/settings", requireAdmin, (req, res) => {
   if (!ensureSetupMode(req, res)) {
     return;
@@ -2639,6 +3936,11 @@ app.post("/admin/election/archive-reset", requireAdmin, async (req, res) => {
     FROM candidates
     WHERE photo_path <> ''
   `).all();
+  const nominationPhotoRows = db.prepare(`
+    SELECT photo_path AS photoPath
+    FROM nominations
+    WHERE photo_path <> ''
+  `).all();
 
   let archiveId = 0;
 
@@ -2678,15 +3980,23 @@ app.post("/admin/election/archive-reset", requireAdmin, async (req, res) => {
     db.prepare("DELETE FROM ballot_entries").run();
     db.prepare("DELETE FROM ballots").run();
     db.prepare("DELETE FROM voters").run();
+    db.prepare("DELETE FROM nominations").run();
     db.prepare("DELETE FROM candidates").run();
     db.prepare("DELETE FROM positions").run();
 
     setSetting("election_phase", "setup");
     setSetting("opens_at", "");
     setSetting("closes_at", "");
+    setSetting("nomination_phase", "setup");
+    setSetting("nomination_opens_at", "");
+    setSetting("nomination_closes_at", "");
   });
 
   for (const photoRow of candidatePhotoRows) {
+    await safeRemoveFile(resolveAssetPath(photoRow.photoPath));
+  }
+
+  for (const photoRow of nominationPhotoRows) {
     await safeRemoveFile(resolveAssetPath(photoRow.photoPath));
   }
 
@@ -3119,6 +4429,21 @@ app.post("/admin/positions/:id/delete", requireAdmin, (req, res) => {
   }
 
   const positionId = parseInteger(req.params.id, 0);
+  const nominationCount = db.prepare(`
+    SELECT COUNT(*) AS total
+    FROM nominations
+    WHERE position_id = ?
+  `).get(positionId);
+
+  if (nominationCount.total > 0) {
+    setFlash(
+      req,
+      "error",
+      "This position has nomination applications. Review or clear those nominations before deleting the position.",
+    );
+    return res.redirect("/admin/setup");
+  }
+
   const candidateCount = db.prepare(`
     SELECT COUNT(*) AS total
     FROM candidates
@@ -3477,7 +4802,11 @@ app.get("/admin/audit", requireAdmin, (req, res) => {
 app.use((error, req, res, _next) => {
   console.error(error);
 
-  const redirectTarget = req.path.startsWith("/admin") ? "/admin" : "/";
+  const redirectTarget = req.path.startsWith("/admin")
+    ? "/admin"
+    : req.path.startsWith("/nomination")
+      ? "/nomination/login"
+      : "/";
   setFlash(req, "error", error.message || "Something went wrong.");
   res.redirect(redirectTarget);
 });

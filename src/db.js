@@ -67,6 +67,34 @@ function initDatabase(defaultElectionName) {
       FOREIGN KEY (position_id) REFERENCES positions (id) ON DELETE RESTRICT
     );
 
+    CREATE TABLE IF NOT EXISTS nominations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      voter_id INTEGER NOT NULL,
+      position_id INTEGER NOT NULL,
+      staff_id TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      phone_number TEXT NOT NULL,
+      department TEXT NOT NULL DEFAULT '',
+      photo_path TEXT NOT NULL DEFAULT '',
+      bio TEXT NOT NULL DEFAULT '',
+      manifesto TEXT NOT NULL DEFAULT '',
+      proposer_name TEXT NOT NULL DEFAULT '',
+      seconder_name TEXT NOT NULL DEFAULT '',
+      declaration_accepted INTEGER NOT NULL DEFAULT 0 CHECK (declaration_accepted IN (0, 1)),
+      status TEXT NOT NULL DEFAULT 'pending',
+      admin_notes TEXT NOT NULL DEFAULT '',
+      reviewed_at TEXT,
+      reviewed_by TEXT NOT NULL DEFAULT '',
+      published_candidate_id INTEGER,
+      submitted_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(voter_id, position_id),
+      FOREIGN KEY (voter_id) REFERENCES voters (id) ON DELETE RESTRICT,
+      FOREIGN KEY (position_id) REFERENCES positions (id) ON DELETE RESTRICT,
+      FOREIGN KEY (published_candidate_id) REFERENCES candidates (id) ON DELETE SET NULL
+    );
+
     CREATE TABLE IF NOT EXISTS ballots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       voter_id INTEGER NOT NULL UNIQUE,
@@ -117,6 +145,9 @@ function initDatabase(defaultElectionName) {
 
     CREATE INDEX IF NOT EXISTS idx_voters_has_voted ON voters (has_voted);
     CREATE INDEX IF NOT EXISTS idx_candidates_position_id ON candidates (position_id);
+    CREATE INDEX IF NOT EXISTS idx_nominations_voter_id ON nominations (voter_id);
+    CREATE INDEX IF NOT EXISTS idx_nominations_position_id ON nominations (position_id);
+    CREATE INDEX IF NOT EXISTS idx_nominations_status ON nominations (status);
     CREATE INDEX IF NOT EXISTS idx_ballot_entries_candidate_id ON ballot_entries (candidate_id);
     CREATE INDEX IF NOT EXISTS idx_ballot_entries_position_id ON ballot_entries (position_id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
@@ -137,6 +168,9 @@ function initDatabase(defaultElectionName) {
     ["secretary_name", ""],
     ["chairman_signature_path", ""],
     ["secretary_signature_path", ""],
+    ["nomination_phase", "setup"],
+    ["nomination_opens_at", ""],
+    ["nomination_closes_at", ""],
   ];
 
   for (const [key, value] of defaults) {

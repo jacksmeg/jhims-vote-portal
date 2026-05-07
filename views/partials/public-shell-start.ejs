@@ -1,10 +1,12 @@
 <%- include("head", { pageTitle }) %>
 <% const isVotePortal = currentPath.startsWith('/vote'); %>
+<% const isNominationPortal = currentPath.startsWith('/nomination'); %>
+<% const isPortalFlow = isVotePortal || isNominationPortal; %>
 <% const isVoteLogin = currentPath === '/vote/login'; %>
 <% const showVoteCountdown = isVotePortal && electionState.isOpen && voteClosesAtMs && !isVoteLogin; %>
 <div class="site-shell">
-  <header class="site-header <%= isVotePortal ? 'site-header--portal' : '' %>">
-    <a class="brand-mark" href="<%= isVotePortal ? '/vote/login' : '/' %>">
+  <header class="site-header <%= isPortalFlow ? 'site-header--portal' : '' %>">
+    <a class="brand-mark" href="<%= isVotePortal ? '/vote/login' : isNominationPortal ? '/nomination/login' : '/' %>">
       <% if (settings.organizationLogoPath) { %>
         <img class="brand-mark__logo" src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
       <% } else { %>
@@ -12,11 +14,11 @@
       <% } %>
       <span>
         <strong><%= settings.electionName %></strong>
-        <small><%= isVotePortal ? 'Election Portal' : 'Secure internal ballot system' %></small>
+        <small><%= isPortalFlow ? 'Election Portal' : 'Secure internal ballot system' %></small>
       </span>
     </a>
 
-    <% if (isVotePortal) { %>
+    <% if (isPortalFlow) { %>
       <div class="site-header__utility">
         <a
           class="site-utility-link"

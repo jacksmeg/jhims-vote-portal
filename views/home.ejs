@@ -3,16 +3,16 @@
 <section class="hero-grid">
   <div class="hero-copy panel panel-dark">
     <span class="eyebrow">Election Service App</span>
-    <h2>Run a secure organization-wide vote with staff ID and phone verification.</h2>
+    <h2>Run voting, nominations, and election communication from one secure portal.</h2>
     <p>
-      This portal verifies every voter, allows one ballot per staff member, and gives the
-      election committee a controlled dashboard for setup, monitoring, backups, and final
-      results.
+      This portal verifies every voter, supports nomination submission for interested staff
+      members, and gives the election committee a controlled dashboard for setup, monitoring,
+      approvals, backups, and final results.
     </p>
 
     <div class="hero-actions">
-      <a class="button" href="/vote/login">Open Voter Portal</a>
-      <a class="button button-ghost" href="/admin/login">Admin Dashboard</a>
+      <a class="button" href="/vote/login">Vote Now</a>
+      <a class="button button-ghost" href="/nomination/login">Apply for Nomination</a>
     </div>
 
     <div class="hero-stats">
@@ -34,31 +34,81 @@
   <div class="panel panel-light stack-lg">
     <div>
       <span class="eyebrow">How It Works</span>
-      <h3>Simple flow for voters and clear controls for administrators.</h3>
+      <h3>Simple access for voters, nominees, and the election committee.</h3>
     </div>
 
     <ol class="flow-list">
-      <li>Staff enters a registered staff ID and phone number.</li>
-      <li>The system verifies the record and blocks duplicate voting.</li>
-      <li>The voter chooses one candidate under each position.</li>
-      <li>The ballot is confirmed once and then submitted permanently.</li>
-      <li>The committee closes the election and unlocks final results.</li>
+      <li>Registered staff can log in with staff ID and phone number.</li>
+      <li>Voters access the ballot only once and submit securely.</li>
+      <li>Interested staff can apply for positions through the nomination portal.</li>
+      <li>The election committee reviews, approves, and publishes nominees as candidates.</li>
+      <li>Final results and archives remain controlled from the admin dashboard.</li>
     </ol>
 
     <div class="card-grid card-grid--compact">
       <article class="mini-card">
-        <h4>Security</h4>
-        <p>Admin login, audit trails, single-vote enforcement, and locked results.</p>
+        <h4>Voting Window</h4>
+        <p><%= electionState.message %></p>
       </article>
       <article class="mini-card">
-        <h4>Voter Import</h4>
-        <p>Upload voter login data from Excel with staff ID and phone number columns.</p>
+        <h4>Nomination Window</h4>
+        <p><%= nominationState.message %></p>
       </article>
       <article class="mini-card">
         <h4>Candidate Setup</h4>
-        <p>Add positions, upload candidate photos, and manage ballot order centrally.</p>
+        <p>Add positions, publish approved nominees, and manage the ballot centrally.</p>
       </article>
     </div>
+  </div>
+</section>
+
+<section class="panel panel-light stack-lg">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Portal Actions</span>
+      <h3>Choose what you want to do.</h3>
+    </div>
+    <p>Every public action starts here, and each one follows its own secure workflow.</p>
+  </div>
+
+  <div class="action-card-grid">
+    <a class="action-card" href="/vote/login">
+      <span class="action-card__icon action-card__icon--vote" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="M5 4h14a1 1 0 0 1 1 1v3H4V5a1 1 0 0 1 1-1Zm-1 6h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Zm3 2v2h2v-2H7Zm4 0v2h6v-2h-6Zm-4 4v2h2v-2H7Zm4 0v2h4v-2h-4Z" fill="currentColor"/>
+        </svg>
+      </span>
+      <strong>Vote Now</strong>
+      <p>Open the voter portal and submit your ballot for the current election.</p>
+      <span class="action-card__meta"><%= electionState.badgeLabel %></span>
+    </a>
+
+    <a class="action-card" href="/nomination/login">
+      <span class="action-card__icon action-card__icon--nomination" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm-1.07 13.82L7.76 12.65l1.41-1.41 1.76 1.76 4.24-4.24 1.41 1.41-5.65 5.65Z" fill="currentColor"/>
+        </svg>
+      </span>
+      <strong>Apply for Nomination</strong>
+      <p>Submit your nomination form online if you want to stand for a position.</p>
+      <span class="action-card__meta"><%= nominationState.badgeLabel %></span>
+    </a>
+
+    <a class="action-card" href="/nomination/status/login">
+      <span class="action-card__icon action-card__icon--status" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="M12 3a9 9 0 1 0 9 9 9.01 9.01 0 0 0-9-9Zm1 9.59 3.3 3.3-1.41 1.41L11 13V7h2Z" fill="currentColor"/>
+        </svg>
+      </span>
+      <strong>Check Nomination Status</strong>
+      <p>Review your nomination decision and continue any correction requested by the committee.</p>
+      <span class="action-card__meta">Track progress</span>
+    </a>
+  </div>
+
+  <div class="button-row">
+    <a class="button button-ghost" href="/nomination/form/download">Download Nomination Form PDF</a>
+    <a class="button button-ghost" href="/admin/login">Admin Dashboard</a>
   </div>
 </section>
 
@@ -68,7 +118,7 @@
       <span class="eyebrow">Important Safeguards</span>
       <h3>Built around your election rules.</h3>
     </div>
-    <p><%= electionState.message %></p>
+    <p>Staff records are verified before voting and before nomination submissions are accepted.</p>
   </div>
 
   <div class="feature-grid">
@@ -77,16 +127,16 @@
       <p>Each registered record is checked and marked as voted after submission.</p>
     </article>
     <article class="feature-card">
-      <h4>Timed voting window</h4>
-      <p>Admins set both opening and closing times, and the system can open voting automatically when the scheduled start arrives.</p>
+      <h4>Protected nominations</h4>
+      <p>Only registered staff can nominate, and duplicate nominations for the same position are blocked.</p>
     </article>
     <article class="feature-card">
-      <h4>Backup support</h4>
-      <p>The dashboard can create local database backups for the election committee.</p>
+      <h4>Timed election windows</h4>
+      <p>Admins control both voting and nomination opening/closing times from the dashboard.</p>
     </article>
     <article class="feature-card">
-      <h4>Results discipline</h4>
-      <p>Detailed results are revealed only after the election has been closed.</p>
+      <h4>Approval workflow</h4>
+      <p>Nominations stay hidden from the ballot until the committee approves and publishes them as candidates.</p>
     </article>
   </div>
 </section>
