@@ -2741,7 +2741,7 @@ app.post(
             created_at,
             updated_at
           )
-          VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'pending', '', ?, ?, ?)
+          VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'pending', '', ?, ?, ?)
         `).run(
           accessCode.id,
           accessCode.code,
