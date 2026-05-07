@@ -1429,11 +1429,12 @@ tbody tr:hover {
   right: 24px;
   bottom: 24px;
   z-index: 40;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border-radius: 50%;
   color: #ffffff;
   background: linear-gradient(135deg, #15b86b, #0f8c52);
   box-shadow: 0 18px 36px rgba(15, 140, 82, 0.28);
@@ -2058,16 +2059,10 @@ body {
 .whatsapp-float {
   right: 22px;
   bottom: 22px;
-  gap: 9px;
-  padding: 11px 15px;
-  border-radius: 999px;
+  width: 56px;
+  height: 56px;
   background: linear-gradient(135deg, #16b67a, #0f8b67);
   box-shadow: 0 14px 30px rgba(15, 139, 103, 0.28);
-}
-
-.whatsapp-float span:last-child {
-  font-size: 0.84rem;
-  font-weight: 800;
 }
 
 .panel,
