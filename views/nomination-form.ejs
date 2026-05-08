@@ -7,11 +7,10 @@
       <h2><%= editableNomination ? 'Update and resubmit your nomination' : 'Submit your nomination application' %></h2>
     </div>
     <p>
-      Reference code <strong><%= accessCode.code %></strong> is active for this submission.
       <% if (editableNomination) { %>
         The committee requested correction on this nomination. Update the details below and resubmit.
       <% } else { %>
-        Fill every field carefully before you submit.
+        Fill every field carefully before you submit. After submission, you will receive an application number for status tracking.
       <% } %>
     </p>
   </div>
@@ -70,8 +69,11 @@
 
       <div class="form-grid">
         <label class="field">
-          <span>Reference Code</span>
-          <input value="<%= accessCode.code %>" disabled />
+          <span>Application Number</span>
+          <input
+            value="<%= editableNomination ? editableNomination.applicationNumber : 'Assigned automatically after submission' %>"
+            disabled
+          />
         </label>
 
         <label class="field">
@@ -126,7 +128,7 @@
         <button class="button" type="submit">
           <%= editableNomination ? 'Resubmit Nomination' : 'Submit Nomination' %>
         </button>
-        <a class="button button-ghost" href="/nomination/status">Check Status</a>
+        <a class="button button-ghost" href="/nomination/status/login">Check Status</a>
       </div>
     </form>
 
@@ -134,14 +136,14 @@
       <div class="section-heading">
         <div>
           <span class="eyebrow">Submission Guide</span>
-          <h3>What this code does</h3>
+          <h3>What happens next</h3>
         </div>
       </div>
 
       <div class="stack-sm">
         <div class="mini-card">
-          <strong>Reference Code</strong>
-          <span><%= accessCode.code %></span>
+          <strong>Application Number</strong>
+          <span><%= editableNomination ? editableNomination.applicationNumber : 'Issued after submission' %></span>
         </div>
 
         <div class="mini-card">
@@ -154,15 +156,10 @@
             <strong>Last Submitted</strong>
             <span><%= formatDateTime(editableNomination.submittedAt) %></span>
           </div>
-        <% } else if (currentNomination) { %>
-          <div class="mini-card">
-            <strong>Existing Record</strong>
-            <span>This code is already linked to a nomination.</span>
-          </div>
         <% } else { %>
           <div class="mini-card">
             <strong>Important</strong>
-            <span>After your first submission, this code becomes used and will open only your status page.</span>
+            <span>Save the application number shown after submission because you will need it to check your status later.</span>
           </div>
         <% } %>
       </div>

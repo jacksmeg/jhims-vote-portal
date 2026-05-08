@@ -1,55 +1,41 @@
 <%- include("partials/public-shell-start", { pageTitle }) %>
 
-<%
-  const isStatusMode = mode === 'status';
-  const entryTitle = isStatusMode
-    ? 'Check your nomination status with your reference code.'
-    : 'Enter your paid nomination reference code to open the form.';
-  const entryBody = isStatusMode
-    ? 'Use the same code that was issued to you by the committee to review your nomination, see committee feedback, and continue any requested correction.'
-    : 'Each reference code opens one nomination form only. After submission, the same code becomes your tracker for status updates and corrections.';
-%>
-
 <section class="split-stage">
   <div class="panel panel-dark stack-lg">
-    <span class="eyebrow"><%= isStatusMode ? 'Nomination Status' : 'Nomination Access' %></span>
-    <h2><%= entryTitle %></h2>
-    <p><%= entryBody %></p>
+    <span class="eyebrow">Nomination Status</span>
+    <h2>Check your nomination with your application number.</h2>
+    <p>
+      After you submit a nomination, the system gives you an official application number.
+      Use that number here to follow committee decisions and continue any correction request.
+    </p>
 
     <div class="check-list">
-      <div>One reference code unlocks one nomination record</div>
-      <div>Applicants fill their staff details inside the form</div>
+      <div>Each submitted nomination gets its own application number</div>
+      <div>The same number is used later for status tracking and corrections</div>
       <div>Committee approval is required before anyone reaches the ballot</div>
-      <div>The same code is used later for tracking and corrections</div>
+      <div>New applications close automatically once voting starts</div>
     </div>
   </div>
 
   <div class="panel panel-light stack-lg narrow-panel">
     <div class="section-heading">
       <div>
-        <span class="eyebrow"><%= isStatusMode ? 'Status Check' : 'Nomination Access Code' %></span>
-        <h3><%= isStatusMode ? 'Open your nomination record' : 'Enter code to continue' %></h3>
+        <span class="eyebrow">Status Check</span>
+        <h3>Open your nomination record</h3>
       </div>
-      <p class="muted-text"><%= nominationState.badgeLabel %></p>
+      <p class="muted-text">Track progress</p>
     </div>
 
-    <form class="stack-md" action="<%= isStatusMode ? '/nomination/status/login' : '/nomination/login' %>" method="post">
+    <form class="stack-md" action="/nomination/status/login" method="post">
       <label class="field">
-        <span>Reference Code</span>
-        <input name="referenceCode" placeholder="NOM-8K4P-21QX" required />
+        <span>Application Number</span>
+        <input name="applicationNumber" placeholder="APP-8K4P-21QX" required />
       </label>
 
-      <button class="button" type="submit" <%= !isStatusMode && !nominationState.isOpen ? 'disabled' : '' %>>
-        <%= isStatusMode ? 'Check Status' : 'Open Nomination Form' %>
-      </button>
+      <button class="button" type="submit">Check Status</button>
     </form>
 
-    <% if (!isStatusMode) { %>
-      <p class="note-block"><%= nominationState.message %></p>
-      <a class="button button-ghost" href="/nomination/form/download">Download Nomination Form PDF</a>
-    <% } else { %>
-      <p class="note-block">Status remains available even after the nomination window closes.</p>
-    <% } %>
+    <p class="note-block">Status remains available even after the nomination window closes.</p>
   </div>
 </section>
 

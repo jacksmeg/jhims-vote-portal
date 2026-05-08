@@ -29,6 +29,7 @@ function createNominationIndexes() {
     CREATE INDEX IF NOT EXISTS idx_nominations_voter_id ON nominations (voter_id);
     CREATE INDEX IF NOT EXISTS idx_nominations_access_code_id ON nominations (access_code_id);
     CREATE INDEX IF NOT EXISTS idx_nominations_access_code ON nominations (access_code);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_nominations_application_number ON nominations (application_number);
     CREATE INDEX IF NOT EXISTS idx_nominations_staff_id ON nominations (staff_id);
     CREATE INDEX IF NOT EXISTS idx_nominations_position_id ON nominations (position_id);
     CREATE INDEX IF NOT EXISTS idx_nominations_status ON nominations (status);
@@ -53,7 +54,6 @@ function migrateNominationsTable() {
     voterIdColumn?.notnull === 1;
 
   if (!needsRebuild) {
-    createNominationIndexes();
     return;
   }
 
@@ -65,6 +65,7 @@ function migrateNominationsTable() {
       voter_id INTEGER,
       access_code_id INTEGER,
       access_code TEXT NOT NULL DEFAULT '',
+      application_number TEXT NOT NULL DEFAULT '',
       position_id INTEGER NOT NULL,
       staff_id TEXT NOT NULL,
       full_name TEXT NOT NULL,
@@ -97,6 +98,7 @@ function migrateNominationsTable() {
       voter_id,
       access_code_id,
       access_code,
+      application_number,
       position_id,
       staff_id,
       full_name,
@@ -122,6 +124,7 @@ function migrateNominationsTable() {
       voter_id,
       NULL,
       '',
+      'APP-LEGACY-' || printf('%05d', id),
       position_id,
       staff_id,
       full_name,
@@ -146,7 +149,32 @@ function migrateNominationsTable() {
     DROP TABLE nominations_legacy;
   `);
 
-  createNominationIndexes();
+}
+
+function migrateNominationApplicationNumbers() {
+  const tableExists = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'nominations'")
+    .get();
+
+  if (!tableExists) {
+    return;
+  }
+
+  const columns = db.prepare("PRAGMA table_info(nominations)").all();
+  const columnMap = new Map(columns.map((column) => [column.name, column]));
+
+  if (!columnMap.has("application_number")) {
+    db.exec(`
+      ALTER TABLE nominations
+      ADD COLUMN application_number TEXT NOT NULL DEFAULT '';
+    `);
+  }
+
+  db.exec(`
+    UPDATE nominations
+    SET application_number = 'APP-LEGACY-' || printf('%05d', id)
+    WHERE application_number = '';
+  `);
 }
 
 function initDatabase(defaultElectionName) {
@@ -255,6 +283,7 @@ function initDatabase(defaultElectionName) {
       voter_id INTEGER,
       access_code_id INTEGER,
       access_code TEXT NOT NULL DEFAULT '',
+      application_number TEXT NOT NULL DEFAULT '',
       position_id INTEGER NOT NULL,
       staff_id TEXT NOT NULL,
       full_name TEXT NOT NULL,
@@ -298,6 +327,7 @@ function initDatabase(defaultElectionName) {
   `);
 
   migrateNominationsTable();
+  migrateNominationApplicationNumbers();
   createNominationIndexes();
 
   const defaults = [

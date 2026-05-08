@@ -6,13 +6,13 @@
     <h2>Run voting, nominations, and election communication from one secure portal.</h2>
     <p>
       This portal verifies every voter, supports nomination submission for interested staff
-      members through paid reference codes, and gives the election committee a controlled dashboard for setup, monitoring,
+      members through a direct online form, and gives the election committee a controlled dashboard for setup, monitoring,
       approvals, backups, and final results.
     </p>
 
     <div class="hero-actions">
       <a class="button" href="/vote/login">Vote Now</a>
-      <a class="button button-ghost" href="/nomination/login">Apply for Nomination</a>
+      <a class="button button-ghost" href="/nomination/form">Apply for Nomination</a>
     </div>
 
     <div class="hero-stats">
@@ -40,7 +40,7 @@
     <ol class="flow-list">
       <li>Registered staff can log in with staff ID and phone number.</li>
       <li>Voters access the ballot only once and submit securely.</li>
-      <li>Interested applicants can buy a nomination code and use it to open the nomination portal.</li>
+      <li>Interested applicants can open the nomination form directly and submit online.</li>
       <li>The election committee reviews, approves, and publishes nominees as candidates.</li>
       <li>Final results and archives remain controlled from the admin dashboard.</li>
     </ol>
@@ -83,14 +83,14 @@
       <span class="action-card__meta"><%= electionState.badgeLabel %></span>
     </a>
 
-    <a class="action-card" href="/nomination/login">
+    <a class="action-card" href="/nomination/form">
       <span class="action-card__icon action-card__icon--nomination" aria-hidden="true">
         <svg viewBox="0 0 24 24" focusable="false">
           <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm-1.07 13.82L7.76 12.65l1.41-1.41 1.76 1.76 4.24-4.24 1.41 1.41-5.65 5.65Z" fill="currentColor"/>
         </svg>
       </span>
       <strong>Apply for Nomination</strong>
-      <p>Use a purchased nomination reference code to unlock the online nomination form.</p>
+      <p>Open the nomination form directly and submit your application online.</p>
       <span class="action-card__meta"><%= nominationState.badgeLabel %></span>
     </a>
 
@@ -117,7 +117,7 @@
       <span class="eyebrow">Important Safeguards</span>
       <h3>Built around your election rules.</h3>
     </div>
-    <p>Voting still uses staff verification, while nominations are controlled through one-time reference codes issued by the committee.</p>
+      <p>Voting still uses staff verification, while nominations use a controlled submission window and committee review workflow.</p>
   </div>
 
   <div class="feature-grid">
@@ -127,7 +127,7 @@
     </article>
     <article class="feature-card">
       <h4>Protected nominations</h4>
-      <p>Each nomination code is one-time use, and duplicate nominations for the same staff ID and position are blocked.</p>
+      <p>Each nomination receives its own application number after submission, and duplicate nominations for the same staff ID and position are blocked.</p>
     </article>
     <article class="feature-card">
       <h4>Timed election windows</h4>

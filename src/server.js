@@ -356,6 +356,31 @@ function createNominationReferenceCode() {
   return `NOM-${segments.join("-")}`;
 }
 
+function normalizeApplicationNumber(value) {
+  return normalizeReferenceCode(value);
+}
+
+function createNominationApplicationNumber() {
+  return createNominationReferenceCode().replace(/^NOM-/, "APP-");
+}
+
+function createUniqueNominationApplicationNumber() {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const applicationNumber = createNominationApplicationNumber();
+    const existingRecord = db.prepare(`
+      SELECT id
+      FROM nominations
+      WHERE application_number = ?
+    `).get(applicationNumber);
+
+    if (!existingRecord) {
+      return applicationNumber;
+    }
+  }
+
+  throw new Error("Could not generate a unique nomination application number.");
+}
+
 function parseReferenceCodeList(rawValue) {
   const candidates = String(rawValue || "")
     .split(/[\r\n,;]+/)
@@ -542,14 +567,9 @@ function getElectionReadiness(settings = getElectionSettings()) {
 function getNominationReadiness(settings = getElectionSettings()) {
   const issues = [];
   const positions = getPositions();
-  const availableAccessCodeCount = getUnusedNominationAccessCodeCount();
 
   if (positions.length === 0) {
     issues.push("Add at least one position before opening nominations.");
-  }
-
-  if (availableAccessCodeCount === 0) {
-    issues.push("Generate or load at least one unused nomination reference code.");
   }
 
   if (!settings.nominationOpensAt || !settings.nominationClosesAt) {
@@ -637,10 +657,26 @@ function computeNominationState(settings) {
   const opensAt = settings.nominationOpensAt ? dayjs(settings.nominationOpensAt) : null;
   const closesAt = settings.nominationClosesAt ? dayjs(settings.nominationClosesAt) : null;
   const readiness = getNominationReadiness(settings);
+  const electionState = computeElectionState(settings);
 
   let status = "setup";
   let message =
     "Nominations are in setup. Set the nomination window before candidates can apply.";
+
+  if (electionState.isOpen || electionState.isClosed) {
+    return {
+      status: "closed",
+      message: electionState.isOpen
+        ? "Nominations close automatically once voting starts."
+        : "Nominations are closed for this election cycle.",
+      isOpen: false,
+      isScheduled: false,
+      isClosed: true,
+      canSubmit: false,
+      badgeLabel: "Closed",
+      badgeClass: "status-closed",
+    };
+  }
 
   if (settings.nominationPhase === "setup") {
     if (readiness.isReady && opensAt?.isValid() && closesAt?.isValid()) {
@@ -662,8 +698,7 @@ function computeNominationState(settings) {
       message = `Nominations closed on ${formatDateTime(settings.nominationClosesAt)}.`;
     } else {
       status = "open";
-      message =
-        "Nominations are currently open for applicants who hold a valid nomination reference code.";
+      message = "Nominations are currently open for applicants.";
     }
   } else if (settings.nominationPhase === "closed") {
     status = "closed";
@@ -712,6 +747,13 @@ function syncAutomaticClosure() {
     now.isBefore(closesAt)
   ) {
     setSetting("election_phase", "open");
+    if (settings.nominationPhase !== "closed") {
+      setSetting("nomination_phase", "closed");
+      logSystemAudit("nomination_auto_closed_for_voting", {
+        trigger: "election_auto_opened",
+        opensAt: settings.opensAt,
+      });
+    }
     logSystemAudit("election_auto_opened", {
       opensAt: settings.opensAt,
       closesAt: settings.closesAt,
@@ -730,9 +772,19 @@ function syncAutomaticClosure() {
 function syncAutomaticNominationLifecycle() {
   const settings = getElectionSettings();
   const readiness = getNominationReadiness(settings);
+  const electionState = computeElectionState(settings);
   const now = dayjs();
   const opensAt = settings.nominationOpensAt ? dayjs(settings.nominationOpensAt) : null;
   const closesAt = settings.nominationClosesAt ? dayjs(settings.nominationClosesAt) : null;
+
+  if ((electionState.isOpen || electionState.isClosed) && settings.nominationPhase !== "closed") {
+    setSetting("nomination_phase", "closed");
+    logSystemAudit("nomination_auto_closed_for_voting", {
+      electionPhase: settings.phase,
+      nominationClosesAt: settings.nominationClosesAt,
+    });
+    return;
+  }
 
   if (
     settings.nominationPhase === "setup" &&
@@ -901,12 +953,10 @@ function beginAuthenticatedVoterSession(req, voterRecord) {
   req.session.voteComplete = null;
 }
 
-function beginNominationApplicantSession(req, accessCodeRecord, nomination = null) {
+function beginNominationApplicantSession(req, nomination) {
   req.session.nominationApplicant = {
-    accessCodeId: accessCodeRecord.id,
-    referenceCode: accessCodeRecord.code,
-    codeStatus: accessCodeRecord.status,
-    nominationId: nomination?.id || accessCodeRecord.linkedNominationId || null,
+    nominationId: nomination.id,
+    applicationNumber: nomination.applicationNumber,
   };
 }
 
@@ -1517,7 +1567,7 @@ function renderNominationFormPdf(document, payload) {
     "Staff ID: ______________________",
     "Phone Number: ______________________",
     "Department: ______________________________________________",
-    "Reference Code: ___________________________________________",
+    "Application Number (assigned after submission): __________________",
     "",
     "Position Applying For: ____________________________________",
     "Proposer Name: ____________________________________________",
@@ -1624,7 +1674,7 @@ function renderNominationReportPdf(document, payload) {
       .font("Helvetica")
       .fontSize(10)
       .fillColor("#42586f")
-      .text(`Reference Code: ${nomination.accessCode || "Not assigned"}`)
+      .text(`Application Number: ${nomination.applicationNumber || "Not assigned"}`)
       .text(`Staff ID: ${nomination.staffId}`)
       .text(`Position: ${nomination.positionName}`)
       .text(`Department: ${nomination.department || "Not provided"}`)
@@ -1903,6 +1953,7 @@ function getNominationList() {
       n.voter_id AS voterId,
       n.access_code_id AS accessCodeId,
       n.access_code AS accessCode,
+      n.application_number AS applicationNumber,
       n.position_id AS positionId,
       n.staff_id AS staffId,
       n.full_name AS fullName,
@@ -1940,6 +1991,7 @@ function getNominationForAccessCode(accessCodeId) {
       n.voter_id AS voterId,
       n.access_code_id AS accessCodeId,
       n.access_code AS accessCode,
+      n.application_number AS applicationNumber,
       n.position_id AS positionId,
       n.staff_id AS staffId,
       n.full_name AS fullName,
@@ -1977,6 +2029,7 @@ function getNominationById(nominationId) {
       n.voter_id AS voterId,
       n.access_code_id AS accessCodeId,
       n.access_code AS accessCode,
+      n.application_number AS applicationNumber,
       n.position_id AS positionId,
       n.staff_id AS staffId,
       n.full_name AS fullName,
@@ -2003,6 +2056,50 @@ function getNominationById(nominationId) {
     LEFT JOIN nomination_access_codes ac ON ac.id = n.access_code_id
     WHERE n.id = ?
   `).get(nominationId);
+
+  return row ? mapNominationRow(row) : null;
+}
+
+function getNominationByApplicationNumber(applicationNumber) {
+  const normalizedApplicationNumber = normalizeApplicationNumber(applicationNumber);
+
+  if (!normalizedApplicationNumber) {
+    return null;
+  }
+
+  const row = db.prepare(`
+    SELECT
+      n.id,
+      n.voter_id AS voterId,
+      n.access_code_id AS accessCodeId,
+      n.access_code AS accessCode,
+      n.application_number AS applicationNumber,
+      n.position_id AS positionId,
+      n.staff_id AS staffId,
+      n.full_name AS fullName,
+      n.phone_number AS phoneNumber,
+      n.department,
+      n.photo_path AS photoPath,
+      n.bio,
+      n.manifesto,
+      n.proposer_name AS proposerName,
+      n.seconder_name AS seconderName,
+      n.declaration_accepted AS declarationAccepted,
+      n.status,
+      n.admin_notes AS adminNotes,
+      n.reviewed_at AS reviewedAt,
+      n.reviewed_by AS reviewedBy,
+      n.published_candidate_id AS publishedCandidateId,
+      n.submitted_at AS submittedAt,
+      n.created_at AS createdAt,
+      n.updated_at AS updatedAt,
+      p.name AS positionName,
+      ac.status AS accessCodeStatus
+    FROM nominations n
+    INNER JOIN positions p ON p.id = n.position_id
+    LEFT JOIN nomination_access_codes ac ON ac.id = n.access_code_id
+    WHERE n.application_number = ?
+  `).get(normalizedApplicationNumber);
 
   return row ? mapNominationRow(row) : null;
 }
@@ -2499,59 +2596,10 @@ app.get("/nomination/form/download", (_req, res) => {
 });
 
 app.get("/nomination/login", (req, res) => {
-  if (req.session.nominationApplicant) {
-    return res.redirect("/nomination/form");
-  }
-
-  return res.render("nomination-login", {
-    pageTitle: "Nomination Login",
-    mode: "apply",
-  });
+  return res.redirect("/nomination/form");
 });
 
 app.post("/nomination/login", (req, res) => {
-  const referenceCode = normalizeReferenceCode(req.body.referenceCode);
-  const settings = getElectionSettings();
-  const nominationState = computeNominationState(settings);
-
-  if (!referenceCode) {
-    setFlash(req, "error", "Enter your nomination reference code to continue.");
-    return res.redirect("/nomination/login");
-  }
-
-  if (!nominationState.isOpen) {
-    setFlash(req, "error", nominationState.message);
-    return res.redirect("/nomination/login");
-  }
-
-  const accessCode = getNominationAccessCodeByCode(referenceCode);
-
-  if (!accessCode || accessCode.status === "cancelled" || accessCode.status === "expired") {
-    logAudit(req, "nomination", referenceCode || "unknown", "nomination_code_login_failed", {
-      reason: "invalid_or_inactive_code",
-    });
-    setFlash(
-      req,
-      "error",
-      "That nomination reference code is invalid or no longer active.",
-    );
-    return res.redirect("/nomination/login");
-  }
-
-  const linkedNomination = getNominationForAccessCode(accessCode.id);
-  beginNominationApplicantSession(req, accessCode, linkedNomination);
-
-  if (linkedNomination || accessCode.status === "used") {
-    logAudit(req, "nomination", accessCode.code, "nomination_code_reused_for_status");
-    setFlash(
-      req,
-      "success",
-      "This reference code is already linked to a nomination. Review the status below.",
-    );
-    return res.redirect("/nomination/status");
-  }
-
-  logAudit(req, "nomination", accessCode.code, "nomination_code_login_success");
   return res.redirect("/nomination/form");
 });
 
@@ -2567,99 +2615,65 @@ app.get("/nomination/status/login", (req, res) => {
 });
 
 app.post("/nomination/status/login", (req, res) => {
-  const referenceCode = normalizeReferenceCode(req.body.referenceCode);
+  const applicationNumber = normalizeApplicationNumber(req.body.applicationNumber);
 
-  if (!referenceCode) {
-    setFlash(req, "error", "Enter your nomination reference code to check status.");
+  if (!applicationNumber) {
+    setFlash(req, "error", "Enter your application number to check status.");
     return res.redirect("/nomination/status/login");
   }
 
-  const accessCode = getNominationAccessCodeByCode(referenceCode);
+  const nomination = getNominationByApplicationNumber(applicationNumber);
 
-  if (!accessCode || accessCode.status === "cancelled" || accessCode.status === "expired") {
-    logAudit(req, "nomination", referenceCode || "unknown", "nomination_status_login_failed", {
-      reason: "invalid_or_inactive_code",
+  if (!nomination) {
+    logAudit(req, "nomination", applicationNumber || "unknown", "nomination_status_login_failed", {
+      reason: "application_not_found",
     });
     setFlash(
       req,
       "error",
-      "That nomination reference code is invalid or no longer active.",
+      "That application number was not found. Check it and try again.",
     );
     return res.redirect("/nomination/status/login");
   }
 
-  const linkedNomination = getNominationForAccessCode(accessCode.id);
-  beginNominationApplicantSession(req, accessCode, linkedNomination);
-  logAudit(req, "nomination", accessCode.code, "nomination_status_login_success", {
-    hasNomination: Boolean(linkedNomination),
+  beginNominationApplicantSession(req, nomination);
+  logAudit(req, "nomination", nomination.applicationNumber, "nomination_status_login_success", {
+    nominationId: nomination.id,
   });
   return res.redirect("/nomination/status");
 });
 
 app.get("/nomination/form", (req, res) => {
-  const applicant = req.session.nominationApplicant;
-
-  if (!applicant) {
-    setFlash(req, "error", "Sign in with your nomination reference code to continue.");
-    return res.redirect("/nomination/login");
-  }
-
-  const accessCode = getNominationAccessCodeById(applicant.accessCodeId);
-
-  if (!accessCode || accessCode.status === "cancelled" || accessCode.status === "expired") {
-    clearNominationSession(req);
-    setFlash(req, "error", "This nomination reference code is no longer available.");
-    return res.redirect("/nomination/login");
-  }
-
   const settings = getElectionSettings();
   const nominationState = computeNominationState(settings);
   const positions = getPositions();
-  const currentNomination = getNominationForAccessCode(accessCode.id);
-  if (accessCode.status === "used" && !currentNomination) {
-    setFlash(
-      req,
-      "error",
-      "This reference code is already marked as used. Contact the election committee for help.",
-    );
-    return res.redirect("/nomination/status");
-  }
-
+  const applicant = req.session.nominationApplicant || null;
   const editNominationId = parseInteger(req.query.edit, 0);
   const editableNomination =
-    currentNomination &&
-    currentNomination.statusMeta.canApplicantEdit &&
-    (!editNominationId || editNominationId === currentNomination.id)
-      ? currentNomination
+    editNominationId > 0 &&
+    applicant?.nominationId === editNominationId
+      ? getNominationById(editNominationId)
       : null;
 
-  if (currentNomination && !editableNomination) {
+  if (editNominationId > 0 && (!editableNomination || !editableNomination.statusMeta.canApplicantEdit)) {
     setFlash(
       req,
       "error",
-      "This reference code has already been used. Review the nomination status below.",
+      "Enter your application number first before continuing a correction request.",
     );
-    return res.redirect("/nomination/status");
+    return res.redirect("/nomination/status/login");
   }
 
-  if (!nominationState.isOpen && !editableNomination) {
+  if (!nominationState.isOpen) {
     setFlash(req, "error", nominationState.message);
-    return res.redirect("/nomination/status");
+    return res.redirect("/nomination/status/login");
   }
-
-  req.session.nominationApplicant = {
-    ...applicant,
-    referenceCode: accessCode.code,
-    codeStatus: accessCode.status,
-    nominationId: currentNomination?.id || null,
-  };
 
   return res.render("nomination-form", {
     pageTitle: "Apply for Nomination",
-    applicant: req.session.nominationApplicant,
-    accessCode,
+    applicant,
     positions,
-    currentNomination,
+    currentNomination: editableNomination,
     editableNomination,
   });
 });
@@ -2668,27 +2682,7 @@ app.post(
   "/nomination/form",
   nominationUpload.single("photo"),
   async (req, res) => {
-    const applicant = req.session.nominationApplicant;
-
-    if (!applicant) {
-      if (req.file) {
-        await safeRemoveFile(req.file.path);
-      }
-      setFlash(req, "error", "Sign in with your nomination reference code to continue.");
-      return res.redirect("/nomination/login");
-    }
-
-    const accessCode = getNominationAccessCodeById(applicant.accessCodeId);
-
-    if (!accessCode || accessCode.status === "cancelled" || accessCode.status === "expired") {
-      if (req.file) {
-        await safeRemoveFile(req.file.path);
-      }
-      clearNominationSession(req);
-      setFlash(req, "error", "This nomination reference code is no longer available.");
-      return res.redirect("/nomination/login");
-    }
-
+    const applicant = req.session.nominationApplicant || null;
     const settings = getElectionSettings();
     const nominationState = computeNominationState(settings);
     const nominationId = parseInteger(req.body.nominationId, 0);
@@ -2702,41 +2696,27 @@ app.post(
     const proposerName = String(req.body.proposerName || "").trim();
     const seconderName = String(req.body.seconderName || "").trim();
     const declarationAccepted = req.body.declarationAccepted === "on";
-    const currentNomination = getNominationForAccessCode(accessCode.id);
-
-    if (accessCode.status === "used" && !currentNomination) {
-      if (req.file) {
-        await safeRemoveFile(req.file.path);
-      }
-      setFlash(
-        req,
-        "error",
-        "This reference code is already marked as used. Contact the election committee for help.",
-      );
-      return res.redirect("/nomination/status");
-    }
-
     const existingEditableNomination =
-      currentNomination && nominationId > 0 && currentNomination.id === nominationId
-        ? currentNomination
-        : currentNomination;
+      nominationId > 0 && applicant?.nominationId === nominationId
+        ? getNominationById(nominationId)
+        : null;
     const isCorrectionResubmission =
       existingEditableNomination &&
       existingEditableNomination.statusMeta.canApplicantEdit;
 
-    if (currentNomination && !isCorrectionResubmission) {
+    if (nominationId > 0 && !isCorrectionResubmission) {
       if (req.file) {
         await safeRemoveFile(req.file.path);
       }
       setFlash(
         req,
         "error",
-        "This reference code has already been used. Review the nomination status below.",
+        "Enter your application number first before continuing a correction request.",
       );
-      return res.redirect("/nomination/status");
+      return res.redirect("/nomination/status/login");
     }
 
-    if (!nominationState.isOpen && !isCorrectionResubmission) {
+    if (!nominationState.isOpen) {
       if (req.file) {
         await safeRemoveFile(req.file.path);
       }
@@ -2803,7 +2783,7 @@ app.post(
         "error",
         "You already have a nomination record for this position. Use the nomination status page to review it.",
       );
-      return res.redirect("/nomination/status");
+      return res.redirect("/nomination/status/login");
     }
 
     if (
@@ -2822,12 +2802,16 @@ app.post(
       : existingEditableNomination?.photoPath || "";
 
     try {
+      const applicationNumber =
+        existingEditableNomination?.applicationNumber || createUniqueNominationApplicationNumber();
+
       if (isCorrectionResubmission) {
         db.prepare(`
           UPDATE nominations
           SET
-            access_code_id = ?,
-            access_code = ?,
+            access_code_id = NULL,
+            access_code = '',
+            application_number = ?,
             position_id = ?,
             staff_id = ?,
             full_name = ?,
@@ -2846,8 +2830,7 @@ app.post(
             updated_at = ?
           WHERE id = ?
         `).run(
-          accessCode.id,
-          accessCode.code,
+          applicationNumber,
           positionId,
           staffId,
           fullName,
@@ -2867,18 +2850,8 @@ app.post(
           await safeRemoveFile(resolveAssetPath(existingEditableNomination.photoPath));
         }
 
-        db.prepare(`
-          UPDATE nomination_access_codes
-          SET
-            status = 'used',
-            linked_nomination_id = ?,
-            used_at = COALESCE(used_at, ?),
-            updated_at = ?
-          WHERE id = ?
-        `).run(existingEditableNomination.id, submittedAt, submittedAt, accessCode.id);
-
-        logAudit(req, "nomination", accessCode.code, "nomination_resubmitted", {
-          accessCode: accessCode.code,
+        logAudit(req, "nomination", applicationNumber, "nomination_resubmitted", {
+          applicationNumber,
           staffId,
           nominationId: existingEditableNomination.id,
           positionName: position.name,
@@ -2889,6 +2862,7 @@ app.post(
             voter_id,
             access_code_id,
             access_code,
+            application_number,
             position_id,
             staff_id,
             full_name,
@@ -2906,10 +2880,9 @@ app.post(
             created_at,
             updated_at
           )
-          VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'pending', '', ?, ?, ?)
+          VALUES (NULL, NULL, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'pending', '', ?, ?, ?)
         `).run(
-          accessCode.id,
-          accessCode.code,
+          applicationNumber,
           positionId,
           staffId,
           fullName,
@@ -2927,39 +2900,32 @@ app.post(
 
         const createdNominationId = Number(insertResult.lastInsertRowid);
 
-        db.prepare(`
-          UPDATE nomination_access_codes
-          SET
-            status = 'used',
-            linked_nomination_id = ?,
-            used_at = COALESCE(used_at, ?),
-            updated_at = ?
-          WHERE id = ?
-        `).run(createdNominationId, submittedAt, submittedAt, accessCode.id);
+        req.session.nominationApplicant = {
+          nominationId: createdNominationId,
+          applicationNumber,
+        };
 
-        req.session.nominationApplicant.nominationId = createdNominationId;
-
-        logAudit(req, "nomination", accessCode.code, "nomination_submitted", {
-          accessCode: accessCode.code,
+        logAudit(req, "nomination", applicationNumber, "nomination_submitted", {
+          applicationNumber,
           staffId,
           nominationId: createdNominationId,
           positionName: position.name,
         });
       }
 
-      req.session.nominationApplicant.referenceCode = accessCode.code;
-      req.session.nominationApplicant.codeStatus = "used";
-      req.session.nominationApplicant.nominationId =
-        isCorrectionResubmission
+      req.session.nominationApplicant = {
+        nominationId: isCorrectionResubmission
           ? existingEditableNomination.id
-          : req.session.nominationApplicant.nominationId;
+          : req.session.nominationApplicant.nominationId,
+        applicationNumber,
+      };
 
       setFlash(
         req,
         "success",
         isCorrectionResubmission
           ? "Your nomination has been resubmitted for review."
-          : "Your nomination has been submitted successfully.",
+          : `Your nomination has been submitted successfully. Save application number ${applicationNumber} to check your status.`,
       );
       return res.redirect("/nomination/status");
     } catch (error) {
@@ -2978,37 +2944,35 @@ app.get("/nomination/status", (req, res) => {
   const applicant = req.session.nominationApplicant;
 
   if (!applicant) {
-    setFlash(req, "error", "Sign in with your nomination reference code to check status.");
+    setFlash(req, "error", "Enter your application number to check nomination status.");
     return res.redirect("/nomination/status/login");
   }
 
-  const accessCode = getNominationAccessCodeById(applicant.accessCodeId);
+  const nomination =
+    getNominationById(applicant.nominationId || 0) ||
+    getNominationByApplicationNumber(applicant.applicationNumber);
 
-  if (!accessCode || accessCode.status === "cancelled" || accessCode.status === "expired") {
+  if (!nomination) {
     clearNominationSession(req);
-    setFlash(req, "error", "This nomination reference code is no longer available.");
+    setFlash(req, "error", "That nomination application could not be found.");
     return res.redirect("/nomination/status/login");
   }
 
-  const nomination = getNominationForAccessCode(accessCode.id);
   req.session.nominationApplicant = {
-    ...applicant,
-    referenceCode: accessCode.code,
-    codeStatus: accessCode.status,
-    nominationId: nomination?.id || null,
+    nominationId: nomination.id,
+    applicationNumber: nomination.applicationNumber,
   };
 
   return res.render("nomination-status", {
     pageTitle: "Nomination Status",
     applicant: req.session.nominationApplicant,
-    accessCode,
     nomination,
   });
 });
 
 app.post("/nomination/logout", (req, res) => {
   clearNominationSession(req);
-  return res.redirect("/nomination/login");
+  return res.redirect("/nomination/status/login");
 });
 
 app.get("/vote/login", (req, res) => {
@@ -3955,104 +3919,23 @@ app.get("/admin/nominations", requireAdmin, (req, res) => {
   const nominationState = computeNominationState(settings);
   const nominations = getNominationList();
   const nominationMetrics = getNominationMetrics();
-  const accessCodeMetrics = getNominationAccessCodeMetrics();
-  const accessCodes = getNominationAccessCodeList();
 
   return res.render("admin-nominations", {
     pageTitle: "Nominations",
     nominations,
     nominationMetrics,
-    accessCodeMetrics,
-    accessCodes,
     nominationState,
     positions: getPositions(),
   });
 });
 
 app.post("/admin/nominations/codes/generate", requireAdmin, (req, res) => {
-  const requestedCount = Math.min(Math.max(parseInteger(req.body.codeCount, 100), 1), 500);
-  const timestamp = nowIso();
-  const insertCode = db.prepare(`
-    INSERT OR IGNORE INTO nomination_access_codes (
-      code,
-      status,
-      linked_nomination_id,
-      used_at,
-      notes,
-      created_at,
-      updated_at
-    )
-    VALUES (?, 'unused', NULL, NULL, '', ?, ?)
-  `);
-
-  let createdCount = 0;
-  let attempts = 0;
-
-  while (createdCount < requestedCount && attempts < requestedCount * 20) {
-    attempts += 1;
-    const result = insertCode.run(createNominationReferenceCode(), timestamp, timestamp);
-    createdCount += Number(result.changes || 0);
-  }
-
-  if (createdCount === 0) {
-    setFlash(req, "error", "No nomination reference codes could be generated right now.");
-    return res.redirect("/admin/nominations");
-  }
-
-  logAudit(req, "admin", req.session.admin.username, "nomination_access_codes_generated", {
-    requestedCount,
-    createdCount,
-  });
-  setFlash(
-    req,
-    "success",
-    `${createdCount} nomination reference code${createdCount === 1 ? "" : "s"} generated successfully.`,
-  );
+  setFlash(req, "error", "This action is no longer available in the current nomination workflow.");
   return res.redirect("/admin/nominations");
 });
 
 app.post("/admin/nominations/codes/import", requireAdmin, (req, res) => {
-  const codes = parseReferenceCodeList(req.body.codes);
-  const timestamp = nowIso();
-  const insertCode = db.prepare(`
-    INSERT OR IGNORE INTO nomination_access_codes (
-      code,
-      status,
-      linked_nomination_id,
-      used_at,
-      notes,
-      created_at,
-      updated_at
-    )
-    VALUES (?, 'unused', NULL, NULL, '', ?, ?)
-  `);
-
-  if (codes.length === 0) {
-    setFlash(req, "error", "Paste at least one valid nomination reference code to import.");
-    return res.redirect("/admin/nominations");
-  }
-
-  let importedCount = 0;
-
-  for (const code of codes) {
-    const result = insertCode.run(code, timestamp, timestamp);
-    importedCount += Number(result.changes || 0);
-  }
-
-  const skippedCount = codes.length - importedCount;
-
-  logAudit(req, "admin", req.session.admin.username, "nomination_access_codes_imported", {
-    importedCount,
-    skippedCount,
-  });
-
-  setFlash(
-    req,
-    importedCount > 0 ? "success" : "error",
-    importedCount > 0
-      ? `${importedCount} nomination reference code${importedCount === 1 ? "" : "s"} imported.${skippedCount > 0 ? ` ${skippedCount} duplicate code${skippedCount === 1 ? " was" : "s were"} skipped.` : ""}`
-      : "All pasted nomination reference codes already exist in the system.",
-  );
+  setFlash(req, "error", "This action is no longer available in the current nomination workflow.");
   return res.redirect("/admin/nominations");
 });
 
@@ -4116,16 +3999,26 @@ app.post("/admin/nominations/settings", requireAdmin, (req, res) => {
 
   const nextSettings = getElectionSettings();
   const readiness = getNominationReadiness(nextSettings);
+  const electionState = computeElectionState(nextSettings);
   const opensAtValue = dayjs(nextSettings.nominationOpensAt);
   const closesAtValue = dayjs(nextSettings.nominationClosesAt);
   const shouldOpenImmediately =
     readiness.isReady &&
+    !electionState.isOpen &&
+    !electionState.isClosed &&
     opensAtValue.isValid() &&
     closesAtValue.isValid() &&
     !dayjs().isBefore(opensAtValue) &&
     dayjs().isBefore(closesAtValue);
 
-  setSetting("nomination_phase", shouldOpenImmediately ? "open" : "setup");
+  setSetting(
+    "nomination_phase",
+    electionState.isOpen || electionState.isClosed
+      ? "closed"
+      : shouldOpenImmediately
+        ? "open"
+        : "setup",
+  );
 
   logAudit(req, "admin", req.session.admin.username, "nomination_settings_updated", {
     opensAt,
@@ -4135,7 +4028,9 @@ app.post("/admin/nominations/settings", requireAdmin, (req, res) => {
   setFlash(
     req,
     "success",
-    shouldOpenImmediately
+    electionState.isOpen || electionState.isClosed
+      ? "Nomination settings updated. Nominations remain closed once voting has started."
+      : shouldOpenImmediately
       ? "Nomination settings saved and nominations are now open."
       : "Nomination settings updated.",
   );
@@ -4145,6 +4040,12 @@ app.post("/admin/nominations/settings", requireAdmin, (req, res) => {
 app.post("/admin/nominations/open", requireAdmin, (req, res) => {
   const settings = getElectionSettings();
   const readiness = getNominationReadiness(settings);
+  const electionState = computeElectionState(settings);
+
+  if (electionState.isOpen || electionState.isClosed) {
+    setFlash(req, "error", "Nominations cannot be opened once voting has started.");
+    return res.redirect("/admin/nominations");
+  }
 
   if (!readiness.isReady) {
     setFlash(req, "error", readiness.issues[0]);
@@ -4476,6 +4377,12 @@ app.post("/admin/settings", requireAdmin, (req, res) => {
 
   if (shouldOpenImmediately) {
     setSetting("election_phase", "open");
+    if (nextSettings.nominationPhase !== "closed") {
+      setSetting("nomination_phase", "closed");
+      logAudit(req, "admin", req.session.admin.username, "nominations_closed_for_voting", {
+        trigger: "election_settings_auto_open",
+      });
+    }
     logAudit(req, "admin", req.session.admin.username, "election_auto_open_triggered", {
       opensAt: nextSettings.opensAt,
       closesAt: nextSettings.closesAt,
@@ -4644,6 +4551,12 @@ app.post("/admin/election/open", requireAdmin, (req, res) => {
   }
 
   setSetting("election_phase", "open");
+  if (settings.nominationPhase !== "closed") {
+    setSetting("nomination_phase", "closed");
+    logAudit(req, "admin", req.session.admin.username, "nominations_closed_for_voting", {
+      trigger: "manual_election_open",
+    });
+  }
   logAudit(req, "admin", req.session.admin.username, "election_opened", {
     opensAt: settings.opensAt,
     closesAt: settings.closesAt,

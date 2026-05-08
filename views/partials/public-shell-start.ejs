@@ -6,7 +6,7 @@
 <% const showVoteCountdown = isVotePortal && electionState.isOpen && voteClosesAtMs && !isVoteLogin; %>
 <div class="site-shell">
   <header class="site-header <%= isPortalFlow ? 'site-header--portal' : '' %>">
-    <a class="brand-mark" href="<%= isVotePortal ? '/vote/login' : isNominationPortal ? '/nomination/login' : '/' %>">
+    <a class="brand-mark" href="<%= isVotePortal ? '/vote/login' : isNominationPortal ? '/nomination/form' : '/' %>">
       <% if (settings.organizationLogoPath) { %>
         <img class="brand-mark__logo" src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
       <% } else { %>
