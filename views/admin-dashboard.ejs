@@ -1,7 +1,7 @@
 <%- include("partials/admin-shell-start", {
   pageTitle,
   pageHeading: "Admin Dashboard",
-  pageIntro: "Monitor readiness, control the election lifecycle, and keep the live portal organized from one workspace.",
+  pageIntro: "Follow turnout, track readiness, and open deeper tools only when you need them.",
   currentSection: "dashboard"
 }) %>
 
@@ -22,6 +22,16 @@
       : electionState.isClosed
         ? 'Ballot locked and finalized'
         : 'Awaiting setup completion';
+  const readyPositions = positionReadiness.filter((position) => position.candidateCount > 0);
+  const positionsNeedingCandidates = positionReadiness.filter((position) => position.candidateCount === 0);
+  const readinessRatio = positionReadiness.length ? readyPositions.length / positionReadiness.length : 0;
+  const readinessPercent = formatPercent(readinessRatio);
+  const readinessMessage = positionReadiness.length === 0
+    ? 'Create positions first before the ballot can be prepared.'
+    : positionsNeedingCandidates.length === 0
+      ? 'Every listed position already has at least one candidate.'
+      : `${positionsNeedingCandidates.length} position${positionsNeedingCandidates.length === 1 ? '' : 's'} still need candidate setup before the ballot is fully ready.`;
+  const recentArchives = archives.slice(0, 2);
 %>
 
 <section class="dashboard-summary-grid">
@@ -214,12 +224,12 @@
   <article class="panel panel-light dashboard-actions-card">
     <div class="section-heading section-heading--tight">
       <div>
-        <span class="eyebrow">Quick Actions</span>
-        <h2>Command center</h2>
+        <span class="eyebrow">Command Center</span>
+        <h2>Primary actions</h2>
       </div>
     </div>
 
-    <div class="dashboard-actions-grid">
+    <div class="dashboard-actions-grid dashboard-actions-grid--compact">
       <a class="dashboard-action-tile" href="/admin/voters">
         <span class="dashboard-action-tile__icon dashboard-action-tile__icon--blue" aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
@@ -227,7 +237,7 @@
           </svg>
         </span>
         <strong>Voters</strong>
-        <small>Manage voter records</small>
+        <small>Manage records</small>
       </a>
 
       <a class="dashboard-action-tile" href="/admin/setup">
@@ -236,18 +246,8 @@
             <path d="M5 4h14a1 1 0 0 1 1 1v3H4V5a1 1 0 0 1 1-1Zm-1 6h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Z" fill="currentColor"/>
           </svg>
         </span>
-        <strong>Positions</strong>
-        <small>Manage positions</small>
-      </a>
-
-      <a class="dashboard-action-tile" href="/admin/setup">
-        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--coral" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M12 2.5 3 7v5c0 4.97 3.25 9.54 9 11.5 5.75-1.96 9-6.53 9-11.5V7l-9-4.5Zm0 5a2.5 2.5 0 1 1-2.5 2.5A2.5 2.5 0 0 1 12 7.5Zm0 10c-2.16 0-4.06-.83-5.47-2.19.12-1.81 3.65-2.81 5.47-2.81 1.81 0 5.35 1 5.47 2.81A7.54 7.54 0 0 1 12 17.5Z" fill="currentColor"/>
-          </svg>
-        </span>
-        <strong>Candidates</strong>
-        <small>Manage candidates</small>
+        <strong>Setup</strong>
+        <small>Positions and candidates</small>
       </a>
 
       <a class="dashboard-action-tile" href="/admin/nominations">
@@ -267,28 +267,14 @@
           </svg>
         </span>
         <strong>Results</strong>
-        <small>View live results</small>
+        <small>Watch live totals</small>
       </a>
+    </div>
 
-      <a class="dashboard-action-tile" href="/admin/audit">
-        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--violet" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M12 3a9 9 0 1 0 9 9 9.01 9.01 0 0 0-9-9Zm1 9.59 3.3 3.3-1.41 1.41L11 13V7h2Z" fill="currentColor"/>
-          </svg>
-        </span>
-        <strong>Audit Logs</strong>
-        <small>Review activity</small>
-      </a>
-
-      <a class="dashboard-action-tile" href="/admin/archives">
-        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--sky" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3H4V5Zm0 5h16v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9Zm5 2v2h6v-2H9Z" fill="currentColor"/>
-          </svg>
-        </span>
-        <strong>Backup</strong>
-        <small>Archive election data</small>
-      </a>
+    <div class="dashboard-secondary-links">
+      <a class="dashboard-secondary-link" href="/admin/audit">Audit Logs</a>
+      <a class="dashboard-secondary-link" href="/admin/archives">Archives</a>
+      <a class="dashboard-secondary-link" href="#workspace-settings">Settings</a>
     </div>
   </article>
 
@@ -357,15 +343,54 @@
   </article>
 </section>
 
-<section class="dashboard-config-grid">
-  <article class="panel panel-light stack-md">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Election Control</span>
-        <h2>Voting window and controls</h2>
-      </div>
-      <p>These settings stay editable only while the election is in setup, and a ready election can open automatically at the scheduled time.</p>
+<section class="panel panel-light stack-lg dashboard-workspace-panel" id="workspace-settings">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Workspace Settings</span>
+      <h2>Advanced tools without the clutter</h2>
     </div>
+    <p>These controls stay available, but they are tucked away so the dashboard remains easier to scan.</p>
+  </div>
+
+  <div class="dashboard-workspace-glance">
+    <div class="mini-metrics-grid">
+      <div>
+        <strong><%= readyPositions.length %></strong>
+        <span>Ready positions</span>
+      </div>
+      <div>
+        <strong><%= positionsNeedingCandidates.length %></strong>
+        <span>Need candidates</span>
+      </div>
+      <div>
+        <strong><%= recentArchives.length %></strong>
+        <span>Recent archives</span>
+      </div>
+    </div>
+
+    <div class="note-block">
+      <strong>Readiness:</strong> <%= readinessMessage %>
+    </div>
+  </div>
+
+  <div class="dashboard-disclosure-stack">
+    <details class="dashboard-disclosure" <%= electionState.canEditSetup ? 'open' : '' %>>
+      <summary class="dashboard-disclosure__summary">
+        <div>
+          <strong>Election control</strong>
+          <span>Set the voting window, open or close voting, and create backups.</span>
+        </div>
+      </summary>
+
+      <div class="dashboard-disclosure__content">
+        <article class="dashboard-subpanel stack-md" id="election-control-panel">
+          <div class="section-heading section-heading--tight">
+            <div>
+              <span class="eyebrow">Election Control</span>
+              <h2>Voting window and controls</h2>
+            </div>
+            <p>These settings stay editable only while the election is in setup, and a ready election can open automatically at the scheduled time.</p>
+          </div>
 
     <form class="stack-md" action="/admin/settings" method="post">
       <label class="field">
@@ -428,16 +453,27 @@
     <div class="note-block">
       <strong>Status:</strong> <%= electionState.message %>
     </div>
-  </article>
-
-  <article class="panel panel-light stack-md" id="branding-panel">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Branding</span>
-        <h2>Organization logo</h2>
+        </article>
       </div>
-      <p>Upload the logo once and it will appear on both the admin and voter pages.</p>
-    </div>
+    </details>
+
+    <details class="dashboard-disclosure">
+      <summary class="dashboard-disclosure__summary">
+        <div>
+          <strong>Branding and declaration</strong>
+          <span>Manage the portal logo, report title, and signature settings.</span>
+        </div>
+      </summary>
+
+      <div class="dashboard-disclosure__content dashboard-disclosure__content--grid">
+        <article class="dashboard-subpanel stack-md" id="branding-panel">
+          <div class="section-heading section-heading--tight">
+            <div>
+              <span class="eyebrow">Branding</span>
+              <h2>Organization logo</h2>
+            </div>
+            <p>Upload once and reuse it across both admin and voter pages.</p>
+          </div>
 
     <div class="brand-upload-panel">
       <div class="brand-upload-panel__preview">
@@ -461,18 +497,16 @@
         <button class="button" type="submit">Save Logo</button>
       </form>
     </div>
-  </article>
-</section>
+        </article>
 
-<section class="dashboard-config-grid dashboard-config-grid--bottom">
-  <article class="panel panel-light stack-md" id="declaration-panel">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Declaration Settings</span>
-        <h2>Official sign-off details</h2>
-      </div>
-      <p>Set the report title, committee name, office holders, and upload the official signatures.</p>
-    </div>
+        <article class="dashboard-subpanel stack-md" id="declaration-panel">
+          <div class="section-heading section-heading--tight">
+            <div>
+              <span class="eyebrow">Declaration Settings</span>
+              <h2>Official sign-off details</h2>
+            </div>
+            <p>Set the report title, committee name, office holders, and upload the official signatures.</p>
+          </div>
 
     <div class="declaration-settings-layout">
       <form
@@ -572,17 +606,27 @@
         </article>
       </div>
     </div>
-  </article>
-
-  <div class="dashboard-stack-grid">
-    <article class="panel panel-light stack-md" id="security-panel">
-      <div class="section-heading">
-        <div>
-          <span class="eyebrow">Admin Security</span>
-          <h2>Two-factor authentication</h2>
-        </div>
-        <p>Protect administrator access with an authenticator app like Google Authenticator or Microsoft Authenticator.</p>
+        </article>
       </div>
+    </details>
+
+    <details class="dashboard-disclosure" <%= adminTwoFactorState.enabled || pendingAdminTwoFactorSetup ? 'open' : '' %>>
+      <summary class="dashboard-disclosure__summary">
+        <div>
+          <strong>Security and appearance</strong>
+          <span>Protect the admin account and control the portal theme.</span>
+        </div>
+      </summary>
+
+      <div class="dashboard-disclosure__content dashboard-disclosure__content--grid">
+        <article class="dashboard-subpanel stack-md" id="security-panel">
+          <div class="section-heading section-heading--tight">
+            <div>
+              <span class="eyebrow">Admin Security</span>
+              <h2>Two-factor authentication</h2>
+            </div>
+            <p>Protect administrator access with an authenticator app like Google Authenticator or Microsoft Authenticator.</p>
+          </div>
 
       <% if (adminTwoFactorState.enabled) { %>
         <div class="note-block">
@@ -667,16 +711,16 @@
           <button class="button" type="submit">Start 2FA Setup</button>
         </form>
       <% } %>
-    </article>
+        </article>
 
-    <article class="panel panel-light stack-md">
-      <div class="section-heading">
-        <div>
-          <span class="eyebrow">Software Theme</span>
-          <h2>Portal appearance</h2>
-        </div>
-        <p>The selected theme applies to both voter and admin pages.</p>
-      </div>
+        <article class="dashboard-subpanel stack-md">
+          <div class="section-heading section-heading--tight">
+            <div>
+              <span class="eyebrow">Software Theme</span>
+              <h2>Portal appearance</h2>
+            </div>
+            <p>The selected theme applies to both voter and admin pages.</p>
+          </div>
 
       <form class="stack-md" action="/admin/theme" method="post">
         <div class="theme-card-grid">
@@ -694,62 +738,99 @@
 
         <button class="button" type="submit">Apply Theme</button>
       </form>
-    </article>
-
-    <article class="panel panel-light stack-md">
-      <div class="section-heading">
-        <div>
-          <span class="eyebrow">Election History</span>
-          <h2>Recent archived elections</h2>
-        </div>
-        <a class="button button-ghost button-small" href="/admin/archives">View All Archives</a>
+        </article>
       </div>
+    </details>
 
-      <% if (archives.length === 0) { %>
-        <div class="empty-state">No archived elections yet. Close and archive a completed election to save it here.</div>
-      <% } else { %>
-        <div class="archive-grid">
-          <% archives.forEach((archive) => { %>
-            <article class="archive-card">
-              <div class="archive-card__topline">
-                <strong><%= archive.electionName %></strong>
-                <span><%= formatDateTime(archive.archivedAt) %></span>
-              </div>
-              <div class="mini-metrics-grid">
-                <div><strong><%= archive.totalVoters %></strong><span>Voters</span></div>
-                <div><strong><%= archive.votesCast %></strong><span>Votes</span></div>
-                <div><strong><%= formatPercent(archive.turnoutRate || 0) %></strong><span>Turnout</span></div>
-              </div>
-              <a class="button button-ghost button-small" href="/admin/archives/<%= archive.id %>">Open Archive</a>
-            </article>
-          <% }) %>
+    <details class="dashboard-disclosure">
+      <summary class="dashboard-disclosure__summary">
+        <div>
+          <strong>Archive library</strong>
+          <span>Review completed elections and open full archive records.</span>
         </div>
-      <% } %>
-    </article>
+      </summary>
+
+      <div class="dashboard-disclosure__content">
+        <article class="dashboard-subpanel stack-md">
+          <div class="section-heading section-heading--tight">
+            <div>
+              <span class="eyebrow">Election History</span>
+              <h2>Archived elections</h2>
+            </div>
+            <a class="button button-ghost button-small" href="/admin/archives">View All Archives</a>
+          </div>
+
+          <% if (archives.length === 0) { %>
+            <div class="empty-state">No archived elections yet. Close and archive a completed election to save it here.</div>
+          <% } else { %>
+            <div class="archive-grid">
+              <% archives.forEach((archive) => { %>
+                <article class="archive-card">
+                  <div class="archive-card__topline">
+                    <strong><%= archive.electionName %></strong>
+                    <span><%= formatDateTime(archive.archivedAt) %></span>
+                  </div>
+                  <div class="mini-metrics-grid">
+                    <div><strong><%= archive.totalVoters %></strong><span>Voters</span></div>
+                    <div><strong><%= archive.votesCast %></strong><span>Votes</span></div>
+                    <div><strong><%= formatPercent(archive.turnoutRate || 0) %></strong><span>Turnout</span></div>
+                  </div>
+                  <a class="button button-ghost button-small" href="/admin/archives/<%= archive.id %>">Open Archive</a>
+                </article>
+              <% }) %>
+            </div>
+          <% } %>
+        </article>
+      </div>
+    </details>
   </div>
 </section>
 
-<section class="panel panel-light stack-md">
-  <div class="section-heading">
+<section class="panel panel-light stack-md dashboard-readiness-card">
+  <div class="section-heading section-heading--tight">
     <div>
       <span class="eyebrow">Ballot Readiness</span>
-      <h2>Check that each position has candidates</h2>
+      <h2>Positions still needing attention</h2>
     </div>
-    <p>Every active position needs at least one candidate before voting can open.</p>
+    <span class="inline-badge"><%= readinessPercent %> ready</span>
   </div>
 
-  <div class="readiness-grid">
-    <% if (positionReadiness.length === 0) { %>
-      <div class="empty-state">No positions have been added yet.</div>
-    <% } %>
-
-    <% positionReadiness.forEach((position) => { %>
-      <article class="mini-card">
-        <strong><%= position.positionName %></strong>
-        <span><%= position.candidateCount %> candidate(s)</span>
-      </article>
-    <% }) %>
-  </div>
+  <% if (positionReadiness.length === 0) { %>
+    <div class="empty-state">No positions have been added yet.</div>
+  <% } else if (positionsNeedingCandidates.length === 0) { %>
+    <div class="note-block">
+      <strong>Ready:</strong> Every active position already has at least one candidate.
+    </div>
+  <% } else { %>
+    <div class="readiness-grid dashboard-readiness-grid">
+      <% positionsNeedingCandidates.forEach((position) => { %>
+        <article class="mini-card">
+          <strong><%= position.positionName %></strong>
+          <span>No candidate added yet</span>
+        </article>
+      <% }) %>
+    </div>
+  <% } %>
 </section>
+
+<script>
+  (() => {
+    const openHashDisclosure = () => {
+      if (!window.location.hash) {
+        return;
+      }
+
+      const target = document.querySelector(window.location.hash);
+      const disclosure = target ? target.closest("details") : null;
+
+      if (disclosure) {
+        disclosure.open = true;
+      }
+    };
+
+    openHashDisclosure();
+    window.addEventListener("hashchange", openHashDisclosure);
+  })();
+</script>
 
 <%- include("partials/admin-shell-end") %>
