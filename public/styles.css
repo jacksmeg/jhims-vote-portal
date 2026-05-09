@@ -1017,6 +1017,17 @@ table,
   justify-content: flex-end;
 }
 
+.nomination-form-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.nomination-form-fieldset[disabled] {
+  opacity: 0.72;
+}
+
 .info-row strong,
 .review-row strong {
   white-space: nowrap;

@@ -2805,6 +2805,9 @@ app.use((req, res, next) => {
   res.locals.formatDateTime = formatDateTime;
   res.locals.formatPercent = formatPercent;
   res.locals.voteClosesAtMs = settings.closesAt ? dayjs(settings.closesAt).valueOf() : null;
+  res.locals.nominationOpensAtMs = settings.nominationOpensAt
+    ? dayjs(settings.nominationOpensAt).valueOf()
+    : null;
   res.locals.getInitials = getInitials;
   res.locals.flash = req.session.flash || null;
   delete req.session.flash;
@@ -2967,7 +2970,12 @@ app.get("/nomination/form", (req, res) => {
     return res.redirect("/nomination/status/login");
   }
 
-  if (!nominationState.isOpen) {
+  if (editNominationId > 0 && !nominationState.isOpen) {
+    setFlash(req, "error", nominationState.message);
+    return res.redirect("/nomination/status/login");
+  }
+
+  if (!nominationState.isOpen && !nominationState.isScheduled) {
     setFlash(req, "error", nominationState.message);
     return res.redirect("/nomination/status/login");
   }
@@ -2978,6 +2986,7 @@ app.get("/nomination/form", (req, res) => {
     positions,
     currentNomination: editableNomination,
     editableNomination,
+    formLocked: !editableNomination && nominationState.isScheduled,
   });
 });
 
@@ -3024,7 +3033,9 @@ app.post(
         await safeRemoveFile(req.file.path);
       }
       setFlash(req, "error", nominationState.message);
-      return res.redirect("/nomination/status");
+      return res.redirect(
+        isCorrectionResubmission ? `/nomination/form?edit=${existingEditableNomination.id}` : "/nomination/form",
+      );
     }
 
     if (

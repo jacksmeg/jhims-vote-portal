@@ -4,6 +4,7 @@
 <% const isPortalFlow = isVotePortal || isNominationPortal; %>
 <% const isVoteLogin = currentPath === '/vote/login'; %>
 <% const showVoteCountdown = isVotePortal && electionState.isOpen && voteClosesAtMs && !isVoteLogin; %>
+<% const showNominationCountdown = currentPath === '/nomination/form' && nominationState.isScheduled && nominationOpensAtMs; %>
 <div class="site-shell">
   <header class="site-header <%= isPortalFlow ? 'site-header--portal' : '' %>">
     <a class="brand-mark" href="<%= isVotePortal ? '/vote/login' : isNominationPortal ? '/nomination/form' : '/' %>">
@@ -64,6 +65,44 @@
           <p data-countdown-copy>
             Voting closes at
             <strong><%= formatDateTime(settings.closesAt) %></strong>.
+          </p>
+        </div>
+
+        <div class="countdown-banner__timer" aria-live="polite" aria-atomic="true">
+          <div class="countdown-unit">
+            <strong data-countdown-days>00</strong>
+            <span>Days</span>
+          </div>
+          <div class="countdown-unit">
+            <strong data-countdown-hours>00</strong>
+            <span>Hours</span>
+          </div>
+          <div class="countdown-unit">
+            <strong data-countdown-minutes>00</strong>
+            <span>Minutes</span>
+          </div>
+          <div class="countdown-unit">
+            <strong data-countdown-seconds>00</strong>
+            <span>Seconds</span>
+          </div>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (showNominationCountdown) { %>
+      <section
+        class="countdown-banner"
+        data-countdown-root
+        data-countdown-target="<%= nominationOpensAtMs %>"
+        data-countdown-ended-label="Nominations are now open"
+        data-countdown-ended-copy="Refreshing the form so submission can begin."
+        data-countdown-end-reload="true"
+      >
+        <div class="countdown-banner__copy">
+          <h2 data-countdown-title>Nomination Opens In</h2>
+          <p data-countdown-copy>
+            Submission starts at
+            <strong><%= formatDateTime(settings.nominationOpensAt) %></strong>.
           </p>
         </div>
 

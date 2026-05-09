@@ -53,7 +53,10 @@
       const copyEl = countdownRoot.querySelector("[data-countdown-copy]");
       const endedLabel = countdownRoot.getAttribute("data-countdown-ended-label") || "Voting has closed";
       const endedCopy = countdownRoot.getAttribute("data-countdown-ended-copy") || "";
+      const shouldReloadAfterEnd =
+        countdownRoot.getAttribute("data-countdown-end-reload") === "true";
       let timerId = null;
+      let reloadQueued = false;
 
       const updateCountdown = () => {
         const remainingMs = Math.max(0, targetTime - Date.now());
@@ -78,6 +81,12 @@
           }
           if (timerId) {
             window.clearInterval(timerId);
+          }
+          if (shouldReloadAfterEnd && !reloadQueued) {
+            reloadQueued = true;
+            window.setTimeout(() => {
+              window.location.reload();
+            }, 1200);
           }
         }
       };

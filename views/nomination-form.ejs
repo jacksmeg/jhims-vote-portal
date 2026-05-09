@@ -15,6 +15,14 @@
     </p>
   </div>
 
+  <% if (formLocked) { %>
+    <p class="note-block otp-note--warning">
+      <strong>Submission locked for now:</strong>
+      Nominations will open on <%= formatDateTime(settings.nominationOpensAt) %>. You can review the form below and use
+      <strong>Check Status</strong> for any existing application, but new submission starts only when the countdown finishes.
+    </p>
+  <% } %>
+
   <% if (editableNomination && editableNomination.adminNotes) { %>
     <p class="note-block"><strong>Committee Note:</strong> <%= editableNomination.adminNotes %></p>
   <% } %>
@@ -25,108 +33,114 @@
         <input type="hidden" name="nominationId" value="<%= editableNomination.id %>" />
       <% } %>
 
-      <div class="form-grid">
+      <fieldset class="nomination-form-fieldset stack-md" <%= formLocked ? 'disabled' : '' %>>
+        <div class="form-grid">
+          <label class="field">
+            <span>Full Name</span>
+            <input
+              name="fullName"
+              value="<%= editableNomination ? editableNomination.fullName : '' %>"
+              required
+            />
+          </label>
+
+          <label class="field">
+            <span>Department</span>
+            <input
+              name="department"
+              value="<%= editableNomination ? editableNomination.department : '' %>"
+              required
+            />
+          </label>
+        </div>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>Staff ID</span>
+            <input
+              name="staffId"
+              value="<%= editableNomination ? editableNomination.staffId : '' %>"
+              placeholder="STF0234"
+              required
+            />
+          </label>
+
+          <label class="field">
+            <span>Phone Number</span>
+            <input
+              name="phoneNumber"
+              value="<%= editableNomination ? editableNomination.phoneNumber : '' %>"
+              placeholder="0240000000"
+              required
+            />
+          </label>
+        </div>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>Application Number</span>
+            <input
+              value="<%= editableNomination ? editableNomination.applicationNumber : 'Assigned automatically after submission' %>"
+              disabled
+            />
+          </label>
+
+          <label class="field">
+            <span>Position Applying For</span>
+            <select name="positionId" required>
+              <option value="">Select a position</option>
+              <% positions.forEach((position) => { %>
+                <option
+                  value="<%= position.id %>"
+                  <%= (editableNomination ? editableNomination.positionId : '') === position.id ? 'selected' : '' %>
+                >
+                  <%= position.name %>
+                </option>
+              <% }) %>
+            </select>
+          </label>
+        </div>
+
         <label class="field">
-          <span>Full Name</span>
-          <input
-            name="fullName"
-            value="<%= editableNomination ? editableNomination.fullName : '' %>"
-            required
-          />
+          <span>Candidate Photo</span>
+          <input name="photo" type="file" accept="image/*" <%= editableNomination ? '' : 'required' %> />
         </label>
 
         <label class="field">
-          <span>Department</span>
-          <input
-            name="department"
-            value="<%= editableNomination ? editableNomination.department : '' %>"
-            required
-          />
-        </label>
-      </div>
-
-      <div class="form-grid">
-        <label class="field">
-          <span>Staff ID</span>
-          <input
-            name="staffId"
-            value="<%= editableNomination ? editableNomination.staffId : '' %>"
-            placeholder="STF0234"
-            required
-          />
+          <span>Short Profile / Bio</span>
+          <textarea name="bio" rows="4" required><%= editableNomination ? editableNomination.bio : '' %></textarea>
         </label>
 
         <label class="field">
-          <span>Phone Number</span>
-          <input
-            name="phoneNumber"
-            value="<%= editableNomination ? editableNomination.phoneNumber : '' %>"
-            placeholder="0240000000"
-            required
-          />
-        </label>
-      </div>
-
-      <div class="form-grid">
-        <label class="field">
-          <span>Application Number</span>
-          <input
-            value="<%= editableNomination ? editableNomination.applicationNumber : 'Assigned automatically after submission' %>"
-            disabled
-          />
+          <span>Manifesto / Message</span>
+          <textarea name="manifesto" rows="5" required><%= editableNomination ? editableNomination.manifesto : '' %></textarea>
         </label>
 
-        <label class="field">
-          <span>Position Applying For</span>
-          <select name="positionId" required>
-            <option value="">Select a position</option>
-            <% positions.forEach((position) => { %>
-              <option
-                value="<%= position.id %>"
-                <%= (editableNomination ? editableNomination.positionId : '') === position.id ? 'selected' : '' %>
-              >
-                <%= position.name %>
-              </option>
-            <% }) %>
-          </select>
+        <div class="form-grid">
+          <label class="field">
+            <span>Proposer Name</span>
+            <input name="proposerName" value="<%= editableNomination ? editableNomination.proposerName : '' %>" required />
+          </label>
+
+          <label class="field">
+            <span>Seconder Name</span>
+            <input name="seconderName" value="<%= editableNomination ? editableNomination.seconderName : '' %>" required />
+          </label>
+        </div>
+
+        <label class="field-checkbox">
+          <input type="checkbox" name="declarationAccepted" <%= editableNomination?.declarationAccepted ? 'checked' : '' %> required />
+          <span>I confirm that all details in this nomination form are accurate and submitted by me.</span>
         </label>
-      </div>
-
-      <label class="field">
-        <span>Candidate Photo</span>
-        <input name="photo" type="file" accept="image/*" <%= editableNomination ? '' : 'required' %> />
-      </label>
-
-      <label class="field">
-        <span>Short Profile / Bio</span>
-        <textarea name="bio" rows="4" required><%= editableNomination ? editableNomination.bio : '' %></textarea>
-      </label>
-
-      <label class="field">
-        <span>Manifesto / Message</span>
-        <textarea name="manifesto" rows="5" required><%= editableNomination ? editableNomination.manifesto : '' %></textarea>
-      </label>
-
-      <div class="form-grid">
-        <label class="field">
-          <span>Proposer Name</span>
-          <input name="proposerName" value="<%= editableNomination ? editableNomination.proposerName : '' %>" required />
-        </label>
-
-        <label class="field">
-          <span>Seconder Name</span>
-          <input name="seconderName" value="<%= editableNomination ? editableNomination.seconderName : '' %>" required />
-        </label>
-      </div>
-
-      <label class="field-checkbox">
-        <input type="checkbox" name="declarationAccepted" <%= editableNomination?.declarationAccepted ? 'checked' : '' %> required />
-        <span>I confirm that all details in this nomination form are accurate and submitted by me.</span>
-      </label>
+      </fieldset>
 
       <div class="button-row">
-        <button class="button" type="submit">
-          <%= editableNomination ? 'Resubmit Nomination' : 'Submit Nomination' %>
+        <button class="button" type="submit" <%= formLocked ? 'disabled' : '' %>>
+          <%= formLocked
+            ? 'Submission Opens Automatically'
+            : editableNomination
+              ? 'Resubmit Nomination'
+              : 'Submit Nomination' %>
         </button>
         <a class="button button-ghost" href="/nomination/status/login">Check Status</a>
       </div>
@@ -148,13 +162,18 @@
 
         <div class="mini-card">
           <strong>Status</strong>
-          <span><%= editableNomination ? editableNomination.statusMeta.label : 'Ready for first submission' %></span>
+          <span><%= editableNomination ? editableNomination.statusMeta.label : formLocked ? 'Waiting for nomination opening time' : 'Ready for first submission' %></span>
         </div>
 
         <% if (editableNomination) { %>
           <div class="mini-card">
             <strong>Last Submitted</strong>
             <span><%= formatDateTime(editableNomination.submittedAt) %></span>
+          </div>
+        <% } else if (formLocked) { %>
+          <div class="mini-card">
+            <strong>Opens At</strong>
+            <span><%= formatDateTime(settings.nominationOpensAt) %></span>
           </div>
         <% } else { %>
           <div class="mini-card">
