@@ -745,6 +745,56 @@
     <details class="dashboard-disclosure">
       <summary class="dashboard-disclosure__summary">
         <div>
+          <strong>Fresh start reset</strong>
+          <span>Clear test election data and return the portal to a clean setup state.</span>
+        </div>
+      </summary>
+
+      <div class="dashboard-disclosure__content">
+        <article class="dashboard-subpanel stack-md" id="fresh-reset-panel">
+          <div class="section-heading section-heading--tight">
+            <div>
+              <span class="eyebrow">Fresh Election Reset</span>
+              <h2>Wipe test data before the real election</h2>
+            </div>
+            <p>This creates a safety backup first, then clears current voters, positions, candidates, nominations, ballots, archives, and audit history.</p>
+          </div>
+
+          <div class="note-block">
+            <strong>What stays:</strong> organization logo, declaration settings, theme, admin login, and admin two-factor authentication.
+          </div>
+
+          <% if (electionState.isOpen) { %>
+            <div class="note-block otp-note--warning">
+              <strong>Unavailable right now:</strong> close voting first before you run a full fresh reset.
+            </div>
+          <% } else { %>
+            <form
+              class="stack-md"
+              action="/admin/system/fresh-reset"
+              method="post"
+              onsubmit="return confirm('This will create a safety backup and then wipe the current election workspace, archives, and audit history. Continue?');"
+            >
+              <label class="field">
+                <span>Type RESET ENTIRE SYSTEM to continue</span>
+                <input
+                  name="confirmationText"
+                  placeholder="RESET ENTIRE SYSTEM"
+                  autocomplete="off"
+                  required
+                />
+              </label>
+
+              <button class="button button-danger" type="submit">Reset Entire System Fresh</button>
+            </form>
+          <% } %>
+        </article>
+      </div>
+    </details>
+
+    <details class="dashboard-disclosure">
+      <summary class="dashboard-disclosure__summary">
+        <div>
           <strong>Archive library</strong>
           <span>Review completed elections and open full archive records.</span>
         </div>

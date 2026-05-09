@@ -1298,6 +1298,150 @@ function ensurePdfSpace(document, neededHeight = 80) {
   }
 }
 
+function measurePdfBlockHeight(document, options) {
+  const {
+    label = "",
+    value = "",
+    width = 120,
+    minHeight = 66,
+    valueFontSize = 10.5,
+  } = options || {};
+  const innerWidth = Math.max(width - 28, 44);
+  const normalizedValue = String(value || "-").trim() || "-";
+
+  document.font("Helvetica-Bold").fontSize(8.5);
+  const labelHeight = document.heightOfString(String(label || "").toUpperCase(), {
+    width: innerWidth,
+  });
+
+  document.font("Helvetica").fontSize(valueFontSize);
+  const valueHeight = document.heightOfString(normalizedValue, {
+    width: innerWidth,
+  });
+
+  return Math.max(minHeight, 18 + labelHeight + 10 + valueHeight + 18);
+}
+
+function drawPdfBlockField(document, options) {
+  const {
+    x,
+    y,
+    width,
+    label = "",
+    value = "",
+    height = null,
+    minHeight = 66,
+    valueFontSize = 10.5,
+    fillColor = "#f8fbff",
+    strokeColor = "#d7e4f3",
+  } = options;
+  const blockHeight =
+    height ||
+    measurePdfBlockHeight(document, {
+      label,
+      value,
+      width,
+      minHeight,
+      valueFontSize,
+    });
+  const innerX = x + 14;
+  const innerY = y + 12;
+  const innerWidth = width - 28;
+  const normalizedValue = String(value || "-").trim() || "-";
+
+  document
+    .roundedRect(x, y, width, blockHeight, 14)
+    .fillAndStroke(fillColor, strokeColor);
+
+  document
+    .fillColor("#5d6d80")
+    .font("Helvetica-Bold")
+    .fontSize(8.5)
+    .text(String(label || "").toUpperCase(), innerX, innerY, {
+      width: innerWidth,
+    });
+
+  document
+    .fillColor("#102338")
+    .font("Helvetica")
+    .fontSize(valueFontSize)
+    .text(normalizedValue, innerX, innerY + 18, {
+      width: innerWidth,
+    });
+
+  return blockHeight;
+}
+
+function drawPdfBlockRow(document, fields, options = {}) {
+  const startX = document.page.margins.left;
+  const totalWidth =
+    document.page.width - document.page.margins.left - document.page.margins.right;
+  const gap = options.gap || 16;
+  const afterGap = options.afterGap || 12;
+  const fieldWidth =
+    fields.length > 1
+      ? (totalWidth - gap * (fields.length - 1)) / fields.length
+      : totalWidth;
+  const rowHeight = Math.max(
+    ...fields.map((field) =>
+      measurePdfBlockHeight(document, {
+        ...field,
+        width: field.width || fieldWidth,
+      }),
+    ),
+  );
+
+  ensurePdfSpace(document, rowHeight + afterGap);
+  const rowY = document.y;
+
+  fields.forEach((field, index) => {
+    const width = field.width || fieldWidth;
+    const x = startX + index * (fieldWidth + gap);
+    drawPdfBlockField(document, {
+      ...field,
+      x,
+      y: rowY,
+      width,
+      height: rowHeight,
+    });
+  });
+
+  document.y = rowY + rowHeight + afterGap;
+}
+
+function drawPdfWideTextBlock(document, options) {
+  const {
+    label = "",
+    value = "",
+    minHeight = 92,
+    valueFontSize = 10.5,
+  } = options || {};
+  const startX = document.page.margins.left;
+  const width =
+    document.page.width - document.page.margins.left - document.page.margins.right;
+  const height = measurePdfBlockHeight(document, {
+    label,
+    value,
+    width,
+    minHeight,
+    valueFontSize,
+  });
+
+  ensurePdfSpace(document, height + 12);
+  const startY = document.y;
+  drawPdfBlockField(document, {
+    x: startX,
+    y: startY,
+    width,
+    label,
+    value,
+    height,
+    minHeight,
+    valueFontSize,
+  });
+  document.y = startY + height + 12;
+}
+
 function renderResultsPdf(document, payload) {
   const {
     settings,
@@ -1581,71 +1725,100 @@ function renderNominationFormPdf(document, payload) {
     .fillColor("#102338")
     .text("Applicant Information");
 
-  document
-    .moveDown(0.6)
-    .font("Helvetica")
-    .fontSize(11)
-    .fillColor("#102338");
-
   if (nomination) {
-    const infoLines = [
-      `Full Name: ${nomination.fullName || "-"}`,
-      `Staff ID: ${nomination.staffId || "-"}`,
-      `Phone Number: ${nomination.phoneNumber || "-"}`,
-      `Department: ${nomination.department || "-"}`,
-      `Application Number: ${nomination.applicationNumber || "-"}`,
-      `Position Applying For: ${positionName || "-"}`,
-      `Proposer Name: ${nomination.proposerName || "-"}`,
-      `Seconder Name: ${nomination.seconderName || "-"}`,
-      `Submitted At: ${formatDateTime(nomination.submittedAt)}`,
-      `Current Status: ${nomination.statusMeta?.label || nomination.status || "Pending"}`,
-    ];
+    document.y += 10;
 
-    infoLines.forEach((line) => {
-      ensurePdfSpace(document, 24);
-      document.text(line);
+    drawPdfBlockRow(document, [
+      {
+        label: "Application Number",
+        value: nomination.applicationNumber || "-",
+      },
+      {
+        label: "Current Status",
+        value: nomination.statusMeta?.label || nomination.status || "Pending",
+      },
+    ]);
+
+    drawPdfBlockRow(document, [
+      {
+        label: "Full Name",
+        value: nomination.fullName || "-",
+      },
+      {
+        label: "Position Applying For",
+        value: positionName || "-",
+      },
+    ]);
+
+    drawPdfBlockRow(document, [
+      {
+        label: "Staff ID",
+        value: nomination.staffId || "-",
+      },
+      {
+        label: "Phone Number",
+        value: nomination.phoneNumber || "-",
+      },
+    ]);
+
+    drawPdfBlockRow(document, [
+      {
+        label: "Department",
+        value: nomination.department || "-",
+      },
+      {
+        label: "Submitted At",
+        value: formatDateTime(nomination.submittedAt),
+      },
+    ]);
+
+    drawPdfBlockRow(document, [
+      {
+        label: "Proposer Name",
+        value: nomination.proposerName || "-",
+      },
+      {
+        label: "Seconder Name",
+        value: nomination.seconderName || "-",
+      },
+    ]);
+
+    drawPdfWideTextBlock(document, {
+      label: "Short Profile / Bio",
+      value: nomination.bio || "-",
+      minHeight: 110,
     });
 
-    document.moveDown(0.8);
-    ensurePdfSpace(document, 72);
-    document.font("Helvetica-Bold").text("Short Profile / Bio");
-    document
-      .font("Helvetica")
-      .text(nomination.bio || "-", {
-        width: 495,
-      });
+    drawPdfWideTextBlock(document, {
+      label: "Manifesto / Message",
+      value: nomination.manifesto || "-",
+      minHeight: 140,
+    });
 
-    document.moveDown(0.8);
-    ensurePdfSpace(document, 90);
-    document.font("Helvetica-Bold").text("Manifesto / Message");
-    document
-      .font("Helvetica")
-      .text(nomination.manifesto || "-", {
-        width: 495,
-      });
-
-    document.moveDown(0.8);
-    ensurePdfSpace(document, 48);
-    document.font("Helvetica-Bold").text("Declaration");
-    document
-      .font("Helvetica")
-      .text(
-        nomination.declarationAccepted
-          ? "The applicant confirmed that all submitted details are accurate."
-          : "Declaration was not confirmed at submission time.",
-      );
+    drawPdfWideTextBlock(document, {
+      label: "Declaration",
+      value: nomination.declarationAccepted
+        ? "The applicant confirmed that all submitted details are accurate and personally submitted."
+        : "Declaration was not confirmed at submission time.",
+      minHeight: 78,
+    });
 
     if (nomination.adminNotes) {
-      document.moveDown(0.8);
-      ensurePdfSpace(document, 48);
-      document.font("Helvetica-Bold").text("Committee Note");
-      document.font("Helvetica").text(nomination.adminNotes, {
-        width: 495,
+      drawPdfWideTextBlock(document, {
+        label: "Committee Note",
+        value: nomination.adminNotes,
+        minHeight: 78,
       });
     }
 
     return;
   }
+
+  document
+    .moveDown(0.6)
+    .font("Helvetica")
+    .fontSize(11)
+    .fillColor("#102338");
 
   const sections = [
     "Full Name: ________________________________________________",
@@ -4814,6 +4987,91 @@ app.post("/admin/election/archive-reset", requireAdmin, async (req, res) => {
     `Election archived successfully. The system has been reset and is ready for the next election.`,
   );
   return res.redirect(`/admin/archives/${archiveId}`);
+});
+
+app.post("/admin/system/fresh-reset", requireAdmin, async (req, res) => {
+  const settings = getElectionSettings();
+  const confirmationText = String(req.body.confirmationText || "").trim().toUpperCase();
+
+  if (settings.phase === "open") {
+    setFlash(req, "error", "Close voting before running a full fresh reset.");
+    return res.redirect("/admin#fresh-reset-panel");
+  }
+
+  if (confirmationText !== "RESET ENTIRE SYSTEM") {
+    setFlash(req, "error", "Type RESET ENTIRE SYSTEM exactly before running the fresh reset.");
+    return res.redirect("/admin#fresh-reset-panel");
+  }
+
+  const candidatePhotoRows = db.prepare(`
+    SELECT photo_path AS photoPath
+    FROM candidates
+    WHERE photo_path <> ''
+  `).all();
+  const nominationPhotoRows = db.prepare(`
+    SELECT photo_path AS photoPath
+    FROM nominations
+    WHERE photo_path <> ''
+  `).all();
+  const backupName = `vote-portal-pre-fresh-reset-${dayjs().format("YYYYMMDD-HHmmss")}.sqlite`;
+  const backupPath = path.join(backupsDirectory, backupName);
+
+  try {
+    await fsp.copyFile(databasePath, backupPath);
+  } catch (error) {
+    setFlash(req, "error", `Fresh reset backup failed: ${error.message}`);
+    return res.redirect("/admin#fresh-reset-panel");
+  }
+
+  runTransaction(() => {
+    db.prepare("DELETE FROM ballot_entries").run();
+    db.prepare("DELETE FROM ballots").run();
+    db.prepare("DELETE FROM nominations").run();
+    db.prepare("DELETE FROM nomination_access_codes").run();
+    db.prepare("DELETE FROM candidates").run();
+    db.prepare("DELETE FROM positions").run();
+    db.prepare("DELETE FROM voters").run();
+    db.prepare("DELETE FROM election_archives").run();
+    db.prepare("DELETE FROM audit_logs").run();
+
+    setSetting("election_phase", "setup");
+    setSetting("opens_at", "");
+    setSetting("closes_at", "");
+    setSetting("nomination_phase", "setup");
+    setSetting("nomination_opens_at", "");
+    setSetting("nomination_closes_at", "");
+  });
+
+  for (const photoRow of candidatePhotoRows) {
+    await safeRemoveFile(resolveAssetPath(photoRow.photoPath));
+  }
+
+  for (const photoRow of nominationPhotoRows) {
+    await safeRemoveFile(resolveAssetPath(photoRow.photoPath));
+  }
+
+  clearVoterSession(req);
+  clearNominationSession(req);
+  req.session.pendingVoterVerification = null;
+  req.session.pendingAdminTwoFactor = null;
+
+  logAudit(req, "admin", req.session.admin.username, "system_fresh_reset", {
+    backupFile: backupName,
+    preservedSettings: [
+      "election_name",
+      "organization_logo_path",
+      "theme_name",
+      "declaration_settings",
+      "admin_2fa",
+    ],
+  });
+
+  setFlash(
+    req,
+    "success",
+    `Fresh reset complete. Test voters, nominations, candidates, results history, and audit logs were cleared. Safety backup saved as ${backupName}.`,
+  );
+  return res.redirect("/admin#fresh-reset-panel");
 });
 
 app.post("/admin/backup", requireAdmin, async (req, res) => {
