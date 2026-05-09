@@ -86,6 +86,64 @@
       timerId = window.setInterval(updateCountdown, 1000);
     });
   })();
+
+  (() => {
+    const copyButtons = Array.from(document.querySelectorAll("[data-copy-text]"));
+    if (copyButtons.length === 0) {
+      return;
+    }
+
+    const fallbackCopy = (text) => {
+      const tempInput = document.createElement("textarea");
+      tempInput.value = text;
+      tempInput.setAttribute("readonly", "readonly");
+      tempInput.style.position = "absolute";
+      tempInput.style.left = "-9999px";
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand("copy");
+      tempInput.remove();
+    };
+
+    copyButtons.forEach((button) => {
+      const defaultLabel =
+        button.getAttribute("data-copy-default-label") || button.textContent.trim() || "Copy";
+      const successLabel =
+        button.getAttribute("data-copy-success-label") || "Copied";
+
+      button.addEventListener("click", async () => {
+        const copyText = button.getAttribute("data-copy-text") || "";
+        if (!copyText) {
+          return;
+        }
+
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(copyText);
+          } else {
+            fallbackCopy(copyText);
+          }
+
+          button.textContent = successLabel;
+          button.disabled = true;
+
+          window.setTimeout(() => {
+            button.textContent = defaultLabel;
+            button.disabled = false;
+          }, 1800);
+        } catch (_error) {
+          fallbackCopy(copyText);
+          button.textContent = successLabel;
+          button.disabled = true;
+
+          window.setTimeout(() => {
+            button.textContent = defaultLabel;
+            button.disabled = false;
+          }, 1800);
+        }
+      });
+    });
+  })();
 </script>
 </body>
 </html>

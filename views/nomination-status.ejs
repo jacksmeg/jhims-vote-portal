@@ -15,9 +15,17 @@
   <div class="button-row">
     <% if (nominationState.isOpen && nomination?.statusMeta.canApplicantEdit) { %>
       <a class="button" href="/nomination/form?edit=<%= nomination.id %>">Continue Correction</a>
-    <% } else { %>
-      <a class="button button-ghost" href="/nomination/form/download">Download Nomination Form PDF</a>
     <% } %>
+    <a class="button button-ghost" href="/nomination/status/pdf">Download Filled Form PDF</a>
+    <button
+      class="button button-ghost button-small"
+      type="button"
+      data-copy-text="<%= nomination.applicationNumber %>"
+      data-copy-default-label="Copy Application Number"
+      data-copy-success-label="Application Number Copied"
+    >
+      Copy Application Number
+    </button>
     <form action="/nomination/logout" method="post">
       <button class="button button-ghost" type="submit">Sign Out</button>
     </form>
@@ -41,7 +49,21 @@
       </div>
 
       <div class="stack-sm">
-        <div class="info-row"><span>Application Number</span><strong><%= nomination.applicationNumber %></strong></div>
+        <div class="info-row info-row--with-action">
+          <span>Application Number</span>
+          <div class="info-row__action">
+            <strong><%= nomination.applicationNumber %></strong>
+            <button
+              class="button button-ghost button-small"
+              type="button"
+              data-copy-text="<%= nomination.applicationNumber %>"
+              data-copy-default-label="Copy"
+              data-copy-success-label="Copied"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
         <div class="info-row"><span>Proposer</span><strong><%= nomination.proposerName %></strong></div>
         <div class="info-row"><span>Seconder</span><strong><%= nomination.seconderName %></strong></div>
         <div class="info-row"><span>Committee Review</span><strong><%= nomination.reviewedAt ? formatDateTime(nomination.reviewedAt) : 'Pending review' %></strong></div>

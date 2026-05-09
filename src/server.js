@@ -1519,10 +1519,17 @@ function renderResultsPdf(document, payload) {
 }
 
 function renderNominationFormPdf(document, payload) {
-  const { settings, positions, generatedAt } = payload;
+  const { settings, positions, generatedAt, nomination = null } = payload;
   const logoPath = settings.organizationLogoPath
     ? resolveAssetPath(settings.organizationLogoPath)
     : "";
+  const candidatePhotoPath = nomination?.photoPath
+    ? resolveAssetPath(nomination.photoPath)
+    : "";
+  const positionName =
+    nomination?.positionName ||
+    positions.find((position) => position.id === nomination?.positionId)?.name ||
+    "";
 
   if (logoPath && fs.existsSync(logoPath)) {
     try {
@@ -1538,7 +1545,7 @@ function renderNominationFormPdf(document, payload) {
     .fillColor("#102338")
     .text(settings.electionName, 120, 48, { align: "left" })
     .fontSize(12)
-    .text("Nomination Form", 120, 78);
+    .text(nomination ? "Submitted Nomination Form" : "Nomination Form", 120, 78);
 
   document
     .font("Helvetica")
@@ -1547,6 +1554,18 @@ function renderNominationFormPdf(document, payload) {
     .text(`Generated: ${formatDateTime(generatedAt)}`, 120, 96)
     .text(`Nomination opens: ${formatDateTime(settings.nominationOpensAt)}`, 120, 112)
     .text(`Nomination closes: ${formatDateTime(settings.nominationClosesAt)}`, 120, 128);
+
+  if (candidatePhotoPath && fs.existsSync(candidatePhotoPath)) {
+    try {
+      document.image(candidatePhotoPath, 430, 44, {
+        fit: [82, 82],
+        align: "right",
+        valign: "top",
+      });
+    } catch (_error) {
+      // Ignore image parsing errors and continue with the PDF.
+    }
+  }
 
   document
     .moveTo(50, 148)
@@ -1561,6 +1580,72 @@ function renderNominationFormPdf(document, payload) {
     .fontSize(12)
     .fillColor("#102338")
     .text("Applicant Information");
+
+  document
+    .moveDown(0.6)
+    .font("Helvetica")
+    .fontSize(11)
+    .fillColor("#102338");
+
+  if (nomination) {
+    const infoLines = [
+      `Full Name: ${nomination.fullName || "-"}`,
+      `Staff ID: ${nomination.staffId || "-"}`,
+      `Phone Number: ${nomination.phoneNumber || "-"}`,
+      `Department: ${nomination.department || "-"}`,
+      `Application Number: ${nomination.applicationNumber || "-"}`,
+      `Position Applying For: ${positionName || "-"}`,
+      `Proposer Name: ${nomination.proposerName || "-"}`,
+      `Seconder Name: ${nomination.seconderName || "-"}`,
+      `Submitted At: ${formatDateTime(nomination.submittedAt)}`,
+      `Current Status: ${nomination.statusMeta?.label || nomination.status || "Pending"}`,
+    ];
+
+    infoLines.forEach((line) => {
+      ensurePdfSpace(document, 24);
+      document.text(line);
+    });
+
+    document.moveDown(0.8);
+    ensurePdfSpace(document, 72);
+    document.font("Helvetica-Bold").text("Short Profile / Bio");
+    document
+      .font("Helvetica")
+      .text(nomination.bio || "-", {
+        width: 495,
+      });
+
+    document.moveDown(0.8);
+    ensurePdfSpace(document, 90);
+    document.font("Helvetica-Bold").text("Manifesto / Message");
+    document
+      .font("Helvetica")
+      .text(nomination.manifesto || "-", {
+        width: 495,
+      });
+
+    document.moveDown(0.8);
+    ensurePdfSpace(document, 48);
+    document.font("Helvetica-Bold").text("Declaration");
+    document
+      .font("Helvetica")
+      .text(
+        nomination.declarationAccepted
+          ? "The applicant confirmed that all submitted details are accurate."
+          : "Declaration was not confirmed at submission time.",
+      );
+
+    if (nomination.adminNotes) {
+      document.moveDown(0.8);
+      ensurePdfSpace(document, 48);
+      document.font("Helvetica-Bold").text("Committee Note");
+      document.font("Helvetica").text(nomination.adminNotes, {
+        width: 495,
+      });
+    }
+
+    return;
+  }
 
   const sections = [
     "Full Name: ________________________________________________",
@@ -1587,12 +1672,6 @@ function renderNominationFormPdf(document, payload) {
     "I confirm that the information provided for this nomination is accurate.",
     "Applicant Signature: _______________________________________",
   ];
-
-  document
-    .moveDown(0.6)
-    .font("Helvetica")
-    .fontSize(11)
-    .fillColor("#102338");
 
   sections.forEach((line) => {
     ensurePdfSpace(document, 24);
@@ -2590,6 +2669,57 @@ app.get("/nomination/form/download", (_req, res) => {
   renderNominationFormPdf(document, {
     settings,
     positions,
+    generatedAt: nowIso(),
+  });
+  document.end();
+});
+
+app.get("/nomination/status/pdf", (req, res) => {
+  const applicant = req.session.nominationApplicant;
+
+  if (!applicant) {
+    setFlash(req, "error", "Enter your application number to download your submitted nomination form.");
+    return res.redirect("/nomination/status/login");
+  }
+
+  const nomination =
+    getNominationById(applicant.nominationId || 0) ||
+    getNominationByApplicationNumber(applicant.applicationNumber);
+
+  if (!nomination) {
+    clearNominationSession(req);
+    setFlash(req, "error", "That nomination application could not be found.");
+    return res.redirect("/nomination/status/login");
+  }
+
+  const settings = getElectionSettings();
+  const positions = getPositions();
+  const filename = `${toSafeFilename(settings.electionName)}-${toSafeFilename(
+    nomination.applicationNumber || nomination.fullName || "nomination",
+  )}.pdf`;
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  const document = new PDFDocument({
+    size: "A4",
+    margin: 50,
+    info: {
+      Title: `${settings.electionName} Submitted Nomination Form`,
+      Author: "Organization Vote Portal",
+      Subject: nomination.applicationNumber || "Nomination Application",
+    },
+  });
+
+  logAudit(req, "nomination", nomination.applicationNumber, "nomination_form_downloaded", {
+    nominationId: nomination.id,
+  });
+
+  document.pipe(res);
+  renderNominationFormPdf(document, {
+    settings,
+    positions,
+    nomination,
     generatedAt: nowIso(),
   });
   document.end();

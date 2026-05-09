@@ -1005,6 +1005,18 @@ table,
   gap: 14px;
 }
 
+.info-row--with-action {
+  align-items: center;
+}
+
+.info-row__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .info-row strong,
 .review-row strong {
   white-space: nowrap;
