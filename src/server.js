@@ -2820,6 +2820,12 @@ app.get("/", (req, res) => {
   res.render("home", { pageTitle: "Election Portal", metrics });
 });
 
+app.get("/help-center", (req, res) => {
+  res.render("help-center", {
+    pageTitle: "Help Center",
+  });
+});
+
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true });
 });

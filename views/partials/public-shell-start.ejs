@@ -23,9 +23,7 @@
       <div class="site-header__utility">
         <a
           class="site-utility-link"
-          href="https://wa.me/233592934612"
-          target="_blank"
-          rel="noopener noreferrer"
+          href="/help-center"
         >
           Help Center
         </a>
@@ -40,6 +38,9 @@
         <a class="<%= currentPath === '/' ? 'active' : '' %>" href="/">Home</a>
         <a class="<%= currentPath.startsWith('/vote') ? 'active' : '' %>" href="/vote/login">
           Vote
+        </a>
+        <a class="<%= currentPath === '/help-center' ? 'active' : '' %>" href="/help-center">
+          Help
         </a>
       </nav>
 

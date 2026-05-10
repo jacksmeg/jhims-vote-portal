@@ -93,6 +93,11 @@
           <% } %>
         </p>
 
+        <p class="voter-auth-card__helper">
+          Need help first?
+          <a href="/help-center#vote-guide">Read the voting guide</a>.
+        </p>
+
         <% if (!electionState.isOpen) { %>
           <p class="note-block"><%= electionState.message %></p>
         <% } %>
