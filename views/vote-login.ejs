@@ -93,11 +93,6 @@
           <% } %>
         </p>
 
-        <p class="voter-auth-card__helper">
-          Need help first?
-          <a href="/help-center#vote-guide">Read the voting guide</a>.
-        </p>
-
         <% if (!electionState.isOpen) { %>
           <p class="note-block"><%= electionState.message %></p>
         <% } %>
@@ -189,6 +184,41 @@
       </div>
     </aside>
   </article>
+</section>
+
+<section class="panel panel-light stack-lg" id="vote-guide-inline">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">How To Vote</span>
+      <h3>Step-by-step voting guide for staff</h3>
+    </div>
+    <a class="button button-ghost button-small" href="/vote/login">Back to Voter Login</a>
+  </div>
+
+  <ol class="flow-list">
+    <li>Open the voter portal when voting is open.</li>
+    <li>Enter your staff ID and the same phone number that was registered for you.</li>
+    <li>After successful verification, the ballot opens for you.</li>
+    <li>Select one candidate for a position, or skip the position if you do not want to vote there.</li>
+    <li>Click next to continue through the remaining positions one after another.</li>
+    <li>Review your selections on the confirmation page before final submission.</li>
+    <li>Submit your vote once. After submission, you cannot change it or vote again.</li>
+  </ol>
+
+  <div class="feature-grid guide-feature-grid">
+    <article class="feature-card">
+      <h4>Before you start</h4>
+      <p>Make sure voting is open and your phone number matches the one stored in the system.</p>
+    </article>
+    <article class="feature-card">
+      <h4>During voting</h4>
+      <p>Read each position carefully and move through the ballot step by step until you reach the review page.</p>
+    </article>
+    <article class="feature-card">
+      <h4>After submitting</h4>
+      <p>The system marks you as voted immediately, so you cannot re-enter to cast another ballot.</p>
+    </article>
+  </div>
 </section>
 
 <%- include("partials/public-shell-end") %>

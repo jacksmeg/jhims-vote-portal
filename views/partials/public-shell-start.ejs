@@ -5,6 +5,14 @@
 <% const isVoteLogin = currentPath === '/vote/login'; %>
 <% const showVoteCountdown = isVotePortal && electionState.isOpen && voteClosesAtMs && !isVoteLogin; %>
 <% const showNominationCountdown = currentPath === '/nomination/form' && nominationState.isScheduled && nominationOpensAtMs; %>
+<%
+  const portalHelpHref = isVotePortal
+    ? '/vote/login#vote-guide-inline'
+    : isNominationPortal
+      ? '/nomination/form#nomination-guide-inline'
+      : '/';
+  const portalHelpLabel = isVotePortal ? 'How To Vote' : isNominationPortal ? 'How To Apply' : 'Help';
+%>
 <div class="site-shell">
   <header class="site-header <%= isPortalFlow ? 'site-header--portal' : '' %>">
     <a class="brand-mark" href="<%= isVotePortal ? '/vote/login' : isNominationPortal ? '/nomination/form' : '/' %>">
@@ -23,9 +31,9 @@
       <div class="site-header__utility">
         <a
           class="site-utility-link"
-          href="/help-center"
+          href="<%= portalHelpHref %>"
         >
-          Help Center
+          <%= portalHelpLabel %>
         </a>
 
         <div class="status-badge <%= electionState.badgeClass %>">
@@ -38,9 +46,6 @@
         <a class="<%= currentPath === '/' ? 'active' : '' %>" href="/">Home</a>
         <a class="<%= currentPath.startsWith('/vote') ? 'active' : '' %>" href="/vote/login">
           Vote
-        </a>
-        <a class="<%= currentPath === '/help-center' ? 'active' : '' %>" href="/help-center">
-          Help
         </a>
       </nav>
 
