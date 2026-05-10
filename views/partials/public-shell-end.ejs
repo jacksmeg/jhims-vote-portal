@@ -153,6 +153,115 @@
       });
     });
   })();
+
+  (() => {
+    const walkthroughRoots = Array.from(document.querySelectorAll("[data-walkthrough]"));
+    if (walkthroughRoots.length === 0) {
+      return;
+    }
+
+    walkthroughRoots.forEach((root) => {
+      const slides = Array.from(root.querySelectorAll("[data-walkthrough-slide]"));
+      const steps = Array.from(root.querySelectorAll("[data-walkthrough-step]"));
+      const toggle = root.querySelector("[data-walkthrough-toggle]");
+
+      if (slides.length === 0 || steps.length === 0) {
+        return;
+      }
+
+      let activeIndex = 0;
+      let timerId = null;
+      let isPlaying = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const intervalMs = Number(root.getAttribute("data-walkthrough-interval") || "4400");
+
+      const updateToggleLabel = () => {
+        if (!toggle) {
+          return;
+        }
+
+        const playLabel = toggle.getAttribute("data-play-label") || "Play Demo";
+        const pauseLabel = toggle.getAttribute("data-pause-label") || "Pause Demo";
+        toggle.textContent = isPlaying ? pauseLabel : playLabel;
+        toggle.setAttribute("aria-pressed", isPlaying ? "true" : "false");
+      };
+
+      const activateSlide = (index) => {
+        activeIndex = (index + slides.length) % slides.length;
+
+        slides.forEach((slide, slideIndex) => {
+          const isActive = slideIndex === activeIndex;
+          slide.classList.toggle("is-active", isActive);
+          slide.setAttribute("aria-hidden", isActive ? "false" : "true");
+        });
+
+        steps.forEach((step, stepIndex) => {
+          const isActive = stepIndex === activeIndex;
+          step.classList.toggle("is-active", isActive);
+          step.setAttribute("aria-current", isActive ? "step" : "false");
+        });
+      };
+
+      const stop = () => {
+        if (timerId) {
+          window.clearInterval(timerId);
+          timerId = null;
+        }
+      };
+
+      const start = () => {
+        stop();
+        if (!isPlaying || slides.length <= 1) {
+          updateToggleLabel();
+          return;
+        }
+
+        timerId = window.setInterval(() => {
+          activateSlide(activeIndex + 1);
+        }, Math.max(intervalMs, 2800));
+        updateToggleLabel();
+      };
+
+      steps.forEach((step, index) => {
+        step.addEventListener("click", () => {
+          activateSlide(index);
+          start();
+        });
+      });
+
+      if (toggle) {
+        toggle.addEventListener("click", () => {
+          isPlaying = !isPlaying;
+          if (isPlaying) {
+            start();
+          } else {
+            stop();
+            updateToggleLabel();
+          }
+        });
+      }
+
+      root.addEventListener("mouseenter", () => {
+        stop();
+      });
+
+      root.addEventListener("mouseleave", () => {
+        start();
+      });
+
+      root.addEventListener("focusin", () => {
+        stop();
+      });
+
+      root.addEventListener("focusout", (event) => {
+        if (!root.contains(event.relatedTarget)) {
+          start();
+        }
+      });
+
+      activateSlide(0);
+      start();
+    });
+  })();
 </script>
 </body>
 </html>

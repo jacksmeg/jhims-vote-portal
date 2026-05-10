@@ -186,6 +186,220 @@
   </article>
 </section>
 
+<section class="panel panel-light stack-lg walkthrough-panel" id="vote-demo">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Animated Walkthrough</span>
+      <h3>Watch exactly how staff vote in this portal.</h3>
+    </div>
+    <p class="muted-text">
+      This in-app demo follows the same login, ballot, review, and submission flow voters use on the
+      real system.
+    </p>
+  </div>
+
+  <div class="walkthrough-shell" data-walkthrough data-walkthrough-interval="4400">
+    <div class="walkthrough-stage">
+      <% voteWalkthrough.steps.forEach((step, stepIndex) => { %>
+        <article
+          class="walkthrough-slide <%= stepIndex === 0 ? 'is-active' : '' %>"
+          data-walkthrough-slide="<%= stepIndex %>"
+          aria-hidden="<%= stepIndex === 0 ? 'false' : 'true' %>"
+        >
+          <div class="walkthrough-slide__copy">
+            <div class="walkthrough-slide__topline">
+              <span class="eyebrow"><%= step.stepLabel %></span>
+              <span class="walkthrough-pill"><%= step.badgeText %></span>
+            </div>
+            <h4><%= step.title %></h4>
+            <p><%= step.summary %></p>
+          </div>
+
+          <div class="walkthrough-browser">
+            <div class="walkthrough-browser__topbar">
+              <div class="walkthrough-browser__lights" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="walkthrough-browser__url">
+                <span>vote.jhimssoftware.com</span>
+                <small><%= step.route %></small>
+              </div>
+            </div>
+
+            <div class="walkthrough-browser__body">
+              <% if (step.key === "login") { %>
+                <div class="demo-screen-card demo-screen-card--auth">
+                  <div class="demo-screen-card__header">
+                    <strong><%= step.screenTitle %></strong>
+                    <span>Secure verification</span>
+                  </div>
+
+                  <div class="demo-field">
+                    <span>Staff ID</span>
+                    <strong>STF0234</strong>
+                  </div>
+
+                  <div class="demo-field">
+                    <span>Phone Number</span>
+                    <strong>024 123 4567</strong>
+                  </div>
+
+                  <button class="demo-button demo-button--primary" type="button">
+                    <%= step.primaryButtonLabel %>
+                  </button>
+
+                  <p class="demo-screen-card__note"><%= step.secondaryCopy %></p>
+                </div>
+              <% } else if (step.key === "otp") { %>
+                <div class="demo-screen-card demo-screen-card--otp">
+                  <div class="demo-screen-card__header">
+                    <strong>Phone Verification</strong>
+                    <span>OTP required</span>
+                  </div>
+
+                  <p class="demo-screen-card__note">
+                    Code sent to <strong><%= step.maskedPhone %></strong>
+                  </p>
+
+                  <div class="demo-otp-grid" aria-hidden="true">
+                    <% step.otpDigits.forEach((digit) => { %>
+                      <span><%= digit %></span>
+                    <% }) %>
+                  </div>
+
+                  <div class="demo-button-row">
+                    <button class="demo-button demo-button--primary" type="button">Verify and Continue</button>
+                    <button class="demo-button demo-button--ghost" type="button">Resend OTP</button>
+                  </div>
+                </div>
+              <% } else if (step.key === "ballot") { %>
+                <div class="demo-screen-card demo-screen-card--ballot">
+                  <div class="demo-progress">
+                    <div>
+                      <span><%= step.stepLabel %> of <%= step.totalPositions %></span>
+                      <strong><%= step.currentPositionName %></strong>
+                    </div>
+                    <div class="demo-progress__meter">
+                      <span style="width: <%= step.progressPercent %>%"></span>
+                    </div>
+                  </div>
+
+                  <div class="demo-candidate-list">
+                    <% step.candidates.forEach((candidate) => { %>
+                      <div class="demo-candidate <%= candidate.name === step.selectedCandidateName ? 'demo-candidate--selected' : '' %>">
+                        <% if (candidate.photoPath) { %>
+                          <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+                        <% } else { %>
+                          <div class="demo-candidate__avatar"><%= candidate.initials %></div>
+                        <% } %>
+
+                        <div class="demo-candidate__copy">
+                          <strong><%= candidate.name %></strong>
+                          <span><%= candidate.bio || `${step.currentPositionName} candidate` %></span>
+                        </div>
+                      </div>
+                    <% }) %>
+                  </div>
+
+                  <div class="demo-button-row">
+                    <button class="demo-button demo-button--ghost" type="button">Skip Position</button>
+                    <button class="demo-button demo-button--primary" type="button">Next Position</button>
+                  </div>
+                </div>
+              <% } else if (step.key === "review") { %>
+                <div class="demo-screen-card demo-screen-card--review">
+                  <div class="demo-screen-card__header">
+                    <strong>Final Review</strong>
+                    <span>Check before submit</span>
+                  </div>
+
+                  <div class="demo-review-list">
+                    <% step.selections.forEach((selection) => { %>
+                      <div class="demo-review-row">
+                        <div>
+                          <strong><%= selection.positionName %></strong>
+                          <span><%= selection.statusMeta %></span>
+                        </div>
+                        <em class="<%= selection.isSkipped ? 'demo-review-row__status demo-review-row__status--skipped' : 'demo-review-row__status' %>">
+                          <%= selection.statusLabel %>
+                        </em>
+                      </div>
+                    <% }) %>
+                  </div>
+
+                  <div class="demo-button-row">
+                    <button class="demo-button demo-button--ghost" type="button">Go Back</button>
+                    <button class="demo-button demo-button--primary" type="button">Yes, Submit</button>
+                  </div>
+                </div>
+              <% } else if (step.key === "complete") { %>
+                <div class="demo-screen-card demo-screen-card--complete">
+                  <div class="demo-success-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M9.55 16.8 5.7 12.95l1.4-1.4 2.45 2.45 7.35-7.35 1.4 1.4-8.75 8.75Z" fill="currentColor"/>
+                    </svg>
+                  </div>
+                  <strong class="demo-success-title">Ballot recorded successfully</strong>
+                  <p class="demo-screen-card__note">
+                    Thank you <strong><%= step.receiptName %></strong>. Your vote was saved on
+                    <strong><%= step.receiptTime %></strong>.
+                  </p>
+
+                  <div class="demo-button-row demo-button-row--center">
+                    <button class="demo-button demo-button--primary" type="button">Finish Session</button>
+                  </div>
+                </div>
+              <% } %>
+            </div>
+          </div>
+
+          <div class="walkthrough-slide__footer">
+            <p><%= step.helperText %></p>
+          </div>
+        </article>
+      <% }) %>
+    </div>
+
+    <aside class="walkthrough-sidebar">
+      <div class="walkthrough-sidebar__header">
+        <strong>Voting Demo Timeline</strong>
+        <p>Click any step or let the demo play automatically.</p>
+      </div>
+
+      <div class="walkthrough-steps">
+        <% voteWalkthrough.steps.forEach((step, stepIndex) => { %>
+          <button
+            class="walkthrough-step <%= stepIndex === 0 ? 'is-active' : '' %>"
+            type="button"
+            data-walkthrough-step="<%= stepIndex %>"
+          >
+            <span class="walkthrough-step__index"><%= String(stepIndex + 1).padStart(2, "0") %></span>
+            <span class="walkthrough-step__body">
+              <strong><%= step.title %></strong>
+              <small><%= step.summary %></small>
+            </span>
+          </button>
+        <% }) %>
+      </div>
+
+      <div class="walkthrough-sidebar__footer">
+        <button
+          class="button button-ghost button-small"
+          type="button"
+          data-walkthrough-toggle
+          data-play-label="Play Demo"
+          data-pause-label="Pause Demo"
+        >
+          Pause Demo
+        </button>
+        <a class="button button-small" href="#vote-guide-inline">Read Written Guide</a>
+      </div>
+    </aside>
+  </div>
+</section>
+
 <section class="panel panel-light stack-lg" id="vote-guide-inline">
   <div class="section-heading">
     <div>

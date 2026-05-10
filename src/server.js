@@ -1161,6 +1161,166 @@ function getBallotData() {
   return Array.from(positionsMap.values());
 }
 
+function buildVoteWalkthroughData(otpEnabled = false) {
+  const fallbackBallot = [
+    {
+      name: "President",
+      candidates: [
+        { name: "Ama Boateng", photoPath: "", bio: "Leadership and welfare" },
+        { name: "John Mensah", photoPath: "", bio: "Innovation and growth" },
+        { name: "Kofi Asare", photoPath: "", bio: "Transparency and service" },
+      ],
+    },
+    {
+      name: "Secretary",
+      candidates: [
+        { name: "Mary Owusu", photoPath: "", bio: "Records and communication" },
+        { name: "Daniel Appiah", photoPath: "", bio: "Coordination and support" },
+      ],
+    },
+    {
+      name: "Treasurer",
+      candidates: [
+        { name: "Grace Aidoo", photoPath: "", bio: "Accountability and planning" },
+        { name: "Samuel Tetteh", photoPath: "", bio: "Financial discipline" },
+      ],
+    },
+  ];
+
+  const liveBallot = getBallotData().filter(
+    (position) => position && Array.isArray(position.candidates) && position.candidates.length > 0,
+  );
+  const demoBallot = liveBallot.slice(0, 3).map((position, index) => ({
+    id: position.id || index + 1,
+    name: position.name || `Position ${index + 1}`,
+    candidates: position.candidates.slice(0, 3).map((candidate, candidateIndex) => ({
+      id: candidate.id || candidateIndex + 1,
+      name: candidate.name || `Candidate ${candidateIndex + 1}`,
+      photoPath: candidate.photoPath || "",
+      bio: candidate.bio || "",
+      initials: getInitials(candidate.name || `Candidate ${candidateIndex + 1}`),
+    })),
+  }));
+
+  while (demoBallot.length < fallbackBallot.length) {
+    const fallbackPosition = fallbackBallot[demoBallot.length];
+    demoBallot.push({
+      id: demoBallot.length + 1,
+      name: fallbackPosition.name,
+      candidates: fallbackPosition.candidates.map((candidate, candidateIndex) => ({
+        id: candidateIndex + 1,
+        name: candidate.name,
+        photoPath: candidate.photoPath,
+        bio: candidate.bio,
+        initials: getInitials(candidate.name),
+      })),
+    });
+  }
+
+  const totalPositions = Math.max(demoBallot.length, 1);
+  const firstPosition = demoBallot[0];
+  const selectedCandidate = firstPosition.candidates[0];
+  const reviewSelections = demoBallot.map((position, index) => {
+    if (index === 1) {
+      return {
+        positionName: position.name,
+        statusLabel: "Skipped",
+        statusMeta: "No vote selected",
+        isSkipped: true,
+      };
+    }
+
+    const candidate = position.candidates[0] || selectedCandidate;
+    return {
+      positionName: position.name,
+      statusLabel: candidate.name,
+      statusMeta: "Selected candidate",
+      isSkipped: false,
+    };
+  });
+
+  const steps = [
+    {
+      key: "login",
+      route: "/vote/login",
+      title: otpEnabled ? "Sign in and request OTP" : "Sign in to open your ballot",
+      summary: otpEnabled
+        ? "Enter your staff ID and registered phone number, then request your one-time code."
+        : "Enter your staff ID and registered phone number to verify your voter record.",
+      badgeText: otpEnabled ? "OTP login enabled" : "Direct ballot access",
+      helperText: otpEnabled
+        ? "We verify your details first, then send a one-time code to your phone."
+        : "Your ballot opens as soon as your staff details are verified successfully.",
+      screenTitle: "Voter Login",
+      primaryButtonLabel: otpEnabled ? "Send OTP Code" : "Continue to Ballot",
+      secondaryCopy: otpEnabled
+        ? "Verification code will be sent to your registered phone."
+        : "The system verifies your details before opening the ballot.",
+    },
+  ];
+
+  if (otpEnabled) {
+    steps.push({
+      key: "otp",
+      route: "/vote/verify-otp",
+      title: "Verify the OTP sent to your phone",
+      summary: "Enter the six-digit code to unlock the voting pages securely.",
+      badgeText: "Phone verification",
+      helperText: "Only the verified voter can continue to the ballot after this check.",
+      maskedPhone: "024 ••• •612",
+      otpDigits: ["1", "4", "8", "9", "2", "6"],
+    });
+  }
+
+  steps.push(
+    {
+      key: "ballot",
+      route: "/vote/step/1",
+      title: `Vote for ${firstPosition.name} and continue`,
+      summary: "Choose one candidate for each position, or skip if you do not want to vote there.",
+      badgeText: `${totalPositions} ballot positions`,
+      helperText:
+        totalPositions > 1
+          ? `After this step, the next position appears automatically until you reach the review page.`
+          : "After making your choice, continue straight to the review page.",
+      currentPositionName: firstPosition.name,
+      currentStep: 1,
+      totalPositions,
+      progressPercent: Math.max(Math.round((1 / totalPositions) * 100), 20),
+      candidates: firstPosition.candidates,
+      selectedCandidateName: selectedCandidate.name,
+    },
+    {
+      key: "review",
+      route: "/vote/confirm",
+      title: "Review every choice before final submission",
+      summary: "The confirmation page shows all selected and skipped positions together.",
+      badgeText: "Final review",
+      helperText: "Once you submit, the system records your ballot and prevents another vote.",
+      selections: reviewSelections,
+    },
+    {
+      key: "complete",
+      route: "/vote/complete",
+      title: "Submit once and finish your session",
+      summary: "A success screen confirms that your ballot has been recorded and locked.",
+      badgeText: "Ballot recorded",
+      helperText: "Your voter record is marked as voted immediately after submission.",
+      receiptName: "Sample Staff Member",
+      receiptTime: dayjs().format("ddd, MMM D, YYYY h:mm A"),
+    },
+  );
+
+  steps.forEach((step, index) => {
+    step.stepLabel = `Step ${index + 1}`;
+  });
+
+  return {
+    steps,
+    totalPositions,
+  };
+}
+
 function getBallotSelectionMap(req) {
   return req.session.ballotSelections || {};
 }
@@ -3298,9 +3458,11 @@ app.get("/vote/login", (req, res) => {
     return res.redirect("/vote/verify-otp");
   }
 
+  const otpEnabled = isOtpVerificationEnabled();
   return res.render("vote-login", {
     pageTitle: "Voter Login",
-    otpEnabled: isOtpVerificationEnabled(),
+    otpEnabled,
+    voteWalkthrough: buildVoteWalkthroughData(otpEnabled),
   });
 });
 
