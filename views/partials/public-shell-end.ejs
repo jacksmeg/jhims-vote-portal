@@ -155,6 +155,95 @@
   })();
 
   (() => {
+    const toggles = Array.from(document.querySelectorAll("[data-disclosure-toggle]"));
+    if (toggles.length === 0) {
+      return;
+    }
+
+    const togglesByPanelId = new Map();
+
+    const setToggleState = (toggle, isOpen) => {
+      const openLabel = toggle.getAttribute("data-open-label") || "Hide Section";
+      const closeLabel = toggle.getAttribute("data-close-label") || "Open Section";
+      toggle.classList.toggle("is-active", isOpen);
+      toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      toggle.textContent = isOpen ? openLabel : closeLabel;
+    };
+
+    const syncPanelState = (panel, isOpen, { scrollIntoView = false } = {}) => {
+      panel.hidden = !isOpen;
+      panel.classList.toggle("is-open", isOpen);
+
+      const linkedToggles = togglesByPanelId.get(panel.id) || [];
+      linkedToggles.forEach((toggle) => {
+        setToggleState(toggle, isOpen);
+      });
+
+      const walkthroughRoot = panel.querySelector("[data-walkthrough]");
+      if (walkthroughRoot?.__walkthrough) {
+        if (isOpen) {
+          walkthroughRoot.__walkthrough.open();
+        } else {
+          walkthroughRoot.__walkthrough.close();
+        }
+      }
+
+      if (isOpen && scrollIntoView) {
+        window.setTimeout(() => {
+          panel.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 40);
+      }
+    };
+
+    toggles.forEach((toggle) => {
+      const panelId = toggle.getAttribute("data-disclosure-target") || "";
+      if (!panelId) {
+        return;
+      }
+
+      const panel = document.getElementById(panelId);
+      if (!panel) {
+        return;
+      }
+
+      const linkedToggles = togglesByPanelId.get(panelId) || [];
+      linkedToggles.push(toggle);
+      togglesByPanelId.set(panelId, linkedToggles);
+      setToggleState(toggle, !panel.hidden);
+
+      toggle.addEventListener("click", () => {
+        const shouldOpen = panel.hidden;
+        syncPanelState(panel, shouldOpen, { scrollIntoView: shouldOpen });
+      });
+    });
+
+    const openPanelFromHash = () => {
+      const hash = window.location.hash ? window.location.hash.slice(1) : "";
+      if (!hash) {
+        return;
+      }
+
+      const target = document.getElementById(hash);
+      if (!target) {
+        return;
+      }
+
+      const panel = target.matches("[data-disclosure-panel]")
+        ? target
+        : target.closest("[data-disclosure-panel]");
+
+      if (!panel) {
+        return;
+      }
+
+      syncPanelState(panel, true, { scrollIntoView: true });
+    };
+
+    openPanelFromHash();
+    window.addEventListener("hashchange", openPanelFromHash);
+  })();
+
+  (() => {
     const walkthroughRoots = Array.from(document.querySelectorAll("[data-walkthrough]"));
     if (walkthroughRoots.length === 0) {
       return;
@@ -164,6 +253,7 @@
       const slides = Array.from(root.querySelectorAll("[data-walkthrough-slide]"));
       const steps = Array.from(root.querySelectorAll("[data-walkthrough-step]"));
       const toggle = root.querySelector("[data-walkthrough-toggle]");
+      const disclosurePanel = root.closest("[data-disclosure-panel]");
 
       if (slides.length === 0 || steps.length === 0) {
         return;
@@ -199,6 +289,18 @@
           step.classList.toggle("is-active", isActive);
           step.setAttribute("aria-current", isActive ? "step" : "false");
         });
+      };
+
+      root.__walkthrough = {
+        open() {
+          activateSlide(0);
+          start();
+        },
+        close() {
+          stop();
+          activateSlide(0);
+          updateToggleLabel();
+        },
       };
 
       const stop = () => {
@@ -259,7 +361,12 @@
       });
 
       activateSlide(0);
-      start();
+      if (disclosurePanel?.hidden) {
+        stop();
+        updateToggleLabel();
+      } else {
+        start();
+      }
     });
   })();
 </script>

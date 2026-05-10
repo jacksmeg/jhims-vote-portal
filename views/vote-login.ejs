@@ -186,7 +186,43 @@
   </article>
 </section>
 
-<section class="panel panel-light stack-lg walkthrough-panel" id="vote-demo">
+<section class="panel panel-light vote-support-panel">
+  <div class="vote-support-panel__copy">
+    <span class="eyebrow">Voter Help</span>
+    <h3>Open only the help you need.</h3>
+    <p>Use the quick buttons below to watch the animated demo or read the voting steps when needed.</p>
+  </div>
+
+  <div class="vote-support-panel__actions">
+    <button
+      class="button button-ghost button-small vote-support-trigger"
+      type="button"
+      data-disclosure-toggle
+      data-disclosure-target="vote-walkthrough-panel"
+      data-open-label="Hide Animated Walkthrough"
+      data-close-label="Animated Walkthrough"
+      aria-expanded="false"
+      aria-controls="vote-walkthrough-panel"
+    >
+      Animated Walkthrough
+    </button>
+
+    <button
+      class="button button-ghost button-small vote-support-trigger"
+      type="button"
+      data-disclosure-toggle
+      data-disclosure-target="vote-guide-panel"
+      data-open-label="Hide How To Vote"
+      data-close-label="How To Vote"
+      aria-expanded="false"
+      aria-controls="vote-guide-panel"
+    >
+      How To Vote
+    </button>
+  </div>
+</section>
+
+<section class="panel panel-light stack-lg walkthrough-panel" id="vote-walkthrough-panel" data-disclosure-panel hidden>
   <div class="section-heading">
     <div>
       <span class="eyebrow">Animated Walkthrough</span>
@@ -394,13 +430,13 @@
         >
           Pause Demo
         </button>
-        <a class="button button-small" href="#vote-guide-inline">Read Written Guide</a>
+        <a class="button button-small" href="#vote-guide-panel">Read Written Guide</a>
       </div>
     </aside>
   </div>
 </section>
 
-<section class="panel panel-light stack-lg" id="vote-guide-inline">
+<section class="panel panel-light stack-lg vote-guide-panel" id="vote-guide-panel" data-disclosure-panel hidden>
   <div class="section-heading">
     <div>
       <span class="eyebrow">How To Vote</span>
