@@ -161,6 +161,7 @@
     }
 
     const togglesByPanelId = new Map();
+    const panels = Array.from(document.querySelectorAll("[data-disclosure-panel]"));
 
     const setToggleState = (toggle, isOpen) => {
       const openLabel = toggle.getAttribute("data-open-label") || "Hide Section";
@@ -215,6 +216,10 @@
         const shouldOpen = panel.hidden;
         syncPanelState(panel, shouldOpen, { scrollIntoView: shouldOpen });
       });
+    });
+
+    panels.forEach((panel) => {
+      syncPanelState(panel, false);
     });
 
     const openPanelFromHash = () => {

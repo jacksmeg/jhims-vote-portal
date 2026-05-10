@@ -2725,6 +2725,14 @@ body {
   scroll-margin-top: 110px;
 }
 
+[data-disclosure-panel] {
+  display: none !important;
+}
+
+[data-disclosure-panel].is-open {
+  display: block !important;
+}
+
 .vote-support-panel {
   display: flex;
   align-items: center;
