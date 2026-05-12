@@ -11,6 +11,8 @@ const session = require("express-session");
 const helmet = require("helmet");
 const multer = require("multer");
 const PDFDocument = require("pdfkit");
+const { PNG } = require("pngjs");
+const jpeg = require("jpeg-js");
 const QRCode = require("qrcode");
 
 const {
@@ -468,6 +470,437 @@ function resolveAssetPath(assetPath) {
   }
 
   return resolvePathWithin(publicDirectory, relativePath);
+}
+
+function clampNumber(value, minimum, maximum) {
+  return Math.min(Math.max(value, minimum), maximum);
+}
+
+function hashNumberFromString(value) {
+  return Array.from(String(value || "")).reduce((hash, character) => {
+    return (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }, 0);
+}
+
+function sampleRasterPixel(image, x, y) {
+  const pixelX = clampNumber(x, 0, image.width - 1);
+  const pixelY = clampNumber(y, 0, image.height - 1);
+  const offset = (pixelY * image.width + pixelX) * 4;
+
+  return {
+    red: image.data[offset] || 0,
+    green: image.data[offset + 1] || 0,
+    blue: image.data[offset + 2] || 0,
+    alpha: image.data[offset + 3] ?? 255,
+  };
+}
+
+function resizeRasterImage(image, maxDimension = 1600) {
+  const largestSide = Math.max(image.width, image.height);
+
+  if (!Number.isFinite(largestSide) || largestSide <= maxDimension) {
+    return {
+      width: image.width,
+      height: image.height,
+      data: Buffer.from(image.data),
+    };
+  }
+
+  const scale = maxDimension / largestSide;
+  const nextWidth = Math.max(1, Math.round(image.width * scale));
+  const nextHeight = Math.max(1, Math.round(image.height * scale));
+  const resizedData = Buffer.alloc(nextWidth * nextHeight * 4);
+
+  for (let y = 0; y < nextHeight; y += 1) {
+    const sourceY = Math.min(image.height - 1, Math.floor(y / scale));
+
+    for (let x = 0; x < nextWidth; x += 1) {
+      const sourceX = Math.min(image.width - 1, Math.floor(x / scale));
+      const sourceOffset = (sourceY * image.width + sourceX) * 4;
+      const targetOffset = (y * nextWidth + x) * 4;
+
+      resizedData[targetOffset] = image.data[sourceOffset];
+      resizedData[targetOffset + 1] = image.data[sourceOffset + 1];
+      resizedData[targetOffset + 2] = image.data[sourceOffset + 2];
+      resizedData[targetOffset + 3] = image.data[sourceOffset + 3];
+    }
+  }
+
+  return {
+    width: nextWidth,
+    height: nextHeight,
+    data: resizedData,
+  };
+}
+
+function decodeRasterImage(filePath) {
+  const fileBuffer = fs.readFileSync(filePath);
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (extension === ".png") {
+    const parsedImage = PNG.sync.read(fileBuffer);
+    return {
+      width: parsedImage.width,
+      height: parsedImage.height,
+      data: Buffer.from(parsedImage.data),
+    };
+  }
+
+  if (extension === ".jpg" || extension === ".jpeg") {
+    const parsedImage = jpeg.decode(fileBuffer, {
+      useTArray: true,
+    });
+    return {
+      width: parsedImage.width,
+      height: parsedImage.height,
+      data: Buffer.from(parsedImage.data),
+    };
+  }
+
+  try {
+    const parsedPng = PNG.sync.read(fileBuffer);
+    return {
+      width: parsedPng.width,
+      height: parsedPng.height,
+      data: Buffer.from(parsedPng.data),
+    };
+  } catch (_pngError) {
+    const parsedJpeg = jpeg.decode(fileBuffer, {
+      useTArray: true,
+    });
+
+    return {
+      width: parsedJpeg.width,
+      height: parsedJpeg.height,
+      data: Buffer.from(parsedJpeg.data),
+    };
+  }
+}
+
+function getAverageCornerColor(image) {
+  const samplePoints = [
+    [2, 2],
+    [image.width - 3, 2],
+    [2, image.height - 3],
+    [image.width - 3, image.height - 3],
+    [Math.floor(image.width * 0.5), 2],
+    [Math.floor(image.width * 0.5), image.height - 3],
+  ];
+  const totals = samplePoints.reduce(
+    (accumulator, [x, y]) => {
+      const sample = sampleRasterPixel(image, x, y);
+      accumulator.red += sample.red;
+      accumulator.green += sample.green;
+      accumulator.blue += sample.blue;
+      return accumulator;
+    },
+    { red: 0, green: 0, blue: 0 },
+  );
+
+  return {
+    red: Math.round(totals.red / samplePoints.length),
+    green: Math.round(totals.green / samplePoints.length),
+    blue: Math.round(totals.blue / samplePoints.length),
+  };
+}
+
+function getColorDistance(colorA, colorB) {
+  const redDelta = colorA.red - colorB.red;
+  const greenDelta = colorA.green - colorB.green;
+  const blueDelta = colorA.blue - colorB.blue;
+  return Math.sqrt(redDelta ** 2 + greenDelta ** 2 + blueDelta ** 2);
+}
+
+function isBackgroundLikePixel(pixel, backgroundColor) {
+  const maxChannel = Math.max(pixel.red, pixel.green, pixel.blue);
+  const minChannel = Math.min(pixel.red, pixel.green, pixel.blue);
+  const brightness = (pixel.red + pixel.green + pixel.blue) / 3;
+  const saturation = maxChannel - minChannel;
+  const distanceFromBackground = getColorDistance(pixel, backgroundColor);
+
+  if (pixel.alpha < 60) {
+    return true;
+  }
+
+  if (distanceFromBackground <= 48) {
+    return true;
+  }
+
+  if (distanceFromBackground <= 72 && saturation <= 28 && brightness >= 190) {
+    return true;
+  }
+
+  if (brightness >= 242 && saturation <= 18) {
+    return true;
+  }
+
+  return false;
+}
+
+function cropTransparentRasterImage(image, padding = 20) {
+  let minX = image.width;
+  let minY = image.height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < image.height; y += 1) {
+    for (let x = 0; x < image.width; x += 1) {
+      const alpha = image.data[(y * image.width + x) * 4 + 3];
+      if (alpha > 18) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  if (maxX < minX || maxY < minY) {
+    return image;
+  }
+
+  const croppedMinX = Math.max(0, minX - padding);
+  const croppedMinY = Math.max(0, minY - padding);
+  const croppedMaxX = Math.min(image.width - 1, maxX + padding);
+  const croppedMaxY = Math.min(image.height - 1, maxY + padding);
+  const croppedWidth = croppedMaxX - croppedMinX + 1;
+  const croppedHeight = croppedMaxY - croppedMinY + 1;
+  const croppedData = Buffer.alloc(croppedWidth * croppedHeight * 4);
+
+  for (let y = 0; y < croppedHeight; y += 1) {
+    for (let x = 0; x < croppedWidth; x += 1) {
+      const sourceOffset = ((croppedMinY + y) * image.width + (croppedMinX + x)) * 4;
+      const targetOffset = (y * croppedWidth + x) * 4;
+      image.data.copy(croppedData, targetOffset, sourceOffset, sourceOffset + 4);
+    }
+  }
+
+  return {
+    width: croppedWidth,
+    height: croppedHeight,
+    data: croppedData,
+  };
+}
+
+function removePortraitBackground(filePath) {
+  const decodedImage = resizeRasterImage(decodeRasterImage(filePath));
+  const backgroundColor = getAverageCornerColor(decodedImage);
+  const backgroundMask = new Uint8Array(decodedImage.width * decodedImage.height);
+  const queue = [];
+
+  const markPixel = (x, y) => {
+    if (x < 0 || x >= decodedImage.width || y < 0 || y >= decodedImage.height) {
+      return;
+    }
+
+    const index = y * decodedImage.width + x;
+    if (backgroundMask[index]) {
+      return;
+    }
+
+    const pixel = sampleRasterPixel(decodedImage, x, y);
+    if (!isBackgroundLikePixel(pixel, backgroundColor)) {
+      return;
+    }
+
+    backgroundMask[index] = 1;
+    queue.push(index);
+  };
+
+  for (let x = 0; x < decodedImage.width; x += 1) {
+    markPixel(x, 0);
+    markPixel(x, decodedImage.height - 1);
+  }
+
+  for (let y = 0; y < decodedImage.height; y += 1) {
+    markPixel(0, y);
+    markPixel(decodedImage.width - 1, y);
+  }
+
+  let queueIndex = 0;
+
+  while (queueIndex < queue.length) {
+    const currentIndex = queue[queueIndex];
+    queueIndex += 1;
+    const x = currentIndex % decodedImage.width;
+    const y = Math.floor(currentIndex / decodedImage.width);
+
+    markPixel(x + 1, y);
+    markPixel(x - 1, y);
+    markPixel(x, y + 1);
+    markPixel(x, y - 1);
+  }
+
+  const cleanedData = Buffer.from(decodedImage.data);
+
+  for (let y = 0; y < decodedImage.height; y += 1) {
+    for (let x = 0; x < decodedImage.width; x += 1) {
+      const pixelIndex = y * decodedImage.width + x;
+      const offset = pixelIndex * 4;
+
+      if (backgroundMask[pixelIndex]) {
+        cleanedData[offset + 3] = 0;
+        continue;
+      }
+
+      const pixel = sampleRasterPixel(decodedImage, x, y);
+      const distanceFromBackground = getColorDistance(pixel, backgroundColor);
+      const hasBackgroundNeighbour =
+        (x > 0 && backgroundMask[pixelIndex - 1]) ||
+        (x < decodedImage.width - 1 && backgroundMask[pixelIndex + 1]) ||
+        (y > 0 && backgroundMask[pixelIndex - decodedImage.width]) ||
+        (y < decodedImage.height - 1 && backgroundMask[pixelIndex + decodedImage.width]);
+
+      if (hasBackgroundNeighbour && distanceFromBackground < 95) {
+        cleanedData[offset + 3] = Math.min(cleanedData[offset + 3], 208);
+      }
+    }
+  }
+
+  const croppedPortrait = cropTransparentRasterImage(
+    {
+      width: decodedImage.width,
+      height: decodedImage.height,
+      data: cleanedData,
+    },
+    Math.max(18, Math.round(Math.min(decodedImage.width, decodedImage.height) * 0.04)),
+  );
+
+  const pngImage = new PNG({
+    width: croppedPortrait.width,
+    height: croppedPortrait.height,
+  });
+  pngImage.data = Buffer.from(croppedPortrait.data);
+  return PNG.sync.write(pngImage);
+}
+
+function getOrganizationDisplayName(electionName) {
+  const cleanedName = String(electionName || defaultElectionName)
+    .replace(/\bElection Portal\b/gi, "")
+    .replace(/\bElection Administration\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return cleanedName || String(electionName || defaultElectionName).trim();
+}
+
+function splitFlyerText(value, maxLines = 2, targetLineLength = 16) {
+  const words = String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (words.length === 0) {
+    return [];
+  }
+
+  const lines = [];
+  let currentLine = "";
+
+  words.forEach((word, index) => {
+    const nextLine = currentLine ? `${currentLine} ${word}` : word;
+    const isLastLine = lines.length === maxLines - 1;
+
+    if (!isLastLine && nextLine.length > targetLineLength && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+      return;
+    }
+
+    currentLine = nextLine;
+
+    if (index === words.length - 1) {
+      lines.push(currentLine);
+    }
+  });
+
+  if (lines.length > maxLines) {
+    const head = lines.slice(0, maxLines - 1);
+    const tail = lines.slice(maxLines - 1).join(" ");
+    return [...head, tail];
+  }
+
+  return lines;
+}
+
+function getNominationFlyerTheme(nomination) {
+  const themes = [
+    {
+      key: "heritage-arc",
+      paper: "#fbf6ee",
+      primary: "#0d5677",
+      secondary: "#f0a848",
+      accent: "#0f9cb3",
+      dark: "#102338",
+      soft: "#ffffff",
+      layout: "arc",
+    },
+    {
+      key: "emerald-column",
+      paper: "#f7f9f5",
+      primary: "#14665a",
+      secondary: "#f4b942",
+      accent: "#7ed3c2",
+      dark: "#16313c",
+      soft: "#ffffff",
+      layout: "column",
+    },
+    {
+      key: "sunrise-ribbon",
+      paper: "#fff7ef",
+      primary: "#b7512a",
+      secondary: "#183b6b",
+      accent: "#f09d5f",
+      dark: "#18263a",
+      soft: "#fffdf8",
+      layout: "ribbon",
+    },
+    {
+      key: "royal-spotlight",
+      paper: "#f6f7fb",
+      primary: "#29407f",
+      secondary: "#0fa3b1",
+      accent: "#f2b441",
+      dark: "#16223a",
+      soft: "#ffffff",
+      layout: "spotlight",
+    },
+  ];
+  const seed = hashNumberFromString(
+    `${nomination.applicationNumber}|${nomination.fullName}|${nomination.positionName}`,
+  );
+  const theme = themes[seed % themes.length];
+
+  return {
+    ...theme,
+    seed,
+  };
+}
+
+function safeDrawImage(document, imageSource, x, y, options = {}) {
+  if (!imageSource) {
+    return false;
+  }
+
+  try {
+    document.image(imageSource, x, y, options);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+function getNominationPortraitSource(photoPath) {
+  const resolvedPhotoPath = photoPath ? resolveAssetPath(photoPath) : "";
+  if (!resolvedPhotoPath || !fs.existsSync(resolvedPhotoPath)) {
+    return "";
+  }
+
+  try {
+    return removePortraitBackground(resolvedPhotoPath);
+  } catch (_error) {
+    return resolvedPhotoPath;
+  }
 }
 
 function getElectionSettings() {
@@ -1860,6 +2293,322 @@ function renderNominationFormPdf(document, payload) {
   });
 }
 
+function renderNominationFlyerPdf(document, payload) {
+  const { settings, nomination, generatedAt } = payload;
+  const theme = getNominationFlyerTheme(nomination);
+  const organizationName = getOrganizationDisplayName(settings.electionName);
+  const logoPath = settings.organizationLogoPath
+    ? resolveAssetPath(settings.organizationLogoPath)
+    : "";
+  const portraitSource = getNominationPortraitSource(nomination.photoPath);
+  const fullNameLines = splitFlyerText(
+    String(nomination.fullName || "").toUpperCase(),
+    2,
+    16,
+  );
+  const positionLines = splitFlyerText(
+    String(nomination.positionName || "").toUpperCase(),
+    3,
+    13,
+  );
+  const canvasWidth = document.page.width;
+  const canvasHeight = document.page.height;
+  const accentShiftX = theme.seed % 46;
+  const accentShiftY = Math.floor(theme.seed / 13) % 40;
+
+  document.rect(0, 0, canvasWidth, canvasHeight).fill(theme.paper);
+  document.save();
+  document.opacity(0.18);
+  document.circle(88 + accentShiftX, 84 + accentShiftY, 22 + (theme.seed % 10)).fill(
+    theme.secondary,
+  );
+  document.circle(
+    canvasWidth - 102 - Math.round(accentShiftX * 0.35),
+    canvasHeight - 92,
+    16 + (theme.seed % 8),
+  ).fill(theme.accent);
+  document.roundedRect(
+    canvasWidth - 188,
+    84 + Math.round(accentShiftY * 0.5),
+    84 + (theme.seed % 24),
+    12,
+    6,
+  ).fill(theme.secondary);
+  document.restore();
+
+  if (theme.layout === "arc") {
+    document.save();
+    document.circle(180, 170, 168).fill(theme.primary);
+    document.circle(180, 170, 126).fill("#ffffff");
+    document.restore();
+
+    document.polygon([0, 0], [180, 0], [0, 190]).fill(theme.accent);
+    document.polygon([canvasWidth, canvasHeight], [canvasWidth - 120, canvasHeight], [
+      canvasWidth,
+      canvasHeight - 150,
+    ]).fill(theme.secondary);
+
+    document.roundedRect(420, 250, 240, 220, 28).fill(theme.primary);
+    document.roundedRect(128, 610, 210, 86, 20).fill(theme.soft);
+
+    document.roundedRect(416, 122, 126, 34, 17).fill(theme.secondary);
+    document
+      .fillColor("#ffffff")
+      .font("Helvetica-Bold")
+      .fontSize(12)
+      .text("NOMINATION FLYER", 416, 132, {
+        width: 126,
+        align: "center",
+      });
+
+    safeDrawImage(document, portraitSource, 28, 116, {
+      fit: [344, 548],
+      align: "center",
+      valign: "bottom",
+    });
+
+    safeDrawImage(document, logoPath, 432, 60, {
+      fit: [72, 72],
+      align: "left",
+    });
+
+    document
+      .fillColor(theme.dark)
+      .font("Helvetica-Bold")
+      .fontSize(18)
+      .text(organizationName, 516, 66, {
+        width: 180,
+        align: "left",
+      })
+      .font("Helvetica")
+      .fontSize(11)
+      .fillColor("#5d6d80")
+      .text("Election Portal Nomination Poster", 516, 108, {
+        width: 180,
+        align: "left",
+      });
+
+    document
+      .fillColor("#ffffff")
+      .font("Helvetica")
+      .fontSize(18)
+      .text("ASPIRANT FOR", 452, 286, { width: 170 })
+      .font("Helvetica-Bold")
+      .fontSize(33)
+      .text(positionLines.join("\n"), 452, 326, {
+        width: 180,
+        lineGap: -6,
+      });
+
+    document
+      .fillColor(theme.primary)
+      .font("Helvetica-Bold")
+      .fontSize(fullNameLines.join("").length > 18 ? 28 : 34)
+      .text(fullNameLines.join("\n"), 146, 625, {
+        width: 174,
+        align: "center",
+        lineGap: -6,
+      });
+  } else if (theme.layout === "column") {
+    document.rect(0, 0, canvasWidth, canvasHeight).fill(theme.primary);
+    document.roundedRect(40, 36, 430, 688, 44).fill(theme.soft);
+    document.roundedRect(492, 36, 228, 688, 36).fill(theme.paper);
+    document.polygon([470, 36], [585, 36], [470, 160]).fill(theme.secondary);
+    document.polygon([40, canvasHeight - 68], [216, canvasHeight - 68], [40, canvasHeight]).fill(
+      theme.accent,
+    );
+
+    safeDrawImage(document, portraitSource, 335, 140, {
+      fit: [410, 540],
+      align: "center",
+      valign: "bottom",
+    });
+    safeDrawImage(document, logoPath, 78, 78, {
+      fit: [76, 76],
+      align: "left",
+    });
+
+    document
+      .fillColor(theme.dark)
+      .font("Helvetica-Bold")
+      .fontSize(20)
+      .text(organizationName, 166, 86, {
+        width: 250,
+      })
+      .font("Helvetica")
+      .fontSize(11)
+      .fillColor("#5f6974")
+      .text("Official nomination poster", 166, 126, {
+        width: 220,
+      });
+
+    document.roundedRect(78, 210, 286, 182, 30).fill(theme.primary);
+    document
+      .fillColor("#ffffff")
+      .font("Helvetica")
+      .fontSize(16)
+      .text("CONTESTING FOR", 104, 244, { width: 236 })
+      .font("Helvetica-Bold")
+      .fontSize(31)
+      .text(positionLines.join("\n"), 104, 282, {
+        width: 236,
+        lineGap: -6,
+      });
+
+    document.roundedRect(78, 430, 286, 164, 26).fill("#ffffff");
+    document
+      .fillColor(theme.primary)
+      .font("Helvetica-Bold")
+      .fontSize(fullNameLines.join("").length > 18 ? 30 : 36)
+      .text(fullNameLines.join("\n"), 100, 468, {
+        width: 240,
+        align: "left",
+        lineGap: -6,
+      })
+      .font("Helvetica")
+      .fontSize(12)
+      .fillColor("#5f6974")
+      .text("Nomination application approved for review", 100, 552, {
+        width: 220,
+      });
+  } else if (theme.layout === "ribbon") {
+    document.rect(0, 0, canvasWidth, canvasHeight).fill(theme.paper);
+    document.polygon([0, 0], [canvasWidth, 0], [canvasWidth, 122], [0, 188]).fill(
+      theme.secondary,
+    );
+    document.roundedRect(52, 96, 656, 600, 48).fill(theme.soft);
+    document.roundedRect(426, 214, 236, 264, 30).fill(theme.primary);
+    document.roundedRect(104, 592, 320, 88, 22).fill(theme.secondary);
+    document.polygon([0, canvasHeight - 150], [180, canvasHeight], [0, canvasHeight]).fill(
+      theme.accent,
+    );
+    document.polygon(
+      [canvasWidth, canvasHeight - 170],
+      [canvasWidth - 150, canvasHeight],
+      [canvasWidth, canvasHeight],
+    ).fill(theme.secondary);
+
+    safeDrawImage(document, portraitSource, 84, 160, {
+      fit: [340, 460],
+      align: "center",
+      valign: "bottom",
+    });
+    safeDrawImage(document, logoPath, 94, 120, {
+      fit: [66, 66],
+      align: "left",
+    });
+
+    document
+      .fillColor("#ffffff")
+      .font("Helvetica-Bold")
+      .fontSize(18)
+      .text(organizationName, 176, 124, {
+        width: 280,
+      })
+      .font("Helvetica")
+      .fontSize(11)
+      .fillColor("#e7eef7")
+      .text("Election nomination campaign sheet", 176, 160, {
+        width: 250,
+      });
+
+    document
+      .fillColor("#ffffff")
+      .font("Helvetica")
+      .fontSize(16)
+      .text("NOMINEE FOR", 454, 252, { width: 180 })
+      .font("Helvetica-Bold")
+      .fontSize(31)
+      .text(positionLines.join("\n"), 454, 292, {
+        width: 170,
+        lineGap: -6,
+      });
+
+    document
+      .fillColor("#ffffff")
+      .font("Helvetica-Bold")
+      .fontSize(fullNameLines.join("").length > 18 ? 28 : 34)
+      .text(fullNameLines.join("\n"), 124, 610, {
+        width: 280,
+        align: "center",
+        lineGap: -6,
+      });
+  } else {
+    document.rect(0, 0, canvasWidth, canvasHeight).fill(theme.paper);
+    document.roundedRect(36, 34, 688, 692, 42).fill("#ffffff");
+    document.circle(534, 194, 150).fill(theme.primary);
+    document.circle(534, 194, 108).fill(theme.soft);
+    document.roundedRect(78, 174, 286, 204, 32).fill(theme.primary);
+    document.roundedRect(78, 454, 286, 166, 26).fill(theme.paper);
+    document.polygon([566, 0], [canvasWidth, 0], [canvasWidth, 160]).fill(theme.accent);
+    document.polygon([0, 548], [126, canvasHeight], [0, canvasHeight]).fill(theme.secondary);
+
+    safeDrawImage(document, portraitSource, 330, 138, {
+      fit: [360, 522],
+      align: "center",
+      valign: "bottom",
+    });
+    safeDrawImage(document, logoPath, 88, 74, {
+      fit: [68, 68],
+      align: "left",
+    });
+
+    document
+      .fillColor(theme.dark)
+      .font("Helvetica-Bold")
+      .fontSize(19)
+      .text(organizationName, 168, 82, {
+        width: 270,
+      })
+      .font("Helvetica")
+      .fontSize(11)
+      .fillColor("#607086")
+      .text("Nomination spotlight", 168, 122, {
+        width: 180,
+      });
+
+    document
+      .fillColor("#ffffff")
+      .font("Helvetica")
+      .fontSize(16)
+      .text("POSITION", 102, 214, { width: 220 })
+      .font("Helvetica-Bold")
+      .fontSize(32)
+      .text(positionLines.join("\n"), 102, 250, {
+        width: 220,
+        lineGap: -6,
+      });
+
+    document
+      .fillColor(theme.dark)
+      .font("Helvetica-Bold")
+      .fontSize(fullNameLines.join("").length > 18 ? 30 : 36)
+      .text(fullNameLines.join("\n"), 102, 492, {
+        width: 236,
+        lineGap: -6,
+      })
+      .font("Helvetica")
+      .fontSize(12)
+      .fillColor("#607086")
+      .text("Presented through the official election portal", 102, 578, {
+        width: 210,
+      });
+  }
+
+  document
+    .fillColor(theme.dark)
+    .font("Helvetica")
+    .fontSize(10)
+    .text(`Application No. ${nomination.applicationNumber}`, 72, 714, {
+      width: 210,
+      align: "left",
+    })
+    .text(`Generated ${formatDateTime(generatedAt)}`, 470, 714, {
+      width: 220,
+      align: "right",
+    });
+}
+
 function renderNominationReportPdf(document, payload) {
   const { settings, nominations, generatedAt } = payload;
   const logoPath = settings.organizationLogoPath
@@ -2901,6 +3650,58 @@ app.get("/nomination/status/pdf", (req, res) => {
   document.end();
 });
 
+app.get("/nomination/status/flyer", (req, res) => {
+  const applicant = req.session.nominationApplicant;
+
+  if (!applicant) {
+    setFlash(req, "error", "Enter your application number to download your campaign flyer.");
+    return res.redirect("/nomination/status/login");
+  }
+
+  const nomination =
+    getNominationById(applicant.nominationId || 0) ||
+    getNominationByApplicationNumber(applicant.applicationNumber);
+
+  if (!nomination) {
+    clearNominationSession(req);
+    setFlash(req, "error", "That nomination application could not be found.");
+    return res.redirect("/nomination/status/login");
+  }
+
+  const settings = getElectionSettings();
+  const theme = getNominationFlyerTheme(nomination);
+  const filename = `${toSafeFilename(settings.electionName)}-${toSafeFilename(
+    nomination.applicationNumber || nomination.fullName || "nomination",
+  )}-flyer.pdf`;
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  const document = new PDFDocument({
+    size: [760, 760],
+    margin: 0,
+    info: {
+      Title: `${settings.electionName} Campaign Flyer`,
+      Author: "Organization Vote Portal",
+      Subject: `${nomination.fullName} campaign flyer`,
+      Keywords: `nomination flyer,${nomination.positionName},${nomination.applicationNumber}`,
+    },
+  });
+
+  logAudit(req, "nomination", nomination.applicationNumber, "nomination_flyer_downloaded", {
+    nominationId: nomination.id,
+    theme: theme.key,
+  });
+
+  document.pipe(res);
+  renderNominationFlyerPdf(document, {
+    settings,
+    nomination,
+    generatedAt: nowIso(),
+  });
+  document.end();
+});
+
 app.get("/nomination/login", (req, res) => {
   return res.redirect("/nomination/form");
 });
@@ -3239,7 +4040,7 @@ app.post(
         "success",
         isCorrectionResubmission
           ? "Your nomination has been resubmitted for review."
-          : `Your nomination has been submitted successfully. Save application number ${applicationNumber} to check your status.`,
+          : `Your nomination has been submitted successfully. Save application number ${applicationNumber} to check your status and download your campaign flyer.`,
       );
       return res.redirect("/nomination/status");
     } catch (error) {

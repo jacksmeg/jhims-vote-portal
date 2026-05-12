@@ -16,6 +16,7 @@
     <% if (nominationState.isOpen && nomination?.statusMeta.canApplicantEdit) { %>
       <a class="button" href="/nomination/form?edit=<%= nomination.id %>">Continue Correction</a>
     <% } %>
+    <a class="button" href="/nomination/status/flyer">Download Campaign Flyer</a>
     <a class="button button-ghost" href="/nomination/status/pdf">Download Filled Form PDF</a>
     <button
       class="button button-ghost button-small"
