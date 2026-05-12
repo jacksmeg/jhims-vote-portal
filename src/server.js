@@ -890,17 +890,75 @@ function safeDrawImage(document, imageSource, x, y, options = {}) {
   }
 }
 
+function drawFlyerPortrait(document, imageSource, options = {}) {
+  const {
+    x = 0,
+    y = 0,
+    width = 200,
+    height = 260,
+    shape = "rounded",
+    radius = 28,
+    borderWidth = 6,
+    borderColor = "#ffffff",
+    panelColor = "#ffffff",
+    imageInset = 0,
+    fallbackLabel = "",
+    fallbackTextColor = "#102338",
+  } = options;
+  const innerX = x + imageInset;
+  const innerY = y + imageInset;
+  const innerWidth = Math.max(width - imageInset * 2, 1);
+  const innerHeight = Math.max(height - imageInset * 2, 1);
+
+  const drawShapePath = () => {
+    if (shape === "circle") {
+      const radiusValue = Math.min(width, height) / 2;
+      document.circle(x + width / 2, y + height / 2, radiusValue);
+      return;
+    }
+
+    document.roundedRect(x, y, width, height, radius);
+  };
+
+  document.save();
+  drawShapePath();
+  document.fillColor(panelColor).fill();
+  document.restore();
+
+  if (imageSource) {
+    document.save();
+    drawShapePath();
+    document.clip();
+    safeDrawImage(document, imageSource, innerX, innerY, {
+      fit: [innerWidth, innerHeight],
+      align: "center",
+      valign: "center",
+    });
+    document.restore();
+  } else if (fallbackLabel) {
+    document
+      .fillColor(fallbackTextColor)
+      .font("Helvetica-Bold")
+      .fontSize(Math.min(width, height) * 0.24)
+      .text(fallbackLabel, x, y + height / 2 - 26, {
+        width,
+        align: "center",
+      });
+  }
+
+  document.save();
+  drawShapePath();
+  document.lineWidth(borderWidth).strokeColor(borderColor).stroke();
+  document.restore();
+}
+
 function getNominationPortraitSource(photoPath) {
   const resolvedPhotoPath = photoPath ? resolveAssetPath(photoPath) : "";
   if (!resolvedPhotoPath || !fs.existsSync(resolvedPhotoPath)) {
     return "";
   }
 
-  try {
-    return removePortraitBackground(resolvedPhotoPath);
-  } catch (_error) {
-    return resolvedPhotoPath;
-  }
+  return resolvedPhotoPath;
 }
 
 function getElectionSettings() {
@@ -2361,10 +2419,19 @@ function renderNominationFlyerPdf(document, payload) {
         align: "center",
       });
 
-    safeDrawImage(document, portraitSource, 28, 116, {
-      fit: [344, 548],
-      align: "center",
-      valign: "bottom",
+    drawFlyerPortrait(document, portraitSource, {
+      x: 28,
+      y: 116,
+      width: 344,
+      height: 548,
+      shape: "rounded",
+      radius: 36,
+      borderWidth: 8,
+      borderColor: "#ffffff",
+      panelColor: "#ffffff",
+      imageInset: 4,
+      fallbackLabel: getInitials(nomination.fullName),
+      fallbackTextColor: theme.primary,
     });
 
     safeDrawImage(document, logoPath, 432, 60, {
@@ -2418,10 +2485,19 @@ function renderNominationFlyerPdf(document, payload) {
       theme.accent,
     );
 
-    safeDrawImage(document, portraitSource, 335, 140, {
-      fit: [410, 540],
-      align: "center",
-      valign: "bottom",
+    drawFlyerPortrait(document, portraitSource, {
+      x: 335,
+      y: 140,
+      width: 318,
+      height: 500,
+      shape: "rounded",
+      radius: 38,
+      borderWidth: 8,
+      borderColor: "#ffffff",
+      panelColor: "#eff4ef",
+      imageInset: 4,
+      fallbackLabel: getInitials(nomination.fullName),
+      fallbackTextColor: theme.primary,
     });
     safeDrawImage(document, logoPath, 78, 78, {
       fit: [76, 76],
@@ -2488,10 +2564,19 @@ function renderNominationFlyerPdf(document, payload) {
       [canvasWidth, canvasHeight],
     ).fill(theme.secondary);
 
-    safeDrawImage(document, portraitSource, 84, 160, {
-      fit: [340, 460],
-      align: "center",
-      valign: "bottom",
+    drawFlyerPortrait(document, portraitSource, {
+      x: 84,
+      y: 160,
+      width: 312,
+      height: 438,
+      shape: "rounded",
+      radius: 34,
+      borderWidth: 8,
+      borderColor: "#ffffff",
+      panelColor: "#fff7ef",
+      imageInset: 4,
+      fallbackLabel: getInitials(nomination.fullName),
+      fallbackTextColor: theme.secondary,
     });
     safeDrawImage(document, logoPath, 94, 120, {
       fit: [66, 66],
@@ -2543,10 +2628,18 @@ function renderNominationFlyerPdf(document, payload) {
     document.polygon([566, 0], [canvasWidth, 0], [canvasWidth, 160]).fill(theme.accent);
     document.polygon([0, 548], [126, canvasHeight], [0, canvasHeight]).fill(theme.secondary);
 
-    safeDrawImage(document, portraitSource, 330, 138, {
-      fit: [360, 522],
-      align: "center",
-      valign: "bottom",
+    drawFlyerPortrait(document, portraitSource, {
+      x: 380,
+      y: 64,
+      width: 306,
+      height: 306,
+      shape: "circle",
+      borderWidth: 10,
+      borderColor: "#ffffff",
+      panelColor: "#f6f7fb",
+      imageInset: 8,
+      fallbackLabel: getInitials(nomination.fullName),
+      fallbackTextColor: theme.primary,
     });
     safeDrawImage(document, logoPath, 88, 74, {
       fit: [68, 68],
