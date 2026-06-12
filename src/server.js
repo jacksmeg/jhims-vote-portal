@@ -6388,6 +6388,50 @@ app.post("/admin/positions", requireAdmin, (req, res) => {
   return res.redirect("/admin/setup");
 });
 
+app.post("/admin/positions/:id", requireAdmin, (req, res) => {
+  if (!ensureSetupMode(req, res)) {
+    return;
+  }
+
+  const positionId = parseInteger(req.params.id, 0);
+  const sortOrder = parseInteger(req.body.sortOrder, 0);
+  const position = db.prepare(`
+    SELECT
+      id,
+      name,
+      sort_order AS sortOrder
+    FROM positions
+    WHERE id = ?
+      AND is_active = 1
+  `).get(positionId);
+
+  if (!position) {
+    setFlash(req, "error", "Position not found.");
+    return res.redirect("/admin/setup");
+  }
+
+  db.prepare(`
+    UPDATE positions
+    SET
+      sort_order = ?,
+      updated_at = ?
+    WHERE id = ?
+  `).run(sortOrder, nowIso(), positionId);
+
+  logAudit(req, "admin", req.session.admin.username, "position_sort_order_updated", {
+    positionId,
+    positionName: position.name,
+    previousSortOrder: position.sortOrder,
+    nextSortOrder: sortOrder,
+  });
+  setFlash(
+    req,
+    "success",
+    `${position.name} display order updated to ${sortOrder}. Smaller numbers appear first.`,
+  );
+  return res.redirect("/admin/setup");
+});
+
 app.post("/admin/positions/:id/delete", requireAdmin, (req, res) => {
   if (!ensureSetupMode(req, res)) {
     return;

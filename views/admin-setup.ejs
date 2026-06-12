@@ -96,15 +96,34 @@
       <div class="stack-sm">
         <% positions.forEach((position) => { %>
           <article class="mini-card mini-card--row">
-            <div>
+            <div class="position-order-card__summary">
               <strong><%= position.name %></strong>
-              <span>Order: <%= position.sortOrder %></span>
+              <span>Current order: <%= position.sortOrder %></span>
             </div>
-            <form action="/admin/positions/<%= position.id %>/delete" method="post">
-              <button class="button button-ghost" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
-                Remove
-              </button>
-            </form>
+
+            <div class="position-order-card__actions">
+              <form class="position-order-form" action="/admin/positions/<%= position.id %>" method="post">
+                <label class="field">
+                  <span>Sort Order</span>
+                  <input
+                    name="sortOrder"
+                    type="number"
+                    value="<%= position.sortOrder %>"
+                    <%= electionState.canEditSetup ? '' : 'disabled' %>
+                  />
+                </label>
+
+                <button class="button button-ghost" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+                  Save Order
+                </button>
+              </form>
+
+              <form action="/admin/positions/<%= position.id %>/delete" method="post">
+                <button class="button button-ghost" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+                  Remove
+                </button>
+              </form>
+            </div>
           </article>
         <% }) %>
       </div>

@@ -1182,6 +1182,36 @@ tbody tr:hover {
   align-content: center;
 }
 
+.position-order-card__summary {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.position-order-card__actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.position-order-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.position-order-form .field {
+  min-width: 132px;
+}
+
+.position-order-form .field input {
+  min-width: 0;
+}
+
 .brand-upload-panel,
 .candidate-edit-layout,
 .declaration-settings-layout,
