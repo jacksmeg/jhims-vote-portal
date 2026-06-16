@@ -48,30 +48,23 @@ const adminPasswordHash = bcrypt.hashSync(
 const defaultElectionName =
   process.env.ELECTION_NAME || "Organization Election Portal";
 const isProduction = process.env.NODE_ENV === "production";
-const twilioAccountSid = String(process.env.TWILIO_ACCOUNT_SID || "").trim();
-const twilioAuthToken = String(process.env.TWILIO_AUTH_TOKEN || "").trim();
-const twilioVerifyServiceSid = String(process.env.TWILIO_VERIFY_SERVICE_SID || "").trim();
-const twilioOtpConfigured = Boolean(
-  twilioAccountSid && twilioAuthToken && twilioVerifyServiceSid,
-);
-const configuredOtpProvider = String(process.env.OTP_PROVIDER || "")
+const envTwilioAccountSid = String(process.env.TWILIO_ACCOUNT_SID || "").trim();
+const envTwilioAuthToken = String(process.env.TWILIO_AUTH_TOKEN || "").trim();
+const envTwilioVerifyServiceSid = String(process.env.TWILIO_VERIFY_SERVICE_SID || "").trim();
+const envArkeselApiKey = String(process.env.ARKESEL_API_KEY || "").trim();
+const envArkeselSenderId = String(process.env.ARKESEL_SENDER_ID || "").trim();
+const defaultArkeselOtpMessageTemplate = String(
+  process.env.ARKESEL_OTP_MESSAGE ||
+    "Your OTP code is %otp_code%. It expires in %expiry% minutes.",
+).trim();
+const envConfiguredOtpProvider = String(process.env.OTP_PROVIDER || "")
   .trim()
   .toLowerCase();
-const otpProvider =
-  configuredOtpProvider === "twilio" ||
-  configuredOtpProvider === "dev" ||
-  configuredOtpProvider === "disabled"
-    ? configuredOtpProvider
-    : twilioOtpConfigured
-      ? "twilio"
-      : isProduction
-        ? "disabled"
-        : "dev";
-const otpTtlMinutes = Math.min(
+const envConfiguredOtpTtlMinutes = Math.min(
   Math.max(Number.parseInt(process.env.OTP_TTL_MINUTES || "10", 10) || 10, 1),
   30,
 );
-const otpResendCooldownSeconds = Math.min(
+const envOtpResendCooldownSeconds = Math.min(
   Math.max(
     Number.parseInt(process.env.OTP_RESEND_COOLDOWN_SECONDS || "30", 10) || 30,
     0,
@@ -984,6 +977,119 @@ function getElectionSettings() {
   };
 }
 
+function clampInteger(value, fallback, minimum, maximum) {
+  const parsedValue = Number.parseInt(String(value ?? ""), 10);
+  const safeValue = Number.isFinite(parsedValue) ? parsedValue : fallback;
+  return Math.min(Math.max(safeValue, minimum), maximum);
+}
+
+function getOtpProviderLabel(provider) {
+  switch (provider) {
+    case "arkesel":
+      return "Arkesel";
+    case "twilio":
+      return "Twilio";
+    case "dev":
+      return "Development";
+    default:
+      return "Disabled";
+  }
+}
+
+function getOtpConfig() {
+  const settings = getAllSettings();
+  const twilioAccountSid = String(settings.twilio_account_sid || envTwilioAccountSid || "").trim();
+  const twilioAuthToken = String(settings.twilio_auth_token || envTwilioAuthToken || "").trim();
+  const twilioVerifyServiceSid = String(
+    settings.twilio_verify_service_sid || envTwilioVerifyServiceSid || "",
+  ).trim();
+  const arkeselApiKey = String(settings.arkesel_api_key || envArkeselApiKey || "").trim();
+  const arkeselSenderId = String(settings.arkesel_sender_id || envArkeselSenderId || "").trim();
+  const arkeselOtpMessageTemplate = String(
+    settings.arkesel_otp_message || defaultArkeselOtpMessageTemplate,
+  ).trim();
+  const twilioConfigured = Boolean(
+    twilioAccountSid && twilioAuthToken && twilioVerifyServiceSid,
+  );
+  const arkeselConfigured = Boolean(arkeselApiKey && arkeselSenderId);
+  const configuredProvider = String(settings.otp_provider || envConfiguredOtpProvider || "")
+    .trim()
+    .toLowerCase();
+  const provider =
+    configuredProvider === "twilio" ||
+    configuredProvider === "arkesel" ||
+    configuredProvider === "dev" ||
+    configuredProvider === "disabled"
+      ? configuredProvider
+      : twilioConfigured
+        ? "twilio"
+        : arkeselConfigured
+          ? "arkesel"
+          : isProduction
+            ? "disabled"
+            : "dev";
+  const configuredTtlMinutes = clampInteger(
+    settings.otp_ttl_minutes || envConfiguredOtpTtlMinutes,
+    envConfiguredOtpTtlMinutes,
+    1,
+    30,
+  );
+  const ttlMinutes = provider === "arkesel"
+    ? Math.min(configuredTtlMinutes, 10)
+    : configuredTtlMinutes;
+  const resendCooldownSeconds = clampInteger(
+    settings.otp_resend_cooldown_seconds || envOtpResendCooldownSeconds,
+    envOtpResendCooldownSeconds,
+    0,
+    300,
+  );
+
+  return {
+    provider,
+    providerLabel: getOtpProviderLabel(provider),
+    ttlMinutes,
+    resendCooldownSeconds,
+    twilioAccountSid,
+    twilioAuthToken,
+    twilioVerifyServiceSid,
+    twilioConfigured,
+    arkeselApiKey,
+    arkeselSenderId,
+    arkeselOtpMessageTemplate,
+    arkeselConfigured,
+  };
+}
+
+function getAdminOtpSettingsView() {
+  const settings = getAllSettings();
+  const otpConfig = getOtpConfig();
+  const preferredProvider = String(settings.otp_provider || envConfiguredOtpProvider || otpConfig.provider)
+    .trim()
+    .toLowerCase();
+
+  return {
+    provider:
+      preferredProvider === "twilio" ||
+      preferredProvider === "arkesel" ||
+      preferredProvider === "dev" ||
+      preferredProvider === "disabled"
+        ? preferredProvider
+        : otpConfig.provider,
+    effectiveProvider: otpConfig.provider,
+    effectiveProviderLabel: otpConfig.providerLabel,
+    ttlMinutes: otpConfig.ttlMinutes,
+    resendCooldownSeconds: otpConfig.resendCooldownSeconds,
+    arkeselApiKey: String(settings.arkesel_api_key || envArkeselApiKey || "").trim(),
+    arkeselSenderId: String(settings.arkesel_sender_id || envArkeselSenderId || "").trim(),
+    arkeselOtpMessage: String(
+      settings.arkesel_otp_message || defaultArkeselOtpMessageTemplate,
+    ).trim(),
+    isEnabled: otpConfig.provider === "twilio" || otpConfig.provider === "arkesel" || otpConfig.provider === "dev",
+    arkeselConfigured: otpConfig.arkeselConfigured,
+    twilioConfigured: otpConfig.twilioConfigured,
+  };
+}
+
 function logSystemAudit(action, details = {}) {
   db.prepare(`
     INSERT INTO audit_logs (
@@ -1344,8 +1450,12 @@ async function safeRemoveUploadedRequestFiles(filesMap) {
   }
 }
 
-function isOtpVerificationEnabled() {
-  return otpProvider === "twilio" || otpProvider === "dev";
+function isOtpVerificationEnabled(otpConfig = getOtpConfig()) {
+  return (
+    otpConfig.provider === "twilio" ||
+    otpConfig.provider === "arkesel" ||
+    otpConfig.provider === "dev"
+  );
 }
 
 function clearVoterSession(req) {
@@ -1396,12 +1506,17 @@ function hashOtpCode(code) {
   return crypto.createHash("sha256").update(String(code || "")).digest("hex");
 }
 
-function getOtpExpiryIso() {
-  return dayjs().add(otpTtlMinutes, "minute").toISOString();
+function toArkeselOtpNumber(value) {
+  const smsPhoneNumber = toSmsPhoneNumber(value);
+  return smsPhoneNumber ? smsPhoneNumber.replace(/^\+/, "") : "";
 }
 
-function getOtpResendAvailableIso() {
-  return dayjs().add(otpResendCooldownSeconds, "second").toISOString();
+function getOtpExpiryIso(otpConfig = getOtpConfig()) {
+  return dayjs().add(otpConfig.ttlMinutes, "minute").toISOString();
+}
+
+function getOtpResendAvailableIso(otpConfig = getOtpConfig()) {
+  return dayjs().add(otpConfig.resendCooldownSeconds, "second").toISOString();
 }
 
 function isPendingOtpExpired(pendingVerification) {
@@ -1413,7 +1528,13 @@ function isPendingOtpExpired(pendingVerification) {
   return !expiresAt.isValid() || !dayjs().isBefore(expiresAt);
 }
 
-function buildPendingVoterVerification(voterRecord, phoneNumber, smsPhoneNumber, challenge) {
+function buildPendingVoterVerification(
+  voterRecord,
+  phoneNumber,
+  smsPhoneNumber,
+  challenge,
+  otpConfig = getOtpConfig(),
+) {
   return {
     voterId: voterRecord.id,
     staffId: voterRecord.staffId,
@@ -1421,13 +1542,13 @@ function buildPendingVoterVerification(voterRecord, phoneNumber, smsPhoneNumber,
     phoneNumber,
     maskedPhoneNumber: maskPhoneNumber(phoneNumber),
     smsPhoneNumber,
-    provider: otpProvider,
+    provider: challenge.provider || otpConfig.provider,
     verificationSid: challenge.verificationSid || "",
     devCodeHash: challenge.devCodeHash || "",
     devCodePreview: challenge.devCodePreview || "",
     sentAt: nowIso(),
-    expiresAt: getOtpExpiryIso(),
-    resendAvailableAt: getOtpResendAvailableIso(),
+    expiresAt: getOtpExpiryIso(otpConfig),
+    resendAvailableAt: getOtpResendAvailableIso(otpConfig),
     attempts: 0,
   };
 }
@@ -1461,18 +1582,18 @@ async function parseOtpApiResponse(response) {
   }
 }
 
-async function sendTwilioOtpCode(smsPhoneNumber) {
-  if (!twilioOtpConfigured) {
+async function sendTwilioOtpCode(smsPhoneNumber, otpConfig = getOtpConfig()) {
+  if (!otpConfig.twilioConfigured) {
     throw new Error("The OTP SMS service is not configured yet. Add the Twilio Verify credentials first.");
   }
 
   const response = await fetch(
-    `https://verify.twilio.com/v2/Services/${encodeURIComponent(twilioVerifyServiceSid)}/Verifications`,
+    `https://verify.twilio.com/v2/Services/${encodeURIComponent(otpConfig.twilioVerifyServiceSid)}/Verifications`,
     {
       method: "POST",
       headers: {
         authorization: `Basic ${Buffer.from(
-          `${twilioAccountSid}:${twilioAuthToken}`,
+          `${otpConfig.twilioAccountSid}:${otpConfig.twilioAuthToken}`,
         ).toString("base64")}`,
         "content-type": "application/x-www-form-urlencoded",
       },
@@ -1492,24 +1613,80 @@ async function sendTwilioOtpCode(smsPhoneNumber) {
   }
 
   return {
+    provider: "twilio",
     verificationSid: payload?.sid || "",
   };
 }
 
-async function sendOtpChallenge(smsPhoneNumber) {
-  if (otpProvider === "twilio") {
-    return sendTwilioOtpCode(smsPhoneNumber);
+async function sendArkeselOtpCode(smsPhoneNumber, otpConfig = getOtpConfig()) {
+  if (!otpConfig.arkeselConfigured) {
+    throw new Error(
+      "The OTP SMS service is not configured yet. Add your Arkesel API key and sender ID first.",
+    );
   }
 
-  if (otpProvider === "dev") {
+  if (otpConfig.arkeselSenderId.length > 11) {
+    throw new Error("Your Arkesel sender ID must be 11 characters or fewer.");
+  }
+
+  if (!otpConfig.arkeselOtpMessageTemplate.includes("%otp_code%")) {
+    throw new Error(
+      "Your Arkesel OTP message must include %otp_code% so the verification code can be inserted.",
+    );
+  }
+
+  const arkeselNumber = toArkeselOtpNumber(smsPhoneNumber);
+  if (!arkeselNumber) {
+    throw new Error("The phone number is not in a valid format for Arkesel OTP delivery.");
+  }
+
+  const response = await fetch("https://sms.arkesel.com/api/otp/generate", {
+    method: "POST",
+    headers: {
+      "api-key": otpConfig.arkeselApiKey,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      expiry: otpConfig.ttlMinutes,
+      length: devOtpCodeLength,
+      medium: "sms",
+      message: otpConfig.arkeselOtpMessageTemplate,
+      number: arkeselNumber,
+      sender_id: otpConfig.arkeselSenderId,
+      type: "numeric",
+    }),
+  });
+  const payload = await parseOtpApiResponse(response);
+
+  if (!response.ok || String(payload?.code || "") !== "1000") {
+    throw new Error(
+      payload?.message ||
+        "The OTP SMS could not be sent right now. Please try again in a moment.",
+    );
+  }
+
+  return { provider: "arkesel" };
+}
+
+async function sendOtpChallenge(smsPhoneNumber, otpConfig = getOtpConfig()) {
+  if (otpConfig.provider === "twilio") {
+    return sendTwilioOtpCode(smsPhoneNumber, otpConfig);
+  }
+
+  if (otpConfig.provider === "arkesel") {
+    return sendArkeselOtpCode(smsPhoneNumber, otpConfig);
+  }
+
+  if (otpConfig.provider === "dev") {
     if (isProduction) {
       throw new Error(
-        "Development OTP mode is not allowed in production. Configure Twilio Verify before using OTP on the live site.",
+        "Development OTP mode is not allowed in production. Configure Twilio Verify or Arkesel before using OTP on the live site.",
       );
     }
 
     const devCode = generateDevOtpCode();
     return {
+      provider: "dev",
       verificationSid: `DEV-${crypto.randomUUID()}`,
       devCodeHash: hashOtpCode(devCode),
       devCodePreview: devCode,
@@ -1519,8 +1696,8 @@ async function sendOtpChallenge(smsPhoneNumber) {
   return null;
 }
 
-async function verifyTwilioOtpCode(pendingVerification, code) {
-  if (!twilioOtpConfigured) {
+async function verifyTwilioOtpCode(pendingVerification, code, otpConfig = getOtpConfig()) {
+  if (!otpConfig.twilioConfigured) {
     throw new Error("The OTP SMS service is not configured yet. Add the Twilio Verify credentials first.");
   }
 
@@ -1536,13 +1713,13 @@ async function verifyTwilioOtpCode(pendingVerification, code) {
 
   const response = await fetch(
     `https://verify.twilio.com/v2/Services/${encodeURIComponent(
-      twilioVerifyServiceSid,
+      otpConfig.twilioVerifyServiceSid,
     )}/VerificationCheck`,
     {
       method: "POST",
       headers: {
         authorization: `Basic ${Buffer.from(
-          `${twilioAccountSid}:${twilioAuthToken}`,
+          `${otpConfig.twilioAccountSid}:${otpConfig.twilioAuthToken}`,
         ).toString("base64")}`,
         "content-type": "application/x-www-form-urlencoded",
       },
@@ -1575,12 +1752,66 @@ async function verifyTwilioOtpCode(pendingVerification, code) {
   };
 }
 
-async function verifyOtpChallenge(pendingVerification, code) {
-  if (otpProvider === "twilio") {
-    return verifyTwilioOtpCode(pendingVerification, code);
+async function verifyArkeselOtpCode(
+  pendingVerification,
+  code,
+  otpConfig = getOtpConfig(),
+) {
+  if (!otpConfig.arkeselConfigured) {
+    throw new Error(
+      "The OTP SMS service is not configured yet. Add your Arkesel API key and sender ID first.",
+    );
   }
 
-  if (otpProvider === "dev") {
+  const arkeselNumber = toArkeselOtpNumber(pendingVerification.smsPhoneNumber);
+  if (!arkeselNumber) {
+    throw new Error("The phone number is not in a valid format for Arkesel OTP verification.");
+  }
+
+  const response = await fetch("https://sms.arkesel.com/api/otp/verify", {
+    method: "POST",
+    headers: {
+      "api-key": otpConfig.arkeselApiKey,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      code,
+      number: arkeselNumber,
+    }),
+  });
+  const payload = await parseOtpApiResponse(response);
+  const responseCode = String(payload?.code || payload?.status || "");
+
+  if (!response.ok && response.status !== 422) {
+    throw new Error(
+      payload?.message || "The OTP could not be verified right now. Please try again.",
+    );
+  }
+
+  return {
+    approved: responseCode === "1100",
+    errorMessage:
+      responseCode === "1105"
+        ? "This OTP has expired. Request a new code and try again."
+        : responseCode === "1104"
+          ? "The OTP code is incorrect. Please try again."
+          : payload?.message || "The OTP code could not be verified. Please try again.",
+  };
+}
+
+async function verifyOtpChallenge(pendingVerification, code) {
+  const otpConfig = getOtpConfig();
+  const provider = pendingVerification?.provider || otpConfig.provider;
+
+  if (provider === "twilio") {
+    return verifyTwilioOtpCode(pendingVerification, code, otpConfig);
+  }
+
+  if (provider === "arkesel") {
+    return verifyArkeselOtpCode(pendingVerification, code, otpConfig);
+  }
+
+  if (provider === "dev") {
     return {
       approved: hashOtpCode(code) === pendingVerification.devCodeHash,
       errorMessage: "The OTP code is incorrect. Please try again.",
@@ -4439,6 +4670,7 @@ app.post("/vote/login", async (req, res) => {
   const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
   const settings = getElectionSettings();
   const electionState = computeElectionState(settings);
+  const otpConfig = getOtpConfig();
 
   if (!staffId || !phoneNumber) {
     setFlash(req, "error", "Enter both your staff ID and phone number.");
@@ -4489,7 +4721,7 @@ app.post("/vote/login", async (req, res) => {
     return res.redirect("/vote/login");
   }
 
-  if (isOtpVerificationEnabled()) {
+  if (isOtpVerificationEnabled(otpConfig)) {
     const smsPhoneNumber = toSmsPhoneNumber(phoneNumber);
 
     if (!smsPhoneNumber) {
@@ -4505,7 +4737,7 @@ app.post("/vote/login", async (req, res) => {
     }
 
     try {
-      const challenge = await sendOtpChallenge(smsPhoneNumber);
+      const challenge = await sendOtpChallenge(smsPhoneNumber, otpConfig);
       clearVoterSession(req);
       req.session.voteComplete = null;
       req.session.pendingVoterVerification = buildPendingVoterVerification(
@@ -4513,10 +4745,11 @@ app.post("/vote/login", async (req, res) => {
         phoneNumber,
         smsPhoneNumber,
         challenge,
+        otpConfig,
       );
 
       logAudit(req, "voter", staffId, "voter_otp_sent", {
-        provider: otpProvider,
+        provider: otpConfig.provider,
         phoneNumber: maskPhoneNumber(phoneNumber),
       });
       setFlash(
@@ -4566,11 +4799,15 @@ app.get("/vote/verify-otp", (req, res) => {
     ? dayjs(pendingVerification.resendAvailableAt)
     : null;
   const expiresAt = pendingVerification.expiresAt ? dayjs(pendingVerification.expiresAt) : null;
+  const otpLifetimeMinutes = Math.max(
+    Math.ceil(expiresAt?.diff(pendingVerification.sentAt ? dayjs(pendingVerification.sentAt) : dayjs(), "minute", true) || 0),
+    1,
+  );
 
   return res.render("vote-verify-otp", {
     pageTitle: "Verify OTP",
     maskedPhoneNumber: pendingVerification.maskedPhoneNumber,
-    otpTtlMinutes,
+    otpTtlMinutes: otpLifetimeMinutes,
     resendAvailableAtMs: resendAvailableAt?.isValid() ? resendAvailableAt.valueOf() : null,
     expiresAtMs: expiresAt?.isValid() ? expiresAt.valueOf() : null,
     isExpired: isPendingOtpExpired(pendingVerification),
@@ -4664,10 +4901,10 @@ app.post("/vote/verify-otp", async (req, res) => {
 
   beginAuthenticatedVoterSession(req, voterRecord);
   logAudit(req, "voter", voterRecord.staffId, "voter_otp_verified", {
-    provider: pendingVerification.provider || otpProvider,
+    provider: pendingVerification.provider || getOtpConfig().provider,
   });
   logAudit(req, "voter", voterRecord.staffId, "voter_login_success", {
-    otpProvider: pendingVerification.provider || otpProvider,
+    otpProvider: pendingVerification.provider || getOtpConfig().provider,
   });
   return res.redirect("/vote");
 });
@@ -4682,6 +4919,7 @@ app.post("/vote/resend-otp", async (req, res) => {
 
   const settings = getElectionSettings();
   const electionState = computeElectionState(settings);
+  const otpConfig = getOtpConfig();
 
   if (!electionState.isOpen) {
     clearVoterSession(req);
@@ -4733,16 +4971,17 @@ app.post("/vote/resend-otp", async (req, res) => {
   }
 
   try {
-    const challenge = await sendOtpChallenge(smsPhoneNumber);
+    const challenge = await sendOtpChallenge(smsPhoneNumber, otpConfig);
     req.session.pendingVoterVerification = buildPendingVoterVerification(
       voterRecord,
       voterRecord.phoneNumber,
       smsPhoneNumber,
       challenge,
+      otpConfig,
     );
 
     logAudit(req, "voter", voterRecord.staffId, "voter_otp_resent", {
-      provider: otpProvider,
+      provider: otpConfig.provider,
       phoneNumber: maskPhoneNumber(voterRecord.phoneNumber),
     });
     setFlash(
@@ -5274,6 +5513,84 @@ app.get("/admin", requireAdmin, async (req, res) => {
     adminTwoFactorState,
     pendingAdminTwoFactorSetup,
   });
+});
+
+app.get("/admin/otp-settings", requireAdmin, (req, res) => {
+  return res.render("admin-otp-settings", {
+    pageTitle: "OTP Settings",
+    otpSettings: getAdminOtpSettingsView(),
+    isProduction,
+  });
+});
+
+app.post("/admin/otp-settings", requireAdmin, (req, res) => {
+  const provider = String(req.body.provider || "disabled").trim().toLowerCase();
+  const ttlMinutes = clampInteger(req.body.ttlMinutes, 10, 1, 30);
+  const resendCooldownSeconds = clampInteger(req.body.resendCooldownSeconds, 30, 0, 300);
+  const arkeselApiKey = String(req.body.arkeselApiKey || "").trim();
+  const arkeselSenderId = String(req.body.arkeselSenderId || "").trim();
+  const arkeselOtpMessage = String(
+    req.body.arkeselOtpMessage || defaultArkeselOtpMessageTemplate,
+  ).trim();
+  const validProviders = new Set(["disabled", "arkesel", "twilio", "dev"]);
+
+  if (!validProviders.has(provider)) {
+    setFlash(req, "error", "Choose a valid OTP provider before saving.");
+    return res.redirect("/admin/otp-settings");
+  }
+
+  if (provider === "dev" && isProduction) {
+    setFlash(req, "error", "Development OTP mode cannot be enabled on the live site.");
+    return res.redirect("/admin/otp-settings");
+  }
+
+  if (arkeselSenderId && arkeselSenderId.length > 11) {
+    setFlash(req, "error", "Arkesel sender ID must be 11 characters or fewer.");
+    return res.redirect("/admin/otp-settings");
+  }
+
+  if (arkeselOtpMessage && !arkeselOtpMessage.includes("%otp_code%")) {
+    setFlash(req, "error", "Arkesel OTP message must include %otp_code%.");
+    return res.redirect("/admin/otp-settings");
+  }
+
+  if (provider === "arkesel" && (!arkeselApiKey || !arkeselSenderId)) {
+    setFlash(
+      req,
+      "error",
+      "Enter both the Arkesel API key and sender ID before enabling Arkesel OTP.",
+    );
+    return res.redirect("/admin/otp-settings");
+  }
+
+  runTransaction(() => {
+    setSetting("otp_provider", provider);
+    setSetting("otp_ttl_minutes", ttlMinutes);
+    setSetting("otp_resend_cooldown_seconds", resendCooldownSeconds);
+    setSetting("arkesel_api_key", arkeselApiKey);
+    setSetting("arkesel_sender_id", arkeselSenderId);
+    setSetting("arkesel_otp_message", arkeselOtpMessage);
+  });
+
+  logAudit(req, "admin", req.session.admin.username, "otp_settings_updated", {
+    provider,
+    ttlMinutes,
+    resendCooldownSeconds,
+    hasArkeselApiKey: Boolean(arkeselApiKey),
+    hasArkeselSenderId: Boolean(arkeselSenderId),
+  });
+
+  const nextOtpConfig = getOtpConfig();
+  const providerLabel = getOtpProviderLabel(provider);
+  const configSuffix =
+    provider === "arkesel" && !nextOtpConfig.arkeselConfigured
+      ? " Arkesel is selected, but the credentials are still incomplete."
+      : provider === "twilio" && !nextOtpConfig.twilioConfigured
+        ? " Twilio is selected, but its environment credentials are not configured yet."
+        : "";
+
+  setFlash(req, "success", `${providerLabel} OTP settings saved.${configSuffix}`);
+  return res.redirect("/admin/otp-settings");
 });
 
 app.post("/admin/2fa/setup", requireAdmin, (req, res) => {

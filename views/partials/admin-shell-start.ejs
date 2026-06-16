@@ -88,6 +88,15 @@
       <div class="admin-nav__group">
         <span class="admin-nav__label">System</span>
 
+        <a class="admin-nav__link <%= currentSection === 'otp-settings' ? 'active' : '' %>" href="/admin/otp-settings">
+          <span class="admin-nav__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm0 6a2.5 2.5 0 0 1 2.45 2h1.05A1.5 1.5 0 0 1 17 11.5v5A1.5 1.5 0 0 1 15.5 18h-7A1.5 1.5 0 0 1 7 16.5v-5A1.5 1.5 0 0 1 8.5 10h1.05A2.5 2.5 0 0 1 12 8Zm0 1.5a1 1 0 0 0-.99.85L11 10.5h2l-.01-.15A1 1 0 0 0 12 9.5Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <span>OTP Settings</span>
+        </a>
+
         <a class="admin-nav__link <%= currentSection === 'audit' ? 'active' : '' %>" href="/admin/audit">
           <span class="admin-nav__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false">

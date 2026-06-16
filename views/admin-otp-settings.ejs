@@ -1,0 +1,204 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "OTP Settings",
+  pageIntro: "Control voter phone verification and store your Arkesel OTP credentials in one place.",
+  currentSection: "otp-settings"
+}) %>
+
+<section class="dashboard-summary-grid">
+  <article class="dashboard-summary-card dashboard-summary-card--mint">
+    <div class="dashboard-summary-card__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm0 6a2.5 2.5 0 0 1 2.45 2h1.05A1.5 1.5 0 0 1 17 11.5v5A1.5 1.5 0 0 1 15.5 18h-7A1.5 1.5 0 0 1 7 16.5v-5A1.5 1.5 0 0 1 8.5 10h1.05A2.5 2.5 0 0 1 12 8Zm0 1.5a1 1 0 0 0-.99.85L11 10.5h2l-.01-.15A1 1 0 0 0 12 9.5Z" fill="currentColor"/>
+      </svg>
+    </div>
+    <div>
+      <span>Effective Provider</span>
+      <strong><%= otpSettings.effectiveProviderLabel %></strong>
+      <small><%= otpSettings.isEnabled ? 'OTP is active for voters' : 'OTP is currently disabled' %></small>
+    </div>
+  </article>
+
+  <article class="dashboard-summary-card dashboard-summary-card--cyan">
+    <div class="dashboard-summary-card__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M7 2h2v2h6V2h2v2h2.5A1.5 1.5 0 0 1 21 5.5v13A1.5 1.5 0 0 1 19.5 20h-15A1.5 1.5 0 0 1 3 18.5v-13A1.5 1.5 0 0 1 4.5 4H7V2Zm12 7H5v9h14V9Z" fill="currentColor"/>
+      </svg>
+    </div>
+    <div>
+      <span>OTP Expiry</span>
+      <strong><%= otpSettings.ttlMinutes %> min</strong>
+      <small>Arkesel allows up to 10 minutes</small>
+    </div>
+  </article>
+
+  <article class="dashboard-summary-card dashboard-summary-card--violet">
+    <div class="dashboard-summary-card__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M12 3a9 9 0 1 0 9 9 9.01 9.01 0 0 0-9-9Zm1 9.59 3.3 3.3-1.41 1.41L11 13V7h2Z" fill="currentColor"/>
+      </svg>
+    </div>
+    <div>
+      <span>Resend Delay</span>
+      <strong><%= otpSettings.resendCooldownSeconds %> sec</strong>
+      <small>Time before another code can be requested</small>
+    </div>
+  </article>
+
+  <article class="dashboard-summary-card dashboard-summary-card--green">
+    <div class="dashboard-summary-card__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M5 4h14a1 1 0 0 1 1 1v3H4V5a1 1 0 0 1 1-1Zm-1 6h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Zm3 2v2h2v-2H7Zm4 0v2h6v-2h-6Z" fill="currentColor"/>
+      </svg>
+    </div>
+    <div>
+      <span>Arkesel Status</span>
+      <strong><%= otpSettings.arkeselConfigured ? 'Configured' : 'Needs Details' %></strong>
+      <small>API key and sender ID are required</small>
+    </div>
+  </article>
+</section>
+
+<section class="dashboard-analytics-grid">
+  <article class="panel panel-light stack-lg">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">OTP Provider</span>
+        <h2>Voter phone verification</h2>
+      </div>
+      <p>Select how voters receive the verification code before they can enter the ballot.</p>
+    </div>
+
+    <form class="stack-md" action="/admin/otp-settings" method="post">
+      <div class="form-grid">
+        <label class="field">
+          <span>Provider</span>
+          <select name="provider" required>
+            <option value="disabled" <%= otpSettings.provider === 'disabled' ? 'selected' : '' %>>Disabled</option>
+            <option value="arkesel" <%= otpSettings.provider === 'arkesel' ? 'selected' : '' %>>Arkesel</option>
+            <option value="twilio" <%= otpSettings.provider === 'twilio' ? 'selected' : '' %>>Twilio (env)</option>
+            <% if (!isProduction) { %>
+              <option value="dev" <%= otpSettings.provider === 'dev' ? 'selected' : '' %>>Development</option>
+            <% } %>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>OTP Expiry (minutes)</span>
+          <input name="ttlMinutes" type="number" min="1" max="30" value="<%= otpSettings.ttlMinutes %>" required />
+        </label>
+
+        <label class="field">
+          <span>Resend Cooldown (seconds)</span>
+          <input
+            name="resendCooldownSeconds"
+            type="number"
+            min="0"
+            max="300"
+            value="<%= otpSettings.resendCooldownSeconds %>"
+            required
+          />
+        </label>
+      </div>
+
+      <div class="note-block">
+        <strong>Current mode:</strong> <%= otpSettings.effectiveProviderLabel %>.
+        <% if (otpSettings.provider === 'twilio') { %>
+          Twilio still uses your environment credentials on the server.
+        <% } else if (otpSettings.provider === 'arkesel') { %>
+          Arkesel uses the credentials saved below.
+        <% } else if (otpSettings.provider === 'disabled') { %>
+          Voters will go straight to the ballot after Staff ID and phone number match.
+        <% } else { %>
+          Development mode should only be used locally for testing.
+        <% } %>
+      </div>
+
+      <div class="section-heading section-heading--tight">
+        <div>
+          <span class="eyebrow">Arkesel Credentials</span>
+          <h3>Saved inside the portal</h3>
+        </div>
+        <p>Use your main Arkesel SMS API key here. Sub-keys are not supported for OTP.</p>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Arkesel API Key</span>
+          <input
+            name="arkeselApiKey"
+            type="password"
+            value="<%= otpSettings.arkeselApiKey %>"
+            placeholder="Enter your main Arkesel API key"
+          />
+        </label>
+
+        <label class="field">
+          <span>Sender ID</span>
+          <input
+            name="arkeselSenderId"
+            value="<%= otpSettings.arkeselSenderId %>"
+            maxlength="11"
+            placeholder="e.g. JHIMSVOTE"
+          />
+        </label>
+      </div>
+
+      <label class="field">
+        <span>OTP Message Template</span>
+        <textarea name="arkeselOtpMessage" rows="4" required><%= otpSettings.arkeselOtpMessage %></textarea>
+      </label>
+
+      <div class="note-block">
+        <strong>Required placeholders:</strong> include <code>%otp_code%</code>.
+        You can also include <code>%expiry%</code> inside the message.
+      </div>
+
+      <div class="button-row">
+        <button class="button" type="submit">Save OTP Settings</button>
+        <a class="button button-ghost" href="/admin">Back to Dashboard</a>
+      </div>
+    </form>
+  </article>
+
+  <article class="panel panel-light stack-md">
+    <div class="section-heading section-heading--tight">
+      <div>
+        <span class="eyebrow">Provider Notes</span>
+        <h2>Before you go live</h2>
+      </div>
+    </div>
+
+    <div class="note-block">
+      <strong>Arkesel:</strong> needs a main SMS API key, a sender ID not longer than 11 characters, and a message with
+      <code>%otp_code%</code>.
+    </div>
+
+    <div class="note-block">
+      <strong>Twilio:</strong> can still be selected, but it depends on the environment credentials already configured on
+      Render.
+    </div>
+
+    <div class="note-block">
+      <strong>Security:</strong> these credentials are stored in the portal database, so only trusted administrators should
+      have access to this page.
+    </div>
+
+    <div class="mini-card stack-sm">
+      <div class="info-row">
+        <span>Twilio Environment</span>
+        <strong><%= otpSettings.twilioConfigured ? 'Configured' : 'Not configured' %></strong>
+      </div>
+      <div class="info-row">
+        <span>Arkesel Saved</span>
+        <strong><%= otpSettings.arkeselConfigured ? 'Ready' : 'Incomplete' %></strong>
+      </div>
+      <div class="info-row">
+        <span>Voter OTP</span>
+        <strong><%= otpSettings.isEnabled ? 'Enabled' : 'Disabled' %></strong>
+      </div>
+    </div>
+  </article>
+</section>
+
+<%- include("partials/admin-shell-end") %>

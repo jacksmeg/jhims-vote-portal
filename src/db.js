@@ -348,6 +348,12 @@ function initDatabase(defaultElectionName) {
     ["nomination_closes_at", ""],
     ["admin_2fa_enabled", "false"],
     ["admin_2fa_secret", ""],
+    ["otp_provider", ""],
+    ["otp_ttl_minutes", "10"],
+    ["otp_resend_cooldown_seconds", "30"],
+    ["arkesel_api_key", ""],
+    ["arkesel_sender_id", ""],
+    ["arkesel_otp_message", "Your OTP code is %otp_code%. It expires in %expiry% minutes."],
   ];
 
   for (const [key, value] of defaults) {

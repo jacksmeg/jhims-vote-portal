@@ -40,3 +40,9 @@ services:
         sync: false
       - key: TWILIO_VERIFY_SERVICE_SID
         sync: false
+      - key: ARKESEL_API_KEY
+        sync: false
+      - key: ARKESEL_SENDER_ID
+        sync: false
+      - key: ARKESEL_OTP_MESSAGE
+        sync: false
