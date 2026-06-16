@@ -2790,6 +2790,132 @@ function renderNominationReportPdf(document, payload) {
   });
 }
 
+function renderPositionBallotPaperPdf(document, payload) {
+  const { settings, position, generatedAt } = payload;
+  const logoPath = settings.organizationLogoPath
+    ? resolveAssetPath(settings.organizationLogoPath)
+    : "";
+
+  if (logoPath && fs.existsSync(logoPath)) {
+    safeDrawImage(document, logoPath, 46, 42, {
+      fit: [58, 58],
+      align: "left",
+    });
+  }
+
+  document
+    .font("Helvetica-Bold")
+    .fontSize(20)
+    .fillColor("#102338")
+    .text(settings.electionName, 118, 48, { align: "left" })
+    .fontSize(12)
+    .text("Official Ballot Paper", 118, 78)
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor("#5d6d80")
+    .text(`Position: ${position.name}`, 118, 98)
+    .text(`Generated: ${formatDateTime(generatedAt)}`, 118, 114)
+    .text(`Candidates arranged in voter display order`, 118, 130);
+
+  document
+    .moveTo(46, 150)
+    .lineTo(548, 150)
+    .strokeColor("#d8c197")
+    .lineWidth(1)
+    .stroke();
+
+  document.y = 170;
+  document
+    .font("Helvetica-Bold")
+    .fontSize(14)
+    .fillColor("#102338")
+    .text(`${position.name} Ballot`, 46, document.y);
+  document
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor("#5d6d80")
+    .text("Mark one candidate only. Candidate order matches the live voter ballot.", 46, document.y + 24);
+
+  let cursorY = document.y + 56;
+
+  position.candidates.forEach((candidate, index) => {
+    ensurePdfSpace(document, 124);
+    cursorY = Math.max(cursorY, document.y);
+
+    document
+      .roundedRect(46, cursorY, 502, 104, 18)
+      .fillColor("#f8fafc")
+      .fill();
+    document
+      .roundedRect(46, cursorY, 502, 104, 18)
+      .lineWidth(1)
+      .strokeColor("#d7dee8")
+      .stroke();
+
+    document
+      .roundedRect(66, cursorY + 18, 56, 56, 16)
+      .fillColor("#ffffff")
+      .fill()
+      .roundedRect(66, cursorY + 18, 56, 56, 16)
+      .lineWidth(1)
+      .strokeColor("#c8d3df")
+      .stroke();
+
+    if (candidate.photoPath) {
+      const candidatePhotoPath = resolveAssetPath(candidate.photoPath);
+      if (candidatePhotoPath && fs.existsSync(candidatePhotoPath)) {
+        safeDrawImage(document, candidatePhotoPath, 70, cursorY + 22, {
+          fit: [48, 48],
+          align: "center",
+          valign: "center",
+        });
+      }
+    } else {
+      document
+        .fillColor("#102338")
+        .font("Helvetica-Bold")
+        .fontSize(18)
+        .text(getInitials(candidate.name), 66, cursorY + 36, {
+          width: 56,
+          align: "center",
+        });
+    }
+
+    document
+      .font("Helvetica-Bold")
+      .fontSize(11)
+      .fillColor("#5d6d80")
+      .text(`Option ${index + 1}`, 142, cursorY + 18)
+      .font("Helvetica-Bold")
+      .fontSize(18)
+      .fillColor("#102338")
+      .text(candidate.name, 142, cursorY + 36, {
+        width: 250,
+      })
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#5d6d80")
+      .text(`Ballot order: ${candidate.sortOrder}`, 142, cursorY + 66);
+
+    document
+      .roundedRect(456, cursorY + 26, 56, 56, 12)
+      .lineWidth(2)
+      .strokeColor("#102338")
+      .stroke();
+    document
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor("#5d6d80")
+      .text("Mark here", 442, cursorY + 86, {
+        width: 84,
+        align: "center",
+      });
+
+    cursorY += 118;
+    document.y = cursorY;
+  });
+}
+
 function getVoters() {
   return db.prepare(`
     SELECT
@@ -2834,6 +2960,14 @@ function getCandidates() {
     WHERE c.is_active = 1
     ORDER BY p.sort_order ASC, p.name ASC, c.sort_order ASC, c.name ASC
   `).all();
+}
+
+function getBallotPositionById(positionId) {
+  if (!positionId) {
+    return null;
+  }
+
+  return getBallotData().find((position) => position.id === positionId) || null;
 }
 
 function getRegisteredStaffRecord(staffId, phoneNumber) {
@@ -6308,6 +6442,14 @@ app.get("/admin/setup", requireAdmin, (req, res) => {
   });
 });
 
+app.get("/admin/ballot-layout", requireAdmin, (req, res) => {
+  const ballotPositions = getBallotData();
+  res.render("admin-ballot-layout", {
+    pageTitle: "Ballot Layout",
+    ballotPositions,
+  });
+});
+
 app.get("/admin/archives", requireAdmin, (req, res) => {
   const archives = getElectionArchives();
   res.render("admin-archives", {
@@ -6562,6 +6704,59 @@ app.post(
   },
 );
 
+app.post("/admin/candidates/:id/ballot-order", requireAdmin, (req, res) => {
+  if (!ensureSetupMode(req, res)) {
+    return;
+  }
+
+  const candidateId = parseInteger(req.params.id, 0);
+  const sortOrder = parseInteger(req.body.sortOrder, 0);
+  const redirectPositionId = parseInteger(req.body.positionId, 0);
+  const candidate = db.prepare(`
+    SELECT
+      c.id,
+      c.name,
+      c.sort_order AS sortOrder,
+      p.id AS positionId,
+      p.name AS positionName
+    FROM candidates c
+    INNER JOIN positions p ON p.id = c.position_id
+    WHERE c.id = ?
+      AND c.is_active = 1
+      AND p.is_active = 1
+  `).get(candidateId);
+
+  if (!candidate) {
+    setFlash(req, "error", "Candidate not found.");
+    return res.redirect("/admin/ballot-layout");
+  }
+
+  db.prepare(`
+    UPDATE candidates
+    SET
+      sort_order = ?,
+      updated_at = ?
+    WHERE id = ?
+  `).run(sortOrder, nowIso(), candidateId);
+
+  logAudit(req, "admin", req.session.admin.username, "candidate_ballot_order_updated", {
+    candidateId,
+    candidateName: candidate.name,
+    positionId: candidate.positionId,
+    positionName: candidate.positionName,
+    previousSortOrder: candidate.sortOrder,
+    nextSortOrder: sortOrder,
+  });
+  setFlash(
+    req,
+    "success",
+    `${candidate.name} will now appear with ballot order ${sortOrder} under ${candidate.positionName}.`,
+  );
+  return res.redirect(
+    `/admin/ballot-layout${redirectPositionId ? `#position-${redirectPositionId}` : ""}`,
+  );
+});
+
 app.get("/admin/candidates/:id/edit", requireAdmin, (req, res) => {
   const candidateId = parseInteger(req.params.id, 0);
   const positions = getPositions();
@@ -6725,6 +6920,62 @@ app.post("/admin/candidates/:id/delete", requireAdmin, async (req, res) => {
   });
   setFlash(req, "success", "Candidate removed.");
   return res.redirect("/admin/setup");
+});
+
+app.get("/admin/positions/:id/ballot-paper/print", requireAdmin, (req, res) => {
+  const positionId = parseInteger(req.params.id, 0);
+  const position = getBallotPositionById(positionId);
+
+  if (!position) {
+    setFlash(req, "error", "Ballot position not found.");
+    return res.redirect("/admin/ballot-layout");
+  }
+
+  return res.render("admin-ballot-paper-print", {
+    pageTitle: `${position.name} Ballot Paper`,
+    position,
+    generatedAt: nowIso(),
+  });
+});
+
+app.get("/admin/positions/:id/ballot-paper/pdf", requireAdmin, (req, res) => {
+  const positionId = parseInteger(req.params.id, 0);
+  const position = getBallotPositionById(positionId);
+
+  if (!position) {
+    setFlash(req, "error", "Ballot position not found.");
+    return res.redirect("/admin/ballot-layout");
+  }
+
+  const settings = getElectionSettings();
+  const filename = `${toSafeFilename(settings.electionName)}-${toSafeFilename(position.name)}-ballot-paper.pdf`;
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  const document = new PDFDocument({
+    size: "A4",
+    margin: 46,
+    info: {
+      Title: `${settings.electionName} ${position.name} Ballot Paper`,
+      Author: "Organization Vote Portal",
+      Subject: `${position.name} ballot paper`,
+    },
+  });
+
+  logAudit(req, "admin", req.session.admin.username, "position_ballot_paper_downloaded", {
+    positionId: position.id,
+    positionName: position.name,
+    candidateCount: position.candidates.length,
+  });
+
+  document.pipe(res);
+  renderPositionBallotPaperPdf(document, {
+    settings,
+    position,
+    generatedAt: nowIso(),
+  });
+  document.end();
 });
 
 app.get("/admin/results/print", requireAdmin, (req, res) => {

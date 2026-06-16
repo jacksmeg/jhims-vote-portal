@@ -1,0 +1,76 @@
+<%- include("partials/head", { pageTitle }) %>
+
+<main class="print-page">
+  <section class="print-toolbar">
+    <div>
+      <span class="eyebrow">Print Ballot Paper</span>
+      <h1><%= position.name %></h1>
+      <p>Printable ballot paper arranged exactly in the same order voters will see on the ballot.</p>
+    </div>
+
+    <div class="button-row">
+      <button class="button" type="button" onclick="window.print()">Print Now</button>
+      <a class="button button-ghost" href="/admin/positions/<%= position.id %>/ballot-paper/pdf">Download PDF</a>
+      <a class="button button-ghost" href="/admin/ballot-layout#position-<%= position.id %>">Back to Ballot Layout</a>
+    </div>
+  </section>
+
+  <section class="print-sheet ballot-paper-sheet">
+    <header class="ballot-paper-sheet__header">
+      <div class="ballot-paper-sheet__brand">
+        <% if (settings.organizationLogoPath) { %>
+          <img src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
+        <% } %>
+
+        <div>
+          <span class="eyebrow">Official Ballot Paper</span>
+          <h2><%= settings.electionName %></h2>
+          <p>Position: <strong><%= position.name %></strong></p>
+          <p>Generated: <strong><%= formatDateTime(generatedAt) %></strong></p>
+        </div>
+      </div>
+
+      <div class="winner-pill">Vote For One Candidate</div>
+    </header>
+
+    <article class="print-result-card">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">Ballot Options</span>
+          <h3><%= position.name %></h3>
+          <p class="muted-text"><%= position.candidates.length %> candidate(s) listed below in live ballot order.</p>
+        </div>
+      </div>
+
+      <div class="stack-md">
+        <% position.candidates.forEach((candidate, index) => { %>
+          <article class="ballot-paper-option">
+            <div class="ballot-paper-option__index"><%= index + 1 %></div>
+
+            <div class="ballot-paper-option__media">
+              <% if (candidate.photoPath) { %>
+                <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+              <% } else { %>
+                <div class="candidate-avatar-fallback candidate-avatar-fallback--large"><%= getInitials(candidate.name) %></div>
+              <% } %>
+            </div>
+
+            <div class="ballot-paper-option__copy">
+              <strong><%= candidate.name %></strong>
+              <span><%= position.name %></span>
+              <small>Ballot order: <%= candidate.sortOrder %></small>
+            </div>
+
+            <div class="ballot-paper-option__box">
+              <span></span>
+              <small>Mark Here</small>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    </article>
+  </section>
+</main>
+
+</body>
+</html>

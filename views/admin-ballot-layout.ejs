@@ -1,0 +1,136 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Ballot Layout",
+  pageIntro: "Arrange each candidate exactly how voters will see them on the ballot and print position ballot papers with names and photos.",
+  currentSection: "ballots"
+}) %>
+
+<section class="stack-lg">
+  <article class="panel panel-light stack-md">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Ballot Control</span>
+        <h2>Candidate arrangement for voters</h2>
+      </div>
+      <span class="inline-badge inline-badge--info">Smaller numbers appear first</span>
+    </div>
+
+    <p class="muted-text">
+      Update the candidate order under each position to control exactly how voters will see the ballot.
+      You can also print a ballot paper for each position with candidate names and photos.
+    </p>
+  </article>
+
+  <% if (ballotPositions.length === 0) { %>
+    <article class="panel panel-light">
+      <div class="empty-state">
+        Add positions and candidates first, then come back here to arrange the live ballot.
+      </div>
+    </article>
+  <% } else { %>
+    <% ballotPositions.forEach((position) => { %>
+      <article class="panel panel-light stack-md ballot-position-card" id="position-<%= position.id %>">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">Position Ballot</span>
+            <h2><%= position.name %></h2>
+            <p class="muted-text">
+              <strong><%= position.candidates.length %></strong> candidate(s) currently appear under this position.
+            </p>
+          </div>
+
+          <div class="button-row">
+            <a class="button button-ghost button-small" href="/admin/positions/<%= position.id %>/ballot-paper/print" target="_blank" rel="noreferrer">
+              Print Ballot Paper
+            </a>
+            <a class="button button-ghost button-small" href="/admin/positions/<%= position.id %>/ballot-paper/pdf">
+              Download PDF
+            </a>
+          </div>
+        </div>
+
+        <% if (position.candidates.length === 0) { %>
+          <div class="empty-state">No candidates are attached to this position yet.</div>
+        <% } else { %>
+          <div class="ballot-layout-grid">
+            <div class="stack-sm">
+              <% position.candidates.forEach((candidate, index) => { %>
+                <article class="candidate-summary candidate-summary--ballot">
+                  <div class="candidate-summary__media">
+                    <% if (candidate.photoPath) { %>
+                      <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+                    <% } else { %>
+                      <div class="candidate-avatar-fallback"><%= getInitials(candidate.name) %></div>
+                    <% } %>
+                  </div>
+
+                  <div class="candidate-summary__body">
+                    <strong><%= candidate.name %></strong>
+                    <span>Current display order: <%= candidate.sortOrder %></span>
+                    <small><%= candidate.bio || `Voters will currently see this candidate as option ${index + 1}.` %></small>
+                  </div>
+
+                  <form
+                    class="ballot-order-form"
+                    action="/admin/candidates/<%= candidate.id %>/ballot-order"
+                    method="post"
+                  >
+                    <input type="hidden" name="positionId" value="<%= position.id %>" />
+
+                    <label class="field ballot-order-form__field">
+                      <span>Ballot Order</span>
+                      <input
+                        name="sortOrder"
+                        type="number"
+                        value="<%= candidate.sortOrder %>"
+                        <%= electionState.canEditSetup ? '' : 'disabled' %>
+                      />
+                    </label>
+
+                    <button class="button button-ghost button-small" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+                      Save Order
+                    </button>
+                  </form>
+                </article>
+              <% }) %>
+            </div>
+
+            <aside class="ballot-preview-panel">
+              <div class="section-heading">
+                <div>
+                  <span class="eyebrow">Voter Preview</span>
+                  <h3>How voters will see <%= position.name %></h3>
+                </div>
+              </div>
+
+              <div class="stack-sm">
+                <% position.candidates.forEach((candidate, index) => { %>
+                  <article class="ballot-preview-option">
+                    <div class="ballot-preview-option__number"><%= index + 1 %></div>
+
+                    <div class="ballot-preview-option__media">
+                      <% if (candidate.photoPath) { %>
+                        <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+                      <% } else { %>
+                        <div class="candidate-avatar-fallback"><%= getInitials(candidate.name) %></div>
+                      <% } %>
+                    </div>
+
+                    <div class="ballot-preview-option__copy">
+                      <strong><%= candidate.name %></strong>
+                      <span><%= position.name %></span>
+                    </div>
+
+                    <span class="ballot-preview-option__mark" aria-hidden="true"></span>
+                  </article>
+                <% }) %>
+              </div>
+            </aside>
+          </div>
+        <% } %>
+      </article>
+    <% }) %>
+  <% } %>
+</section>
+
+<%- include("partials/admin-shell-end") %>

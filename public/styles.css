@@ -1212,6 +1212,172 @@ tbody tr:hover {
   min-width: 0;
 }
 
+.ballot-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(300px, 0.82fr);
+  gap: 18px;
+}
+
+.ballot-preview-panel {
+  padding: 18px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(244, 248, 253, 0.9), rgba(252, 248, 239, 0.92));
+  border: 1px solid rgba(19, 45, 80, 0.08);
+}
+
+.candidate-summary--ballot {
+  align-items: center;
+}
+
+.ballot-order-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.ballot-order-form__field {
+  min-width: 132px;
+}
+
+.ballot-preview-option {
+  display: grid;
+  grid-template-columns: 42px 58px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(19, 45, 80, 0.08);
+}
+
+.ballot-preview-option__number {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(19, 93, 122, 0.12);
+  color: var(--ink-900);
+  font-weight: 800;
+}
+
+.ballot-preview-option__media img,
+.ballot-preview-option__media .candidate-avatar-fallback {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+}
+
+.ballot-preview-option__copy {
+  display: grid;
+  gap: 4px;
+}
+
+.ballot-preview-option__copy span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.ballot-preview-option__mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  border: 2px solid rgba(16, 35, 56, 0.35);
+  background: #ffffff;
+}
+
+.ballot-paper-sheet__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.ballot-paper-sheet__brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.ballot-paper-sheet__brand img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 8px;
+  border: 1px solid rgba(19, 45, 80, 0.08);
+}
+
+.ballot-paper-sheet__brand p {
+  margin: 0;
+}
+
+.ballot-paper-option {
+  display: grid;
+  grid-template-columns: 54px 112px minmax(0, 1fr) 108px;
+  align-items: center;
+  gap: 18px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(19, 45, 80, 0.08);
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.ballot-paper-option__index {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: rgba(19, 93, 122, 0.12);
+  color: var(--ink-900);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.ballot-paper-option__media img,
+.ballot-paper-option__media .candidate-avatar-fallback {
+  width: 112px;
+  height: 112px;
+  border-radius: 20px;
+  object-fit: cover;
+}
+
+.ballot-paper-option__copy {
+  display: grid;
+  gap: 6px;
+}
+
+.ballot-paper-option__copy span,
+.ballot-paper-option__copy small {
+  color: var(--muted);
+}
+
+.ballot-paper-option__box {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.ballot-paper-option__box span {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  border: 2px solid rgba(16, 35, 56, 0.72);
+  background: #ffffff;
+}
+
+.ballot-paper-option__box small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .brand-upload-panel,
 .candidate-edit-layout,
 .declaration-settings-layout,
@@ -1525,6 +1691,8 @@ code {
   .metric-grid,
   .feature-grid,
   .card-grid,
+  .ballot-layout-grid,
+  .ballot-paper-option,
   .print-summary-grid,
   .results-summary-grid,
   .signature-grid {
@@ -1558,6 +1726,8 @@ code {
   .feature-grid,
   .card-grid,
   .form-grid,
+  .ballot-layout-grid,
+  .ballot-paper-option,
   .print-summary-grid,
   .results-summary-grid,
   .results-summary-metrics,
@@ -1602,6 +1772,8 @@ code {
   .candidate-summary,
   .mini-card--row,
   .info-row,
+  .ballot-paper-sheet__header,
+  .ballot-paper-sheet__brand,
   .archive-card__topline,
   .chart-row__topline {
     flex-direction: column;
@@ -1613,7 +1785,8 @@ code {
   .declaration-settings-layout,
   .two-factor-setup-grid,
   .wizard-progress,
-  .countdown-banner {
+  .countdown-banner,
+  .ballot-paper-option {
     grid-template-columns: 1fr;
   }
 
