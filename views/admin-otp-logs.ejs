@@ -1,0 +1,61 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "OTP Activity",
+  pageIntro: "Review provider acceptance, resend attempts, verification events, and send errors for voter OTP.",
+  currentSection: "otp-logs"
+}) %>
+
+<section class="panel panel-light stack-md">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">OTP Monitoring</span>
+      <h2>Latest 7 OTP delivery and error events</h2>
+    </div>
+    <p>This view shows portal and provider responses for OTP activity. It does not confirm whether a voter read the SMS on their phone.</p>
+  </div>
+
+  <% if (logs.length === 0) { %>
+    <div class="empty-state">No OTP activity has been recorded yet.</div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Actor</th>
+            <th>Provider</th>
+            <th>Status</th>
+            <th>Phone</th>
+            <th>Summary</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% logs.forEach((log) => { %>
+            <tr>
+              <td><%= formatDateTime(log.createdAt) %></td>
+              <td><strong><%= log.actorType %></strong> / <%= log.actorIdentifier %></td>
+              <td><%= log.providerLabel %></td>
+              <td>
+                <span class="status-badge <%= log.badgeClass %>">
+                  <span class="status-dot"></span>
+                  <%= log.statusLabel %>
+                </span>
+              </td>
+              <td><%= log.maskedPhoneNumber %></td>
+              <td><%= log.summary %></td>
+              <td><%= log.ipAddress || "Not recorded" %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <div class="button-row">
+    <a class="button button-ghost" href="/admin/otp-settings">Back to OTP Settings</a>
+    <a class="button button-ghost" href="/admin/audit">Open Full Audit Log</a>
+  </div>
+</section>
+
+<%- include("partials/admin-shell-end") %>

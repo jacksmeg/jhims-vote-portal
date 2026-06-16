@@ -198,7 +198,87 @@
         <strong><%= otpSettings.isEnabled ? 'Enabled' : 'Disabled' %></strong>
       </div>
     </div>
+
+    <div class="section-heading section-heading--tight">
+      <div>
+        <span class="eyebrow">Live Test</span>
+        <h2>Send test OTP</h2>
+      </div>
+      <p>This uses the currently saved OTP provider and credentials.</p>
+    </div>
+
+    <form class="stack-md" action="/admin/otp-settings/test" method="post">
+      <label class="field">
+        <span>Phone Number</span>
+        <input
+          name="testPhoneNumber"
+          type="tel"
+          placeholder="0241234567 or +233241234567"
+          required
+        />
+      </label>
+
+      <div class="note-block">
+        <strong>Heads up:</strong> the status below shows whether the provider accepted the request or returned an error.
+        It is not the same as a handset read receipt.
+      </div>
+
+      <div class="button-row">
+        <button class="button" type="submit">Send Test OTP</button>
+        <a class="button button-ghost" href="/admin/otp-logs">View OTP Activity</a>
+      </div>
+    </form>
   </article>
+</section>
+
+<section class="panel panel-light stack-md">
+  <div class="section-heading section-heading--tight">
+    <div>
+      <span class="eyebrow">Recent OTP Activity</span>
+      <h2>Latest 7 delivery checks and errors</h2>
+    </div>
+    <p>Recent OTP send, resend, verification, and failure events from voters and admin tests.</p>
+  </div>
+
+  <% if (otpActivity.length === 0) { %>
+    <div class="empty-state">No OTP activity has been recorded yet.</div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Actor</th>
+            <th>Provider</th>
+            <th>Status</th>
+            <th>Phone</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% otpActivity.forEach((log) => { %>
+            <tr>
+              <td><%= formatDateTime(log.createdAt) %></td>
+              <td><strong><%= log.actorType %></strong> / <%= log.actorIdentifier %></td>
+              <td><%= log.providerLabel %></td>
+              <td>
+                <span class="status-badge <%= log.badgeClass %>">
+                  <span class="status-dot"></span>
+                  <%= log.statusLabel %>
+                </span>
+              </td>
+              <td><%= log.maskedPhoneNumber %></td>
+              <td><%= log.summary %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <div class="button-row">
+    <a class="button button-ghost" href="/admin/otp-logs">Open Full OTP Activity Log</a>
+  </div>
 </section>
 
 <%- include("partials/admin-shell-end") %>

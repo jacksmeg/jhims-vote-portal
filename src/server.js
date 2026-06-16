@@ -161,6 +161,22 @@ function formatPercent(value) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function parseJsonObject(value, fallback = {}) {
+  try {
+    const parsed = JSON.parse(String(value || ""));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function humanizeToken(value) {
+  return String(value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+    .trim();
+}
+
 function toSafeFilename(value) {
   return (
     String(value || "election-results")
@@ -3705,6 +3721,105 @@ function getAuditLogs(limit = 150) {
   `).all(limit);
 }
 
+function getOtpActivityBadge(action) {
+  switch (action) {
+    case "voter_otp_sent":
+    case "voter_otp_verified":
+    case "otp_test_sent":
+      return {
+        label: action === "voter_otp_verified" ? "Verified" : "Sent",
+        badgeClass: "status-open",
+      };
+    case "voter_otp_resent":
+      return {
+        label: "Resent",
+        badgeClass: "status-scheduled",
+      };
+    case "voter_otp_failed":
+      return {
+        label: "Code Rejected",
+        badgeClass: "status-closed",
+      };
+    case "voter_otp_send_failed":
+    case "otp_test_send_failed":
+      return {
+        label: "Send Failed",
+        badgeClass: "status-closed",
+      };
+    default:
+      return {
+        label: humanizeToken(action),
+        badgeClass: "status-setup",
+      };
+  }
+}
+
+function buildOtpActivitySummary(action, details) {
+  switch (action) {
+    case "voter_otp_sent":
+      return "Provider accepted a fresh OTP request for voter sign-in.";
+    case "voter_otp_resent":
+      return "A replacement OTP request was accepted after the resend action.";
+    case "voter_otp_verified":
+      return "The voter entered a valid OTP and passed verification.";
+    case "voter_otp_failed":
+      return details.message
+        || (details.attempts
+          ? `Incorrect or expired code. Failed attempt ${details.attempts}.`
+          : "The submitted OTP code could not be verified.");
+    case "voter_otp_send_failed":
+    case "otp_test_send_failed":
+      return details.message
+        || (details.reason ? humanizeToken(details.reason) : "The OTP request was rejected before delivery.");
+    case "otp_test_sent":
+      return "Provider accepted the admin test OTP request.";
+    default:
+      return details.message || details.reason || humanizeToken(action);
+  }
+}
+
+function mapOtpActivityLog(row) {
+  const details = parseJsonObject(row.detailsJson, {});
+  const badge = getOtpActivityBadge(row.action);
+  const provider = String(details.provider || "").trim().toLowerCase();
+
+  return {
+    ...row,
+    details,
+    maskedPhoneNumber: String(details.phoneNumber || "").trim() || "Not recorded",
+    provider,
+    providerLabel: provider ? getOtpProviderLabel(provider) : "Not recorded",
+    statusLabel: badge.label,
+    badgeClass: badge.badgeClass,
+    summary: buildOtpActivitySummary(row.action, details),
+  };
+}
+
+function getOtpActivityLogs(limit = 150) {
+  return db.prepare(`
+    SELECT
+      id,
+      actor_type AS actorType,
+      actor_identifier AS actorIdentifier,
+      action,
+      details_json AS detailsJson,
+      ip_address AS ipAddress,
+      created_at AS createdAt
+    FROM audit_logs
+    WHERE action IN (
+      'voter_otp_sent',
+      'voter_otp_resent',
+      'voter_otp_send_failed',
+      'voter_otp_failed',
+      'voter_otp_verified',
+      'otp_test_sent',
+      'otp_test_send_failed'
+    )
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(limit).map(mapOtpActivityLog);
+}
+
 function getResultsSummary() {
   const rows = db.prepare(`
     SELECT
@@ -4726,6 +4841,9 @@ app.post("/vote/login", async (req, res) => {
 
     if (!smsPhoneNumber) {
       logAudit(req, "voter", staffId, "voter_otp_send_failed", {
+        provider: otpConfig.provider,
+        phoneNumber: maskPhoneNumber(phoneNumber),
+        phase: "initial",
         reason: "invalid_sms_phone_format",
       });
       setFlash(
@@ -4751,6 +4869,7 @@ app.post("/vote/login", async (req, res) => {
       logAudit(req, "voter", staffId, "voter_otp_sent", {
         provider: otpConfig.provider,
         phoneNumber: maskPhoneNumber(phoneNumber),
+        phase: "initial",
       });
       setFlash(
         req,
@@ -4760,6 +4879,9 @@ app.post("/vote/login", async (req, res) => {
       return res.redirect("/vote/verify-otp");
     } catch (error) {
       logAudit(req, "voter", staffId, "voter_otp_send_failed", {
+        provider: otpConfig.provider,
+        phoneNumber: maskPhoneNumber(phoneNumber),
+        phase: "initial",
         reason: "provider_error",
         message: error.message,
       });
@@ -4890,6 +5012,9 @@ app.post("/vote/verify-otp", async (req, res) => {
       req.session.pendingVoterVerification = pendingVerification;
       logAudit(req, "voter", voterRecord.staffId, "voter_otp_failed", {
         attempts: pendingVerification.attempts,
+        provider: pendingVerification.provider || getOtpConfig().provider,
+        phoneNumber: maskPhoneNumber(voterRecord.phoneNumber),
+        message: verification.errorMessage,
       });
       setFlash(req, "error", verification.errorMessage);
       return res.redirect("/vote/verify-otp");
@@ -4961,6 +5086,12 @@ app.post("/vote/resend-otp", async (req, res) => {
 
   const smsPhoneNumber = toSmsPhoneNumber(voterRecord.phoneNumber);
   if (!smsPhoneNumber) {
+    logAudit(req, "voter", voterRecord.staffId, "voter_otp_send_failed", {
+      provider: otpConfig.provider,
+      phoneNumber: maskPhoneNumber(voterRecord.phoneNumber),
+      phase: "resend",
+      reason: "invalid_sms_phone_format",
+    });
     clearVoterSession(req);
     setFlash(
       req,
@@ -4983,6 +5114,7 @@ app.post("/vote/resend-otp", async (req, res) => {
     logAudit(req, "voter", voterRecord.staffId, "voter_otp_resent", {
       provider: otpConfig.provider,
       phoneNumber: maskPhoneNumber(voterRecord.phoneNumber),
+      phase: "resend",
     });
     setFlash(
       req,
@@ -4991,6 +5123,9 @@ app.post("/vote/resend-otp", async (req, res) => {
     );
   } catch (error) {
     logAudit(req, "voter", voterRecord.staffId, "voter_otp_send_failed", {
+      provider: otpConfig.provider,
+      phoneNumber: maskPhoneNumber(voterRecord.phoneNumber),
+      phase: "resend",
       reason: "resend_provider_error",
       message: error.message,
     });
@@ -5519,6 +5654,7 @@ app.get("/admin/otp-settings", requireAdmin, (req, res) => {
   return res.render("admin-otp-settings", {
     pageTitle: "OTP Settings",
     otpSettings: getAdminOtpSettingsView(),
+    otpActivity: getOtpActivityLogs(7),
     isProduction,
   });
 });
@@ -5591,6 +5727,72 @@ app.post("/admin/otp-settings", requireAdmin, (req, res) => {
 
   setFlash(req, "success", `${providerLabel} OTP settings saved.${configSuffix}`);
   return res.redirect("/admin/otp-settings");
+});
+
+app.post("/admin/otp-settings/test", requireAdmin, async (req, res) => {
+  const otpConfig = getOtpConfig();
+  const rawPhoneNumber = String(req.body.testPhoneNumber || "").trim();
+  const maskedPhoneNumber = maskPhoneNumber(rawPhoneNumber);
+
+  if (!rawPhoneNumber) {
+    setFlash(req, "error", "Enter a phone number before sending a test OTP.");
+    return res.redirect("/admin/otp-settings");
+  }
+
+  if (!isOtpVerificationEnabled(otpConfig)) {
+    setFlash(
+      req,
+      "error",
+      "OTP is currently disabled. Save and enable an OTP provider first before sending a test.",
+    );
+    return res.redirect("/admin/otp-settings");
+  }
+
+  const smsPhoneNumber = toSmsPhoneNumber(rawPhoneNumber);
+  if (!smsPhoneNumber) {
+    logAudit(req, "admin", req.session.admin.username, "otp_test_send_failed", {
+      provider: otpConfig.provider,
+      phoneNumber: maskedPhoneNumber,
+      reason: "invalid_sms_phone_format",
+    });
+    setFlash(req, "error", "Enter a valid phone number in SMS format before testing OTP.");
+    return res.redirect("/admin/otp-settings");
+  }
+
+  try {
+    const challenge = await sendOtpChallenge(smsPhoneNumber, otpConfig);
+    logAudit(req, "admin", req.session.admin.username, "otp_test_sent", {
+      provider: otpConfig.provider,
+      phoneNumber: maskedPhoneNumber,
+    });
+
+    const devSuffix =
+      otpConfig.provider === "dev" && challenge?.devCodePreview && !isProduction
+        ? ` Development code: ${challenge.devCodePreview}.`
+        : "";
+    setFlash(
+      req,
+      "success",
+      `Test OTP request accepted for ${maskedPhoneNumber || rawPhoneNumber} using ${otpConfig.providerLabel}.${devSuffix}`,
+    );
+  } catch (error) {
+    logAudit(req, "admin", req.session.admin.username, "otp_test_send_failed", {
+      provider: otpConfig.provider,
+      phoneNumber: maskedPhoneNumber,
+      reason: "provider_error",
+      message: error.message,
+    });
+    setFlash(req, "error", error.message);
+  }
+
+  return res.redirect("/admin/otp-settings");
+});
+
+app.get("/admin/otp-logs", requireAdmin, (req, res) => {
+  return res.render("admin-otp-logs", {
+    pageTitle: "OTP Activity",
+    logs: getOtpActivityLogs(7),
+  });
 });
 
 app.post("/admin/2fa/setup", requireAdmin, (req, res) => {
@@ -7470,7 +7672,7 @@ app.get("/admin/results", requireAdmin, (req, res) => {
 });
 
 app.get("/admin/audit", requireAdmin, (req, res) => {
-  const logs = getAuditLogs();
+  const logs = getAuditLogs(7);
   res.render("admin-audit", {
     pageTitle: "Audit Log",
     logs,
