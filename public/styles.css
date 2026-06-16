@@ -1378,6 +1378,173 @@ tbody tr:hover {
   text-transform: uppercase;
 }
 
+.ballot-paper-sheet--official {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 22px 28px;
+  border: 12px solid #4b5563;
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(240, 245, 238, 0.96), rgba(248, 250, 248, 0.94)),
+    #eef2ec;
+  box-shadow: 0 30px 60px rgba(16, 35, 56, 0.18);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.ballot-paper-sheet__masthead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.ballot-paper-sheet__brand-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.ballot-paper-sheet__logo,
+.ballot-paper-sheet__logo-fallback {
+  width: 78px;
+  height: 78px;
+  border-radius: 20px;
+  object-fit: contain;
+  background: #ffffff;
+  border: 1px solid rgba(19, 45, 80, 0.12);
+  padding: 8px;
+}
+
+.ballot-paper-sheet__logo-fallback {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-weight: 800;
+}
+
+.ballot-paper-sheet__brand-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.ballot-paper-sheet__brand-copy h2 {
+  margin: 0;
+  font-size: clamp(1.6rem, 2vw, 2.2rem);
+  line-height: 1.1;
+}
+
+.ballot-paper-sheet__brand-copy p,
+.ballot-paper-sheet__meta p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.ballot-paper-sheet__meta {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  text-align: right;
+}
+
+.ballot-paper-table {
+  display: grid;
+  gap: 14px;
+}
+
+.ballot-paper-table__header {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr) 104px;
+  gap: 3px;
+  padding: 0;
+  background: #2a3340;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+}
+
+.ballot-paper-table__header span {
+  display: grid;
+  place-items: center;
+  min-height: 46px;
+  padding: 8px 10px;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ballot-paper-row {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr) 104px;
+  gap: 3px;
+  padding: 0;
+  background: #2a3340;
+  border-radius: 0;
+  overflow: hidden;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.ballot-paper-row__photo,
+.ballot-paper-row__candidate,
+.ballot-paper-row__mark {
+  min-height: 108px;
+  background: #ffffff;
+}
+
+.ballot-paper-row__photo {
+  display: grid;
+  place-items: center;
+  padding: 10px;
+}
+
+.ballot-paper-row__photo img,
+.ballot-paper-row__photo .candidate-avatar-fallback {
+  width: 90px;
+  height: 90px;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+.ballot-paper-row__candidate {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 16px 18px;
+}
+
+.ballot-paper-row__candidate strong {
+  color: #102338;
+  font-size: 1.08rem;
+  line-height: 1.3;
+  letter-spacing: 0.03em;
+}
+
+.ballot-paper-row__candidate span {
+  color: #607086;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ballot-paper-row__mark {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+
+.ballot-paper-row__mark span {
+  width: 58px;
+  height: 58px;
+  border: 2px solid #102338;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
 .brand-upload-panel,
 .candidate-edit-layout,
 .declaration-settings-layout,
@@ -1772,6 +1939,8 @@ code {
   .candidate-summary,
   .mini-card--row,
   .info-row,
+  .ballot-paper-sheet__masthead,
+  .ballot-paper-sheet__brand-panel,
   .ballot-paper-sheet__header,
   .ballot-paper-sheet__brand,
   .archive-card__topline,
@@ -1793,6 +1962,11 @@ code {
   .countdown-banner__timer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
+  }
+
+  .ballot-paper-table__header,
+  .ballot-paper-row {
+    grid-template-columns: 94px minmax(0, 1fr) 86px;
   }
 
   .print-toolbar,
@@ -1825,6 +1999,10 @@ code {
   .print-result-card {
     box-shadow: none;
     border-color: #d6d6d6;
+  }
+
+  .ballot-paper-sheet--official {
+    box-shadow: none;
   }
 
   .print-result-card {

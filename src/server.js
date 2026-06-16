@@ -2795,88 +2795,48 @@ function renderPositionBallotPaperPdf(document, payload) {
   const logoPath = settings.organizationLogoPath
     ? resolveAssetPath(settings.organizationLogoPath)
     : "";
+  const pageWidth = document.page.width;
+  const pageHeight = document.page.height;
+  const marginX = 42;
+  const marginY = 42;
+  const contentWidth = pageWidth - marginX * 2;
+  const tableGap = 3;
+  const photoColumnWidth = 96;
+  const markColumnWidth = 84;
+  const nameColumnWidth = contentWidth - photoColumnWidth - markColumnWidth - tableGap * 2;
+  const rowHeight = 90;
+  const tableHeaderHeight = 40;
+  const footerMargin = 46;
 
-  if (logoPath && fs.existsSync(logoPath)) {
-    safeDrawImage(document, logoPath, 46, 42, {
-      fit: [58, 58],
-      align: "left",
-    });
-  }
-
-  document
-    .font("Helvetica-Bold")
-    .fontSize(20)
-    .fillColor("#102338")
-    .text(settings.electionName, 118, 48, { align: "left" })
-    .fontSize(12)
-    .text("Official Ballot Paper", 118, 78)
-    .font("Helvetica")
-    .fontSize(10)
-    .fillColor("#5d6d80")
-    .text(`Position: ${position.name}`, 118, 98)
-    .text(`Generated: ${formatDateTime(generatedAt)}`, 118, 114)
-    .text(`Candidates arranged in voter display order`, 118, 130);
-
-  document
-    .moveTo(46, 150)
-    .lineTo(548, 150)
-    .strokeColor("#d8c197")
-    .lineWidth(1)
-    .stroke();
-
-  document.y = 170;
-  document
-    .font("Helvetica-Bold")
-    .fontSize(14)
-    .fillColor("#102338")
-    .text(`${position.name} Ballot`, 46, document.y);
-  document
-    .font("Helvetica")
-    .fontSize(10)
-    .fillColor("#5d6d80")
-    .text("Mark one candidate only. Candidate order matches the live voter ballot.", 46, document.y + 24);
-
-  let cursorY = document.y + 56;
-
-  position.candidates.forEach((candidate, index) => {
-    ensurePdfSpace(document, 124);
-    cursorY = Math.max(cursorY, document.y);
-
+  const drawMasthead = () => {
     document
-      .roundedRect(46, cursorY, 502, 104, 18)
-      .fillColor("#f8fafc")
-      .fill();
-    document
-      .roundedRect(46, cursorY, 502, 104, 18)
-      .lineWidth(1)
-      .strokeColor("#d7dee8")
-      .stroke();
-
-    document
-      .roundedRect(66, cursorY + 18, 56, 56, 16)
-      .fillColor("#ffffff")
+      .roundedRect(marginX, marginY, contentWidth, 112, 24)
+      .fillColor("#eef2ec")
       .fill()
-      .roundedRect(66, cursorY + 18, 56, 56, 16)
+      .roundedRect(marginX, marginY, contentWidth, 112, 24)
       .lineWidth(1)
-      .strokeColor("#c8d3df")
+      .strokeColor("#b5c2cf")
       .stroke();
 
-    if (candidate.photoPath) {
-      const candidatePhotoPath = resolveAssetPath(candidate.photoPath);
-      if (candidatePhotoPath && fs.existsSync(candidatePhotoPath)) {
-        safeDrawImage(document, candidatePhotoPath, 70, cursorY + 22, {
-          fit: [48, 48],
-          align: "center",
-          valign: "center",
-        });
-      }
+    if (logoPath && fs.existsSync(logoPath)) {
+      safeDrawImage(document, logoPath, marginX + 16, marginY + 16, {
+        fit: [66, 66],
+        align: "left",
+      });
     } else {
       document
-        .fillColor("#102338")
+        .roundedRect(marginX + 16, marginY + 16, 66, 66, 18)
+        .fillColor("#ffffff")
+        .fill()
+        .roundedRect(marginX + 16, marginY + 16, 66, 66, 18)
+        .lineWidth(1)
+        .strokeColor("#d5dde7")
+        .stroke()
         .font("Helvetica-Bold")
-        .fontSize(18)
-        .text(getInitials(candidate.name), 66, cursorY + 36, {
-          width: 56,
+        .fontSize(20)
+        .fillColor("#102338")
+        .text("EC", marginX + 16, marginY + 38, {
+          width: 66,
           align: "center",
         });
     }
@@ -2885,34 +2845,175 @@ function renderPositionBallotPaperPdf(document, payload) {
       .font("Helvetica-Bold")
       .fontSize(11)
       .fillColor("#5d6d80")
-      .text(`Option ${index + 1}`, 142, cursorY + 18)
-      .font("Helvetica-Bold")
-      .fontSize(18)
+      .text("OFFICIAL BALLOT PAPER", marginX + 98, marginY + 18, {
+        width: 220,
+      })
+      .fontSize(20)
       .fillColor("#102338")
-      .text(candidate.name, 142, cursorY + 36, {
-        width: 250,
+      .text(settings.electionName, marginX + 98, marginY + 34, {
+        width: 260,
       })
       .font("Helvetica")
-      .fontSize(10)
+      .fontSize(11)
       .fillColor("#5d6d80")
-      .text(`Ballot order: ${candidate.sortOrder}`, 142, cursorY + 66);
+      .text(`Position: ${position.name}`, marginX + 98, marginY + 64, {
+        width: 260,
+      });
 
     document
-      .roundedRect(456, cursorY + 26, 56, 56, 12)
-      .lineWidth(2)
-      .strokeColor("#102338")
-      .stroke();
-    document
+      .roundedRect(pageWidth - marginX - 156, marginY + 16, 140, 66, 18)
+      .fillColor("#ffffff")
+      .fill()
+      .roundedRect(pageWidth - marginX - 156, marginY + 16, 140, 66, 18)
+      .lineWidth(1)
+      .strokeColor("#d5dde7")
+      .stroke()
+      .font("Helvetica-Bold")
+      .fontSize(11)
+      .fillColor("#102338")
+      .text("Vote For One Candidate", pageWidth - marginX - 146, marginY + 28, {
+        width: 120,
+        align: "center",
+      })
       .font("Helvetica")
       .fontSize(9)
       .fillColor("#5d6d80")
-      .text("Mark here", 442, cursorY + 86, {
-        width: 84,
+      .text(`Generated: ${formatDateTime(generatedAt)}`, pageWidth - marginX - 146, marginY + 56, {
+        width: 120,
         align: "center",
       });
+  };
 
-    cursorY += 118;
-    document.y = cursorY;
+  const drawTableHeader = (y) => {
+    document
+      .rect(marginX, y, contentWidth, tableHeaderHeight)
+      .fillColor("#2a3340")
+      .fill();
+
+    const nameColumnX = marginX + photoColumnWidth + tableGap;
+    const markColumnX = marginX + photoColumnWidth + tableGap + nameColumnWidth + tableGap;
+
+    document
+      .font("Helvetica-Bold")
+      .fontSize(9)
+      .fillColor("#ffffff")
+      .text("CANDIDATE PHOTO", marginX + 6, y + 15, {
+        width: photoColumnWidth - 12,
+        align: "center",
+      })
+      .text("CANDIDATE NAME", nameColumnX + 6, y + 15, {
+        width: nameColumnWidth - 12,
+        align: "center",
+      })
+      .text("MARK BOX", markColumnX + 6, y + 15, {
+        width: markColumnWidth - 12,
+        align: "center",
+      });
+  };
+
+  const drawCandidateRow = (candidate, y) => {
+    const nameColumnX = marginX + photoColumnWidth + tableGap;
+    const markColumnX = marginX + photoColumnWidth + tableGap + nameColumnWidth + tableGap;
+
+    document.rect(marginX, y, photoColumnWidth, rowHeight).fillColor("#ffffff").fill();
+    document.rect(nameColumnX, y, nameColumnWidth, rowHeight).fillColor("#ffffff").fill();
+    document.rect(markColumnX, y, markColumnWidth, rowHeight).fillColor("#ffffff").fill();
+
+    document
+      .rect(marginX, y, contentWidth, rowHeight)
+      .lineWidth(1)
+      .strokeColor("#2a3340")
+      .stroke();
+    document
+      .moveTo(marginX + photoColumnWidth + 1.5, y)
+      .lineTo(marginX + photoColumnWidth + 1.5, y + rowHeight)
+      .strokeColor("#2a3340")
+      .lineWidth(1)
+      .stroke();
+    document
+      .moveTo(markColumnX - tableGap / 2, y)
+      .lineTo(markColumnX - tableGap / 2, y + rowHeight)
+      .strokeColor("#2a3340")
+      .lineWidth(1)
+      .stroke();
+
+    const photoX = marginX + 11;
+    const photoY = y + 9;
+    if (candidate.photoPath) {
+      const candidatePhotoPath = resolveAssetPath(candidate.photoPath);
+      if (candidatePhotoPath && fs.existsSync(candidatePhotoPath)) {
+        safeDrawImage(document, candidatePhotoPath, photoX, photoY, {
+          fit: [74, 72],
+          align: "center",
+          valign: "center",
+        });
+      }
+    } else {
+      document
+        .roundedRect(photoX, photoY, 74, 72, 12)
+        .fillColor("#f1f5f9")
+        .fill()
+        .roundedRect(photoX, photoY, 74, 72, 12)
+        .lineWidth(1)
+        .strokeColor("#c9d4df")
+        .stroke()
+        .font("Helvetica-Bold")
+        .fontSize(20)
+        .fillColor("#102338")
+        .text(getInitials(candidate.name), photoX, photoY + 22, {
+          width: 74,
+          align: "center",
+        });
+    }
+
+    document
+      .font("Helvetica-Bold")
+      .fontSize(13)
+      .fillColor("#102338")
+      .text(String(candidate.name || "").toUpperCase(), nameColumnX + 14, y + 22, {
+        width: nameColumnWidth - 28,
+      })
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor("#5d6d80")
+      .text(position.name.toUpperCase(), nameColumnX + 14, y + 52, {
+        width: nameColumnWidth - 28,
+      });
+
+    document
+      .roundedRect(markColumnX + 14, y + 17, 50, 50, 10)
+      .lineWidth(2)
+      .strokeColor("#102338")
+      .stroke();
+  };
+
+  drawMasthead();
+  let cursorY = marginY + 130;
+  drawTableHeader(cursorY);
+  cursorY += tableHeaderHeight + tableGap;
+
+  position.candidates.forEach((candidate, index) => {
+    if (cursorY + rowHeight > pageHeight - footerMargin) {
+      document.addPage();
+      drawMasthead();
+      cursorY = marginY + 130;
+      drawTableHeader(cursorY);
+      cursorY += tableHeaderHeight + tableGap;
+    }
+
+    drawCandidateRow(candidate, cursorY);
+    cursorY += rowHeight + tableGap;
+
+    if (index === position.candidates.length - 1) {
+      document
+        .font("Helvetica")
+        .fontSize(9)
+        .fillColor("#5d6d80")
+        .text("Candidate order on this ballot matches the live voter ballot arrangement.", marginX, cursorY + 10, {
+          width: contentWidth,
+          align: "center",
+        });
+    }
   });
 }
 

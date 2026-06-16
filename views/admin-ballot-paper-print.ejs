@@ -5,7 +5,7 @@
     <div>
       <span class="eyebrow">Print Ballot Paper</span>
       <h1><%= position.name %></h1>
-      <p>Printable ballot paper arranged exactly in the same order voters will see on the ballot.</p>
+      <p>Preview the official ballot-paper style first. This local version is not uploaded yet.</p>
     </div>
 
     <div class="button-row">
@@ -15,39 +15,40 @@
     </div>
   </section>
 
-  <section class="print-sheet ballot-paper-sheet">
-    <header class="ballot-paper-sheet__header">
-      <div class="ballot-paper-sheet__brand">
+  <section class="print-sheet ballot-paper-sheet ballot-paper-sheet--official">
+    <header class="ballot-paper-sheet__masthead">
+      <div class="ballot-paper-sheet__brand-panel">
         <% if (settings.organizationLogoPath) { %>
-          <img src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
+          <img class="ballot-paper-sheet__logo" src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
+        <% } else { %>
+          <div class="candidate-avatar-fallback ballot-paper-sheet__logo-fallback">EC</div>
         <% } %>
 
-        <div>
+        <div class="ballot-paper-sheet__brand-copy">
           <span class="eyebrow">Official Ballot Paper</span>
           <h2><%= settings.electionName %></h2>
-          <p>Position: <strong><%= position.name %></strong></p>
-          <p>Generated: <strong><%= formatDateTime(generatedAt) %></strong></p>
+          <p><strong>Position:</strong> <%= position.name %></p>
         </div>
       </div>
 
-      <div class="winner-pill">Vote For One Candidate</div>
+      <div class="ballot-paper-sheet__meta">
+        <div class="winner-pill">Vote For One Candidate</div>
+        <p><strong>Generated:</strong> <%= formatDateTime(generatedAt) %></p>
+        <p>Put your mark in only one box below.</p>
+      </div>
     </header>
 
-    <article class="print-result-card">
-      <div class="section-heading">
-        <div>
-          <span class="eyebrow">Ballot Options</span>
-          <h3><%= position.name %></h3>
-          <p class="muted-text"><%= position.candidates.length %> candidate(s) listed below in live ballot order.</p>
-        </div>
-      </div>
+    <section class="ballot-paper-table">
+      <header class="ballot-paper-table__header">
+        <span>Candidate Photo</span>
+        <span>Candidate Name</span>
+        <span>Mark Box</span>
+      </header>
 
-      <div class="stack-md">
-        <% position.candidates.forEach((candidate, index) => { %>
-          <article class="ballot-paper-option">
-            <div class="ballot-paper-option__index"><%= index + 1 %></div>
-
-            <div class="ballot-paper-option__media">
+      <div class="stack-sm">
+        <% position.candidates.forEach((candidate) => { %>
+          <article class="ballot-paper-row">
+            <div class="ballot-paper-row__photo">
               <% if (candidate.photoPath) { %>
                 <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
               <% } else { %>
@@ -55,20 +56,18 @@
               <% } %>
             </div>
 
-            <div class="ballot-paper-option__copy">
-              <strong><%= candidate.name %></strong>
+            <div class="ballot-paper-row__candidate">
+              <strong><%= candidate.name.toUpperCase() %></strong>
               <span><%= position.name %></span>
-              <small>Ballot order: <%= candidate.sortOrder %></small>
             </div>
 
-            <div class="ballot-paper-option__box">
-              <span></span>
-              <small>Mark Here</small>
+            <div class="ballot-paper-row__mark">
+              <span aria-hidden="true"></span>
             </div>
           </article>
         <% }) %>
       </div>
-    </article>
+    </section>
   </section>
 </main>
 
