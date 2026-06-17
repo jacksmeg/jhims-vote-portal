@@ -3184,6 +3184,12 @@ body {
   top: 18px;
   align-self: start;
   min-height: calc(100vh - 36px);
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.34) transparent;
   padding: 24px 18px 20px;
   border-radius: 30px;
   background:
@@ -3191,6 +3197,26 @@ body {
     radial-gradient(circle at 88% 14%, rgba(255, 189, 111, 0.14), transparent 20%),
     linear-gradient(180deg, #0f2744 0%, #17375f 54%, #1d4d78 100%);
   box-shadow: 0 30px 60px rgba(11, 27, 46, 0.2);
+}
+
+.admin-sidebar::-webkit-scrollbar {
+  width: 9px;
+}
+
+.admin-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-sidebar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.admin-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.42);
+  background-clip: padding-box;
 }
 
 .admin-sidebar .brand-mark {
