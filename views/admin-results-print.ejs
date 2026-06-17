@@ -1,11 +1,16 @@
 <%- include("partials/head", { pageTitle }) %>
 
-<main class="print-page">
-  <section class="print-toolbar">
+<%
+  const turnoutRatio = metrics.totalVoters ? metrics.votedCount / metrics.totalVoters : 0;
+  const turnoutWidth = `${Math.max(turnoutRatio * 100, metrics.votedCount > 0 ? 10 : 0)}%`;
+%>
+
+<main class="print-page results-print-page">
+  <section class="print-toolbar results-print-toolbar">
     <div>
-      <span class="eyebrow">Print Results</span>
+      <span class="eyebrow">Official Results Printout</span>
       <h1><%= settings.electionName %></h1>
-      <p>Final election results ready for printing or saving as PDF.</p>
+      <p>Final election report prepared for printing, filing, or PDF saving.</p>
     </div>
 
     <div class="button-row">
@@ -15,72 +20,141 @@
     </div>
   </section>
 
-  <section class="print-sheet">
-    <%- include("partials/results-summary", {
-      metrics,
-      generatedAt,
-      nonVoters,
-      resultsStatusLabel
-    }) %>
+  <section class="print-sheet results-print-sheet">
+    <div class="results-print-sheet__frame">
+      <header class="results-print-cover">
+        <div class="results-print-cover__brand">
+          <% if (settings.organizationLogoPath) { %>
+            <img
+              class="results-print-cover__logo"
+              src="<%= settings.organizationLogoPath %>"
+              alt="<%= settings.electionName %> logo"
+            />
+          <% } else { %>
+            <div class="results-print-cover__logo-fallback"><%= getInitials(settings.electionName) %></div>
+          <% } %>
 
-    <section class="stack-lg">
-      <% results.forEach((result) => { %>
-        <article class="print-result-card">
-          <div class="section-heading">
-            <div>
-              <span class="eyebrow">Position Results</span>
-              <h3><%= result.name %></h3>
-              <p class="muted-text">Valid votes: <strong><%= result.totalVotes %></strong></p>
-            </div>
-            <div class="stack-sm">
-              <div class="winner-pill">Winner: <strong><%= result.winnerLabel %></strong></div>
-              <div class="inline-badge inline-badge--info">Margin: <strong><%= result.marginLabel %></strong></div>
-            </div>
+          <div>
+            <span class="eyebrow">Official Election Results</span>
+            <h2><%= settings.electionName %></h2>
+            <p>Generated on <strong><%= formatDateTime(generatedAt) %></strong></p>
           </div>
+        </div>
 
-          <div class="position-result-grid">
-            <% result.candidates.forEach((candidate) => { %>
-              <article class="candidate-summary">
-                <div class="candidate-summary__media">
-                  <% if (candidate.photoPath) { %>
-                    <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
-                  <% } else { %>
-                    <div class="candidate-avatar-fallback"><%= getInitials(candidate.name) %></div>
-                  <% } %>
-                </div>
-
-                <div class="candidate-summary__body">
-                  <strong><%= candidate.name %></strong>
-                  <span><%= candidate.voteCount %> vote(s)</span>
-                  <small>
-                    <%= result.totalVotes ? formatPercent(candidate.shareRatio || 0) : '0.0%' %> of valid votes
-                  </small>
-                  <div class="chart-meter">
-                    <span
-                      class="chart-meter__fill <%= candidate.isLeading ? 'chart-meter__fill--leading' : '' %>"
-                      style="width: <%= Math.max((candidate.shareRatio || 0) * 100, candidate.voteCount > 0 ? 8 : 0) %>%"
-                    ></span>
-                  </div>
-                </div>
-
-                <div class="candidate-summary__actions">
-                  <% if (candidate.isLeading && result.totalVotes > 0) { %>
-                    <span class="winner-pill">Winner</span>
-                  <% } else { %>
-                    <span class="inline-badge inline-badge--muted">Candidate</span>
-                  <% } %>
-                </div>
-              </article>
-            <% }) %>
+        <div class="results-print-cover__meta">
+          <div class="results-status-pill results-status-pill--final">
+            <span class="status-dot"></span>
+            <span><%= resultsStatusLabel %> Results</span>
           </div>
+          <div class="results-print-cover__meta-card">
+            <span>Voting Opened</span>
+            <strong><%= formatDateTime(settings.opensAt) %></strong>
+          </div>
+          <div class="results-print-cover__meta-card">
+            <span>Voting Closed</span>
+            <strong><%= formatDateTime(settings.closesAt) %></strong>
+          </div>
+        </div>
+      </header>
+
+      <section class="results-print-summary-grid">
+        <article class="results-print-summary-card">
+          <span>Total Registered</span>
+          <strong><%= metrics.totalVoters.toLocaleString() %></strong>
         </article>
-      <% }) %>
-    </section>
+        <article class="results-print-summary-card">
+          <span>Votes Cast</span>
+          <strong><%= metrics.votedCount.toLocaleString() %></strong>
+        </article>
+        <article class="results-print-summary-card">
+          <span>Turnout</span>
+          <strong><%= metrics.totalVoters ? formatPercent(turnoutRatio) : '0.0%' %></strong>
+        </article>
+        <article class="results-print-summary-card">
+          <span>Non-Voters</span>
+          <strong><%= nonVoters.toLocaleString() %></strong>
+        </article>
+      </section>
 
-    <%- include("partials/results-declaration", {
-      generatedAt,
-      declarationLabel
-    }) %>
+      <section class="results-print-turnout">
+        <div>
+          <span class="eyebrow">Turnout Section</span>
+          <h3>Participation overview</h3>
+          <p><%= metrics.votedCount.toLocaleString() %> ballot(s) were cast out of <%= metrics.totalVoters.toLocaleString() %> registered voters.</p>
+        </div>
+
+        <div class="results-print-turnout__meter">
+          <div class="results-turnout-band__labels">
+            <span>Turnout</span>
+            <strong><%= metrics.totalVoters ? formatPercent(turnoutRatio) : '0.0%' %></strong>
+          </div>
+          <div class="results-turnout-band__meter">
+            <span class="results-turnout-band__fill" style="width: <%= turnoutWidth %>;"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="results-print-position-stack">
+        <% results.forEach((result, resultIndex) => { %>
+          <article class="results-print-position-card">
+            <div class="results-print-position-card__header">
+              <div>
+                <span class="eyebrow">Position Results</span>
+                <h3><%= result.name %></h3>
+                <p><strong><%= result.totalVotes.toLocaleString() %></strong> valid vote(s)</p>
+              </div>
+
+              <div class="results-print-position-card__badges">
+                <div class="winner-pill">Winner: <strong><%= result.winnerLabel %></strong></div>
+                <div class="inline-badge inline-badge--info">Margin: <strong><%= result.marginLabel %></strong></div>
+              </div>
+            </div>
+
+            <div class="results-print-candidate-grid">
+              <% result.candidates.forEach((candidate) => { %>
+                <article class="results-print-candidate-card">
+                  <div class="results-print-candidate-card__media">
+                    <% if (candidate.photoPath) { %>
+                      <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+                    <% } else { %>
+                      <div class="candidate-avatar-fallback"><%= getInitials(candidate.name) %></div>
+                    <% } %>
+                  </div>
+
+                  <div class="results-print-candidate-card__copy">
+                    <div class="results-print-candidate-card__topline">
+                      <strong>#<%= candidate.rank %> <%= candidate.name %></strong>
+                      <% if (candidate.isLeading && result.totalVotes > 0) { %>
+                        <span class="winner-pill">Winner</span>
+                      <% } else { %>
+                        <span class="inline-badge inline-badge--muted">Candidate</span>
+                      <% } %>
+                    </div>
+
+                    <div class="results-print-candidate-card__stats">
+                      <span><strong><%= candidate.voteCount.toLocaleString() %></strong> vote(s)</span>
+                      <span><strong><%= result.totalVotes ? formatPercent(candidate.shareRatio || 0) : '0.0%' %></strong> share</span>
+                    </div>
+
+                    <div class="results-candidate-row__meter">
+                      <span
+                        class="<%= candidate.isLeading ? 'results-candidate-row__meter-fill results-candidate-row__meter-fill--leader' : 'results-candidate-row__meter-fill' %>"
+                        style="width: <%= Math.max((candidate.shareRatio || 0) * 100, candidate.voteCount > 0 ? 8 : 0) %>%"
+                      ></span>
+                    </div>
+                  </div>
+                </article>
+              <% }) %>
+            </div>
+          </article>
+        <% }) %>
+      </section>
+
+      <%- include("partials/results-declaration", {
+        generatedAt,
+        declarationLabel
+      }) %>
+    </div>
   </section>
 </main>
 

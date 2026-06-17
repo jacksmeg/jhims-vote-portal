@@ -10,8 +10,8 @@
     <span class="eyebrow">Results Waiting</span>
     <h2>Detailed statistics appear once the election opens.</h2>
     <p>
-      Once voting starts, this page will show live provisional totals, chart bars, and turnout
-      progress for administrators.
+      Once voting starts, this page will switch into live monitoring mode with turnout movement,
+      position standings, and printable summaries for the committee.
     </p>
   </section>
 <% } else { %>
@@ -22,14 +22,25 @@
     resultsStatusLabel
   }) %>
 
-  <section class="panel panel-light">
-    <div class="section-heading">
+  <section class="panel panel-light stack-lg results-command-panel">
+    <div class="results-command-panel__header">
       <div>
-        <span class="eyebrow"><%= isLiveResults ? 'Live Monitoring' : 'Export & Archive' %></span>
-        <h2><%= isLiveResults ? 'Running statistics while voting continues' : 'Final results and next election reset' %></h2>
+        <span class="eyebrow"><%= isLiveResults ? 'Live Monitoring' : 'Final Results Control' %></span>
+        <h2><%= isLiveResults ? 'Running statistics while voting continues' : 'Print, export, and archive this election' %></h2>
+        <p>
+          <%= isLiveResults
+            ? 'Track turnout and candidate standings in real time while ballots are still being submitted.'
+            : 'Prepare polished printed records, export the formal report, and archive the election when everything is ready.' %>
+        </p>
       </div>
-      <div class="button-row">
-        <% if (!isLiveResults) { %>
+
+      <div class="results-command-panel__actions">
+        <% if (isLiveResults) { %>
+          <div class="results-status-pill results-status-pill--live">
+            <span class="status-dot"></span>
+            <span>Auto refresh every 30 seconds</span>
+          </div>
+        <% } else { %>
           <a class="button" href="/admin/results/pdf">Export PDF</a>
           <a class="button button-ghost" href="/admin/results/print" target="_blank" rel="noopener noreferrer">
             Print Results
@@ -38,35 +49,43 @@
       </div>
     </div>
 
-    <div class="stack-md">
-      <div class="info-row">
-        <span>Turnout progress</span>
+    <div class="results-command-grid">
+      <article class="results-command-card">
+        <span>Report Status</span>
+        <strong><%= isLiveResults ? 'Provisional Monitoring' : 'Final Locked Results' %></strong>
+        <small><%= resultsStatusLabel %> totals generated at <%= formatDateTime(generatedAt) %></small>
+      </article>
+
+      <article class="results-command-card">
+        <span>Turnout Progress</span>
         <strong><%= metrics.totalVoters ? formatPercent(metrics.votedCount / metrics.totalVoters) : '0.0%' %></strong>
-      </div>
-      <div class="chart-meter chart-meter--turnout">
-        <span
-          class="chart-meter__fill chart-meter__fill--leading"
-          style="width: <%= metrics.totalVoters ? (metrics.votedCount / metrics.totalVoters) * 100 : 0 %>%"
-        ></span>
-      </div>
-      <% if (isLiveResults) { %>
-        <p class="note-block results-live-note">
-          Live results are provisional and this page refreshes automatically every 30 seconds while voting is open.
-        </p>
-      <% } else if (canArchiveReset) { %>
-        <form
-          class="stack-sm"
-          action="/admin/election/archive-reset"
-          method="post"
-          onsubmit="return confirm('This will save the current election results and reset voters, positions, candidates, and ballots for the next election. Continue?');"
-        >
-          <button class="button button-danger" type="submit">Archive Results & Reset System</button>
-          <p class="note-block">
-            This keeps the finished election in the archive and clears the current working election so a new one can be prepared.
-          </p>
-        </form>
-      <% } %>
+        <small><%= metrics.votedCount.toLocaleString() %> of <%= metrics.totalVoters.toLocaleString() %> registered voters cast ballots</small>
+      </article>
+
+      <article class="results-command-card">
+        <span>Election Window</span>
+        <strong><%= isLiveResults ? 'Still Open' : 'Closed' %></strong>
+        <small><%= isLiveResults ? 'Standings remain provisional until the ballot closes.' : 'Printable records and archiving are available.' %></small>
+      </article>
     </div>
+
+    <% if (isLiveResults) { %>
+      <div class="note-block results-live-note">
+        Live results are provisional and this page refreshes automatically every 30 seconds while voting remains open.
+      </div>
+    <% } else if (canArchiveReset) { %>
+      <form
+        class="stack-sm"
+        action="/admin/election/archive-reset"
+        method="post"
+        onsubmit="return confirm('This will save the current election results and reset voters, positions, candidates, and ballots for the next election. Continue?');"
+      >
+        <button class="button button-danger" type="submit">Archive Results & Reset System</button>
+        <p class="note-block">
+          This stores the completed election in the archive, then clears the current workspace so a fresh election can be prepared.
+        </p>
+      </form>
+    <% } %>
   </section>
 
   <%- include("partials/results-panels", { results, eyebrowLabel: isLiveResults ? 'Live Position Results' : 'Final Position Results' }) %>

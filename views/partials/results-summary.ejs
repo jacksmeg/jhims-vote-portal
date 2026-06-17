@@ -1,67 +1,97 @@
-<section class="panel panel-light stack-lg">
-  <div class="results-report-header">
-    <div class="results-report-header__copy">
+<%
+  const turnoutRatio = metrics.totalVoters ? metrics.votedCount / metrics.totalVoters : 0;
+  const turnoutWidth = `${Math.max(turnoutRatio * 100, metrics.votedCount > 0 ? 10 : 0)}%`;
+  const reportToneClass = resultsStatusLabel === 'Final' ? 'results-status-pill--final' : 'results-status-pill--live';
+%>
+
+<section class="panel panel-light stack-lg results-overview-panel">
+  <div class="results-overview-hero">
+    <div class="results-overview-hero__copy">
       <span class="eyebrow">Official Results Summary</span>
       <h2><%= settings.electionName %></h2>
       <p>
-        Generated on <strong><%= formatDateTime(generatedAt) %></strong>
+        Results generated on <strong><%= formatDateTime(generatedAt) %></strong>.
+        Voting opened on <strong><%= formatDateTime(settings.opensAt) %></strong> and
+        closed on <strong><%= formatDateTime(settings.closesAt) %></strong>.
       </p>
     </div>
 
-    <div class="results-report-header__meta">
-      <span class="winner-pill"><%= resultsStatusLabel %> Results</span>
+    <div class="results-overview-hero__side">
+      <div class="results-status-pill <%= reportToneClass %>">
+        <span class="status-dot"></span>
+        <span><%= resultsStatusLabel %> Results</span>
+      </div>
 
       <% if (settings.organizationLogoPath) { %>
         <img
-          class="results-report-header__logo"
+          class="results-overview-hero__logo"
           src="<%= settings.organizationLogoPath %>"
           alt="<%= settings.electionName %> logo"
         />
+      <% } else { %>
+        <div class="results-overview-hero__logo-fallback"><%= getInitials(settings.electionName) %></div>
       <% } %>
     </div>
   </div>
 
-  <div class="results-summary-grid">
-    <article class="results-summary-card stack-sm">
-      <span class="eyebrow">Election Details</span>
-      <div class="info-row">
-        <span>Election Name</span>
-        <strong><%= settings.electionName %></strong>
-      </div>
-      <div class="info-row">
-        <span>Voting Opened</span>
-        <strong><%= formatDateTime(settings.opensAt) %></strong>
-      </div>
-      <div class="info-row">
-        <span>Voting Closed</span>
-        <strong><%= formatDateTime(settings.closesAt) %></strong>
-      </div>
-      <div class="info-row">
-        <span>Status</span>
-        <strong><%= resultsStatusLabel %></strong>
-      </div>
+  <div class="results-kpi-grid">
+    <article class="results-kpi-card">
+      <span>Registered Voters</span>
+      <strong><%= metrics.totalVoters.toLocaleString() %></strong>
+      <small>Total eligible voters in the register</small>
     </article>
 
-    <article class="results-summary-card stack-sm">
+    <article class="results-kpi-card">
+      <span>Votes Cast</span>
+      <strong><%= metrics.votedCount.toLocaleString() %></strong>
+      <small>Verified ballots recorded successfully</small>
+    </article>
+
+    <article class="results-kpi-card">
+      <span>Turnout Rate</span>
+      <strong><%= metrics.totalVoters ? formatPercent(turnoutRatio) : '0.0%' %></strong>
+      <small>Overall participation across the election</small>
+    </article>
+
+    <article class="results-kpi-card">
+      <span>Non-Voters</span>
+      <strong><%= nonVoters.toLocaleString() %></strong>
+      <small>Registered staff who did not submit a ballot</small>
+    </article>
+  </div>
+
+  <div class="results-turnout-band">
+    <div class="results-turnout-band__copy">
       <span class="eyebrow">Turnout Section</span>
-      <div class="results-summary-metrics">
+      <h3>Participation snapshot</h3>
+      <p>
+        <strong><%= metrics.votedCount.toLocaleString() %></strong> out of
+        <strong><%= metrics.totalVoters.toLocaleString() %></strong> registered voters submitted ballots.
+      </p>
+    </div>
+
+    <div class="results-turnout-band__track">
+      <div class="results-turnout-band__labels">
+        <span>Voted</span>
+        <strong><%= metrics.totalVoters ? formatPercent(turnoutRatio) : '0.0%' %></strong>
+      </div>
+      <div class="results-turnout-band__meter">
+        <span class="results-turnout-band__fill" style="width: <%= turnoutWidth %>;"></span>
+      </div>
+      <div class="results-turnout-band__legend">
         <div>
-          <strong><%= metrics.totalVoters %></strong>
-          <span>Total registered voters</span>
+          <strong><%= metrics.votedCount.toLocaleString() %></strong>
+          <span>Votes cast</span>
         </div>
         <div>
-          <strong><%= metrics.votedCount %></strong>
-          <span>Total voters who voted</span>
+          <strong><%= nonVoters.toLocaleString() %></strong>
+          <span>Not voted</span>
         </div>
         <div>
-          <strong><%= metrics.totalVoters ? formatPercent(metrics.votedCount / metrics.totalVoters) : '0.0%' %></strong>
-          <span>Turnout percentage</span>
-        </div>
-        <div>
-          <strong><%= nonVoters %></strong>
-          <span>Total non-voters</span>
+          <strong><%= resultsStatusLabel %></strong>
+          <span>Election status</span>
         </div>
       </div>
-    </article>
+    </div>
   </div>
 </section>

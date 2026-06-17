@@ -1,13 +1,20 @@
-<section class="panel panel-light declaration-block stack-md">
-  <div>
-    <span class="eyebrow">Official Declaration Block</span>
-    <h2><%= settings.declarationTitle %></h2>
-    <p class="muted-text"><%= declarationLabel %></p>
+<section class="panel panel-light declaration-block stack-lg">
+  <div class="results-declaration-header">
+    <div>
+      <span class="eyebrow">Official Declaration Block</span>
+      <h2><%= settings.declarationTitle %></h2>
+      <p class="muted-text"><%= declarationLabel %></p>
+    </div>
+
+    <div class="results-status-pill <%= electionState.isClosed ? 'results-status-pill--final' : 'results-status-pill--live' %>">
+      <span class="status-dot"></span>
+      <span><%= electionState.isClosed ? 'Ready For Declaration' : 'Provisional Until Close' %></span>
+    </div>
   </div>
 
   <% if (electionState.isClosed) { %>
-    <div class="results-summary-grid">
-      <article class="results-summary-card stack-sm">
+    <div class="results-declaration-grid">
+      <article class="results-declaration-card stack-sm">
         <div class="info-row">
           <span>Declared By</span>
           <strong><%= settings.committeeName %></strong>
@@ -30,34 +37,39 @@
         </div>
       </article>
 
-      <article class="results-summary-card signature-grid">
-        <div class="signature-line">
-          <% if (settings.chairmanSignaturePath) { %>
-            <img
-              class="signature-line__image"
-              src="<%= settings.chairmanSignaturePath %>"
-              alt="<%= settings.chairmanName || 'Chairman' %> signature"
-            />
-          <% } %>
+      <article class="results-declaration-card results-signature-grid">
+        <div class="results-signature-card">
+          <div class="results-signature-card__canvas">
+            <% if (settings.chairmanSignaturePath) { %>
+              <img
+                class="signature-line__image"
+                src="<%= settings.chairmanSignaturePath %>"
+                alt="<%= settings.chairmanName || 'Chairman' %> signature"
+              />
+            <% } %>
+          </div>
           <strong><%= settings.chairmanName || 'Chairman' %></strong>
           <span>Chairman Signature</span>
         </div>
-        <div class="signature-line">
-          <% if (settings.secretarySignaturePath) { %>
-            <img
-              class="signature-line__image"
-              src="<%= settings.secretarySignaturePath %>"
-              alt="<%= settings.secretaryName || 'Secretary' %> signature"
-            />
-          <% } %>
+
+        <div class="results-signature-card">
+          <div class="results-signature-card__canvas">
+            <% if (settings.secretarySignaturePath) { %>
+              <img
+                class="signature-line__image"
+                src="<%= settings.secretarySignaturePath %>"
+                alt="<%= settings.secretaryName || 'Secretary' %> signature"
+              />
+            <% } %>
+          </div>
           <strong><%= settings.secretaryName || 'Secretary' %></strong>
           <span>Secretary Signature</span>
         </div>
       </article>
     </div>
   <% } else { %>
-    <p class="note-block">
-      This report is still provisional. The formal declaration and signature lines become official after voting closes.
-    </p>
+    <div class="note-block results-provisional-note">
+      This report remains provisional while voting is open. The declaration section becomes official only after the election is closed by the committee.
+    </div>
   <% } %>
 </section>

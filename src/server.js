@@ -3909,11 +3909,28 @@ function getResultsSummary() {
             ? "Unopposed"
             : `${summary.marginVotes} vote lead`;
 
-    summary.candidates = summary.candidates.map((candidate) => ({
-      ...candidate,
-      shareRatio: summary.totalVotes ? candidate.voteCount / summary.totalVotes : 0,
-      isLeading: highestVoteCount > 0 && candidate.voteCount === highestVoteCount,
-    }));
+    summary.candidates = summary.candidates
+      .map((candidate) => ({
+        ...candidate,
+        shareRatio: summary.totalVotes ? candidate.voteCount / summary.totalVotes : 0,
+        isLeading: highestVoteCount > 0 && candidate.voteCount === highestVoteCount,
+        gapFromLead: Math.max(highestVoteCount - candidate.voteCount, 0),
+      }))
+      .sort((left, right) => {
+        if (right.voteCount !== left.voteCount) {
+          return right.voteCount - left.voteCount;
+        }
+
+        if (right.shareRatio !== left.shareRatio) {
+          return right.shareRatio - left.shareRatio;
+        }
+
+        return left.name.localeCompare(right.name);
+      })
+      .map((candidate, index) => ({
+        ...candidate,
+        rank: index + 1,
+      }));
   }
 
   return summaries;

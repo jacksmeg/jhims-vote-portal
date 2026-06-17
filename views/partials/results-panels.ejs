@@ -1,25 +1,82 @@
-<section class="stack-lg">
-  <% results.forEach((result) => { %>
-    <article class="panel panel-light stack-md">
-      <div class="section-heading">
-        <div>
+<section class="results-position-stack">
+  <% results.forEach((result, resultIndex) => { %>
+    <%
+      const leader = result.candidates[0] || null;
+      const tiedLeaders = result.candidates.filter((candidate) => candidate.isLeading);
+      const hasTie = tiedLeaders.length > 1;
+      const positionTone = `results-position-card--tone-${(resultIndex % 4) + 1}`;
+      const validVotesLabel = `${result.totalVotes.toLocaleString()} valid vote${result.totalVotes === 1 ? '' : 's'}`;
+    %>
+
+    <article class="panel panel-light stack-lg results-position-card <%= positionTone %>">
+      <div class="results-position-card__header">
+        <div class="results-position-card__copy">
           <span class="eyebrow"><%= typeof eyebrowLabel === 'string' ? eyebrowLabel : 'Position Results' %></span>
           <h2><%= result.name %></h2>
-          <p class="muted-text">
-            Valid votes: <strong><%= result.totalVotes %></strong>
+          <p>
+            <strong><%= validVotesLabel %></strong> across
+            <strong><%= result.candidates.length %></strong>
+            candidate<%= result.candidates.length === 1 ? '' : 's' %>.
           </p>
         </div>
 
-        <div class="stack-sm">
-          <div class="winner-pill">Winner: <strong><%= result.winnerLabel %></strong></div>
-          <div class="inline-badge inline-badge--info">Margin: <strong><%= result.marginLabel %></strong></div>
+        <div class="results-position-card__badges">
+          <div class="winner-pill">
+            <span><%= hasTie ? 'Leaders' : 'Winner' %>:</span>
+            <strong><%= result.winnerLabel %></strong>
+          </div>
+          <div class="inline-badge inline-badge--info">
+            <span>Margin</span>
+            <strong><%= result.marginLabel %></strong>
+          </div>
         </div>
       </div>
 
-      <div class="position-result-grid">
+      <% if (leader) { %>
+        <div class="results-position-card__spotlight">
+          <article class="results-leader-card">
+            <div class="results-leader-card__media">
+              <% if (leader.photoPath) { %>
+                <img src="<%= leader.photoPath %>" alt="<%= leader.name %>" />
+              <% } else { %>
+                <div class="candidate-avatar-fallback"><%= getInitials(leader.name) %></div>
+              <% } %>
+            </div>
+
+            <div class="results-leader-card__copy">
+              <span class="results-leader-card__kicker"><%= hasTie ? 'Joint lead' : 'Leading candidate' %></span>
+              <strong><%= leader.name %></strong>
+              <p><%= leader.voteCount.toLocaleString() %> vote(s) • <%= result.totalVotes ? formatPercent(leader.shareRatio || 0) : '0.0%' %> of valid votes</p>
+            </div>
+          </article>
+
+          <div class="results-position-card__stats">
+            <div class="mini-card">
+              <strong><%= result.totalVotes.toLocaleString() %></strong>
+              <span>Valid votes</span>
+            </div>
+            <div class="mini-card">
+              <strong><%= result.candidates.length.toLocaleString() %></strong>
+              <span>Candidates</span>
+            </div>
+            <div class="mini-card">
+              <strong><%= result.marginLabel %></strong>
+              <span>Margin of victory</span>
+            </div>
+          </div>
+        </div>
+      <% } else { %>
+        <div class="note-block">No candidate records are available for this position yet.</div>
+      <% } %>
+
+      <div class="results-candidate-board">
         <% result.candidates.forEach((candidate) => { %>
-          <article class="candidate-summary">
-            <div class="candidate-summary__media">
+          <article class="results-candidate-row">
+            <div class="results-candidate-row__rank">
+              <span>#<%= candidate.rank %></span>
+            </div>
+
+            <div class="results-candidate-row__media">
               <% if (candidate.photoPath) { %>
                 <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
               <% } else { %>
@@ -27,21 +84,24 @@
               <% } %>
             </div>
 
-            <div class="candidate-summary__body">
+            <div class="results-candidate-row__copy">
               <strong><%= candidate.name %></strong>
-              <span><%= candidate.voteCount %> vote(s)</span>
               <small>
-                <%= result.totalVotes ? formatPercent(candidate.shareRatio || 0) : '0.0%' %> of valid votes
+                <%= candidate.voteCount.toLocaleString() %> vote(s)
+                <% if (candidate.gapFromLead > 0) { %>
+                  • <%= candidate.gapFromLead %> behind leader
+                <% } %>
               </small>
-              <div class="chart-meter">
+              <div class="results-candidate-row__meter">
                 <span
-                  class="chart-meter__fill <%= candidate.isLeading ? 'chart-meter__fill--leading' : '' %>"
+                  class="<%= candidate.isLeading ? 'results-candidate-row__meter-fill results-candidate-row__meter-fill--leader' : 'results-candidate-row__meter-fill' %>"
                   style="width: <%= Math.max((candidate.shareRatio || 0) * 100, candidate.voteCount > 0 ? 8 : 0) %>%"
                 ></span>
               </div>
             </div>
 
-            <div class="candidate-summary__actions">
+            <div class="results-candidate-row__totals">
+              <strong><%= result.totalVotes ? formatPercent(candidate.shareRatio || 0) : '0.0%' %></strong>
               <% if (candidate.isLeading && result.totalVotes > 0) { %>
                 <span class="winner-pill">Winner</span>
               <% } else { %>
