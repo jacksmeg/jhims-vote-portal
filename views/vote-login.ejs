@@ -12,51 +12,101 @@
   const loginCountdownTitle = electionState.isScheduled ? 'Voting opens in' : 'Voting closes in';
   const loginCountdownEndedLabel = electionState.isScheduled ? 'Voting is now open' : 'Voting has closed';
   const loginCountdownNote = electionState.isScheduled
-    ? 'The portal will unlock automatically at the official opening time.'
+    ? 'The portal unlocks automatically at the official opening time.'
     : 'Finish your ballot before the official closing time.';
+  const voteStatusTitle = electionState.isOpen
+    ? 'Voting is live now.'
+    : electionState.isScheduled
+      ? 'Voting opens soon.'
+      : electionState.isClosed
+        ? 'Voting has closed.'
+        : 'Election setup is still in progress.';
+  const voteStatusMessage = electionState.isOpen
+    ? 'Use your registered details below to enter the ballot securely.'
+    : electionState.message;
 %>
 
-<section class="portal-login-stage">
-  <article class="portal-showcase">
-    <div class="portal-showcase__backdrop"></div>
+<section class="vote-entry-page">
+  <article class="vote-entry-shell">
+    <div class="vote-entry-shell__glow vote-entry-shell__glow--cyan"></div>
+    <div class="vote-entry-shell__glow vote-entry-shell__glow--amber"></div>
+    <div class="vote-entry-shell__pattern" aria-hidden="true"></div>
 
-    <div class="portal-showcase__hero">
-      <div class="portal-copy">
+    <div class="vote-entry-grid">
+      <section class="vote-entry-copy">
         <h1>
-          Your Vote.
-          <span>Our Future.</span>
+          Vote with
+          <span>confidence.</span>
         </h1>
 
         <p>
-          A secure, transparent and trusted voting experience for every eligible staff member.
+          Sign in with your staff ID and registered phone number to access the ballot.
+          The portal keeps the process verified, confidential, and simple.
         </p>
 
-        <div class="portal-checklist">
-          <div>
-            <span class="portal-checklist__dot portal-checklist__dot--green"></span>
-            <span>One person, one vote</span>
-          </div>
-          <div>
-            <span class="portal-checklist__dot portal-checklist__dot--blue"></span>
-            <span>Secure and confidential</span>
-          </div>
-          <div>
-            <span class="portal-checklist__dot portal-checklist__dot--orange"></span>
-            <span>Transparent results</span>
-          </div>
-        </div>
-      </div>
+        <div class="vote-entry-points">
+          <article class="vote-entry-point">
+            <span class="vote-entry-point__icon vote-entry-point__icon--teal" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm-1.07 13.82L7.76 12.65l1.41-1.41 1.76 1.76 4.24-4.24 1.41 1.41-5.65 5.65Z" fill="currentColor"/>
+              </svg>
+            </span>
+            <div>
+              <strong>One secure ballot</strong>
+              <span>Each voter can submit only once.</span>
+            </div>
+          </article>
 
-      <article class="voter-auth-card">
-        <div class="voter-auth-card__header">
-          <div>
-            <h2>Voter Login</h2>
-            <p>Enter your voter details to continue.</p>
+          <article class="vote-entry-point">
+            <span class="vote-entry-point__icon vote-entry-point__icon--blue" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M17 2H7a2 2 0 0 0-2 2v16l7-3 7 3V4a2 2 0 0 0-2-2Zm-5 12a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z" fill="currentColor"/>
+              </svg>
+            </span>
+            <div>
+              <strong>Verified access</strong>
+              <span>Only registered staff records can continue.</span>
+            </div>
+          </article>
+
+          <article class="vote-entry-point">
+            <span class="vote-entry-point__icon vote-entry-point__icon--amber" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 3a9 9 0 1 0 9 9 9.01 9.01 0 0 0-9-9Zm1 9.59 3.3 3.3-1.41 1.41L11 13V7h2Z" fill="currentColor"/>
+              </svg>
+            </span>
+            <div>
+              <strong>Fast voting flow</strong>
+              <span>Move through the ballot one position at a time.</span>
+            </div>
+          </article>
+        </div>
+
+        <div class="vote-entry-status">
+          <div class="vote-entry-status__topline">
+            <span class="status-badge <%= electionState.badgeClass %>">
+              <span class="status-dot"></span>
+              <%= electionState.badgeLabel %>
+            </span>
           </div>
+
+          <strong><%= voteStatusTitle %></strong>
+          <p><%= voteStatusMessage %></p>
+        </div>
+      </section>
+
+      <article class="vote-entry-card">
+        <div class="vote-entry-card__header">
+          <h2>Voter Login</h2>
+          <p>
+            <%= otpEnabled
+              ? 'Enter your details to receive a one-time verification code.'
+              : 'Enter your details to continue directly to the ballot.' %>
+          </p>
         </div>
 
         <form class="stack-md" action="/vote/login" method="post">
-          <label class="field field--icon">
+          <label class="field field--icon vote-entry-field">
             <span>Staff ID</span>
             <div class="field__control">
               <span class="field__icon" aria-hidden="true">
@@ -68,7 +118,7 @@
             </div>
           </label>
 
-          <label class="field field--icon">
+          <label class="field field--icon vote-entry-field">
             <span>Phone Number</span>
             <div class="field__control">
               <span class="field__icon" aria-hidden="true">
@@ -80,86 +130,73 @@
             </div>
           </label>
 
-          <button class="button voter-auth-card__submit" type="submit" <%= electionState.isOpen ? '' : 'disabled' %>>
+          <button class="button vote-entry-card__submit" type="submit" <%= electionState.isOpen ? '' : 'disabled' %>>
             <%= otpEnabled ? 'Send OTP Code' : 'Continue to Ballot' %>
           </button>
         </form>
 
-        <p class="voter-auth-card__helper">
-          <% if (otpEnabled) { %>
-            We will send a verification code to your registered phone.
-          <% } else { %>
-            Your ballot opens immediately after successful verification.
-          <% } %>
-        </p>
+        <div class="vote-entry-card__footer">
+          <span class="vote-entry-card__footer-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M17 8h-1V6a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-6 0V6a2 2 0 1 1 4 0v2h-4Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <p>
+            <%= otpEnabled
+              ? 'A verification code will be sent to the phone number registered for your staff record.'
+              : 'Your ballot will open immediately after your details are matched successfully.' %>
+          </p>
+        </div>
 
         <% if (!electionState.isOpen) { %>
-          <p class="note-block"><%= electionState.message %></p>
+          <p class="note-block vote-entry-card__notice"><%= electionState.message %></p>
         <% } %>
       </article>
     </div>
 
-    <div class="portal-meta-grid">
-      <article
-        class="portal-meta-card portal-meta-card--countdown"
-        <% if (hasLoginCountdown) { %>
+    <div class="vote-entry-info-grid <%= hasLoginCountdown ? '' : 'vote-entry-info-grid--single' %>">
+      <% if (hasLoginCountdown) { %>
+        <article
+          class="vote-countdown-panel"
           data-countdown-root
           data-countdown-target="<%= loginCountdownTarget %>"
           data-countdown-ended-label="<%= loginCountdownEndedLabel %>"
-        <% } %>
-      >
-        <div class="portal-meta-card__header">
-          <span class="portal-meta-card__icon portal-meta-card__icon--amber" aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <path d="M8 3h8v2l-1.5 1.5v2.17a5.5 5.5 0 1 1-5 0V6.5L8 5V3Zm4 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" fill="currentColor"/>
-            </svg>
-          </span>
-          <div>
-            <strong>Election Countdown</strong>
-            <small data-countdown-copy><%= hasLoginCountdown ? loginCountdownNote : 'The election committee will publish the final timing here.' %></small>
-          </div>
-        </div>
-
-        <div class="portal-countdown">
-          <div class="portal-countdown__copy">
-            <h3 data-countdown-title><%= hasLoginCountdown ? loginCountdownTitle : 'Countdown pending' %></h3>
+        >
+          <div class="vote-countdown-panel__header">
+            <div>
+              <strong data-countdown-title><%= hasLoginCountdown ? loginCountdownTitle : 'Countdown pending' %></strong>
+              <small data-countdown-copy><%= hasLoginCountdown ? loginCountdownNote : 'The election committee will publish the official timing here.' %></small>
+            </div>
           </div>
 
-          <div class="portal-countdown__grid" aria-live="polite" aria-atomic="true">
-            <div class="portal-countdown__unit">
+          <div class="vote-countdown-board" aria-live="polite" aria-atomic="true">
+            <div class="vote-countdown-tile">
               <strong data-countdown-days><%= hasLoginCountdown ? '00' : '--' %></strong>
               <span>Days</span>
             </div>
-            <div class="portal-countdown__unit">
+            <div class="vote-countdown-tile">
               <strong data-countdown-hours><%= hasLoginCountdown ? '00' : '--' %></strong>
               <span>Hours</span>
             </div>
-            <div class="portal-countdown__unit">
+            <div class="vote-countdown-tile">
               <strong data-countdown-minutes><%= hasLoginCountdown ? '00' : '--' %></strong>
               <span>Minutes</span>
             </div>
-            <div class="portal-countdown__unit">
+            <div class="vote-countdown-tile">
               <strong data-countdown-seconds><%= hasLoginCountdown ? '00' : '--' %></strong>
               <span>Seconds</span>
             </div>
           </div>
-        </div>
-      </article>
+        </article>
+      <% } %>
 
-      <article class="portal-meta-card">
-        <div class="portal-meta-card__header">
-          <span class="portal-meta-card__icon portal-meta-card__icon--blue" aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <path d="M7 2h2v2h6V2h2v2h2.5A1.5 1.5 0 0 1 21 5.5v13A1.5 1.5 0 0 1 19.5 20h-15A1.5 1.5 0 0 1 3 18.5v-13A1.5 1.5 0 0 1 4.5 4H7V2Zm12 7H5v9h14V9Z" fill="currentColor"/>
-            </svg>
-          </span>
-          <div>
-            <strong>Election Window</strong>
-            <small>All times are in GMT</small>
-          </div>
+      <article class="vote-window-panel">
+        <div class="vote-window-panel__header">
+          <strong>Election Window</strong>
+          <small>All times are in GMT</small>
         </div>
 
-        <dl class="portal-window-list">
+        <dl class="vote-window-panel__list">
           <div>
             <dt>Opens</dt>
             <dd><%= settings.opensAt ? formatDateTime(settings.opensAt) : 'Not scheduled yet' %></dd>
@@ -171,77 +208,7 @@
         </dl>
       </article>
     </div>
-
-    <aside class="portal-assurance">
-      <span class="portal-assurance__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm-1.07 13.82L7.76 12.65l1.41-1.41 1.76 1.76 4.24-4.24 1.41 1.41-5.65 5.65Z" fill="currentColor"/>
-        </svg>
-      </span>
-      <div>
-        <strong>This election is managed by the Election Committee.</strong>
-        <span>Your vote is protected and your choice is confidential.</span>
-      </div>
-    </aside>
   </article>
-</section>
-
-<section class="panel panel-light vote-support-panel">
-  <div class="vote-support-panel__copy">
-    <span class="eyebrow">Voter Help</span>
-    <h3>Open the voting guide when needed.</h3>
-    <p>Show the written voting steps only when a voter needs help with the ballot process.</p>
-  </div>
-
-  <div class="vote-support-panel__actions">
-    <button
-      class="button button-ghost button-small vote-support-trigger"
-      type="button"
-      data-disclosure-toggle
-      data-disclosure-target="vote-guide-panel"
-      data-open-label="Hide How To Vote"
-      data-close-label="How To Vote"
-      aria-expanded="false"
-      aria-controls="vote-guide-panel"
-    >
-      How To Vote
-    </button>
-  </div>
-</section>
-
-<section class="panel panel-light stack-lg vote-guide-panel" id="vote-guide-panel" data-disclosure-panel hidden>
-  <div class="section-heading">
-    <div>
-      <span class="eyebrow">How To Vote</span>
-      <h3>Step-by-step voting guide for staff</h3>
-    </div>
-    <a class="button button-ghost button-small" href="/vote/login">Back to Voter Login</a>
-  </div>
-
-  <ol class="flow-list">
-    <li>Open the voter portal when voting is open.</li>
-    <li>Enter your staff ID and the same phone number that was registered for you.</li>
-    <li>After successful verification, the ballot opens for you.</li>
-    <li>Select one candidate for a position, or skip the position if you do not want to vote there.</li>
-    <li>Click next to continue through the remaining positions one after another.</li>
-    <li>Review your selections on the confirmation page before final submission.</li>
-    <li>Submit your vote once. After submission, you cannot change it or vote again.</li>
-  </ol>
-
-  <div class="feature-grid guide-feature-grid">
-    <article class="feature-card">
-      <h4>Before you start</h4>
-      <p>Make sure voting is open and your phone number matches the one stored in the system.</p>
-    </article>
-    <article class="feature-card">
-      <h4>During voting</h4>
-      <p>Read each position carefully and move through the ballot step by step until you reach the review page.</p>
-    </article>
-    <article class="feature-card">
-      <h4>After submitting</h4>
-      <p>The system marks you as voted immediately, so you cannot re-enter to cast another ballot.</p>
-    </article>
-  </div>
 </section>
 
 <%- include("partials/public-shell-end") %>

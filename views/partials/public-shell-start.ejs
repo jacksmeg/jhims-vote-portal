@@ -3,6 +3,7 @@
 <% const isNominationPortal = currentPath.startsWith('/nomination'); %>
 <% const isPortalFlow = isVotePortal || isNominationPortal; %>
 <% const isVoteLogin = currentPath === '/vote/login'; %>
+<% const showPortalHelpLink = !(isVoteLogin && isVotePortal); %>
 <% const showVoteCountdown = isVotePortal && electionState.isOpen && voteClosesAtMs && !isVoteLogin; %>
 <% const showNominationCountdown = currentPath === '/nomination/form' && nominationState.isScheduled && nominationOpensAtMs; %>
 <%
@@ -29,12 +30,14 @@
 
     <% if (isPortalFlow) { %>
       <div class="site-header__utility">
-        <a
-          class="site-utility-link"
-          href="<%= portalHelpHref %>"
-        >
-          <%= portalHelpLabel %>
-        </a>
+        <% if (showPortalHelpLink) { %>
+          <a
+            class="site-utility-link"
+            href="<%= portalHelpHref %>"
+          >
+            <%= portalHelpLabel %>
+          </a>
+        <% } %>
 
         <div class="status-badge <%= electionState.badgeClass %>">
           <span class="status-dot"></span>
