@@ -1,39 +1,179 @@
-<%- include("partials/public-shell-start", { pageTitle }) %>
+<%- include("partials/head", { pageTitle, bodyClass: "auth-body auth-body--admin" }) %>
 
-<section class="split-stage">
-  <div class="panel panel-dark stack-lg">
-    <span class="eyebrow">Administrator Security</span>
-    <h2>Enter your authenticator code to complete sign-in.</h2>
-    <p>
-      Two-factor authentication is enabled for the election committee. Open your
-      authenticator app and enter the current 6-digit code to continue to the dashboard.
-    </p>
-  </div>
+<div class="auth-page auth-page--admin auth-page--admin-verify">
+  <section class="auth-desktop-shell">
+    <header class="auth-desktop-header">
+      <a class="auth-brand" href="/">
+        <% if (settings.organizationLogoPath) { %>
+          <img class="auth-brand__logo" src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
+        <% } else { %>
+          <span class="auth-brand__crest">AD</span>
+        <% } %>
+        <span class="auth-brand__copy">
+          <strong><%= settings.electionName %></strong>
+          <small>Election Administration</small>
+        </span>
+      </a>
 
-  <div class="panel panel-light">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Admin 2FA</span>
-        <h3>Finish secure sign-in</h3>
+      <div class="auth-desktop-header__status">
+        <span class="auth-state-pill is-open">
+          <span class="auth-state-pill__dot"></span>
+          2FA
+        </span>
+        <span class="auth-desktop-header__divider" aria-hidden="true"></span>
+        <p>Administrator verification in progress</p>
+        <span class="auth-desktop-header__divider" aria-hidden="true"></span>
+        <p>Secure. Controlled. Logged.</p>
       </div>
-    </div>
+    </header>
 
-    <form class="stack-md" action="/admin/verify-2fa" method="post">
-      <label class="field">
-        <span>Authenticator Code</span>
-        <input
-          name="verificationCode"
-          inputmode="numeric"
-          autocomplete="one-time-code"
-          placeholder="123456"
-          maxlength="6"
-          required
-        />
-      </label>
+    <main class="auth-desktop-main">
+      <%- include("partials/flash") %>
 
-      <button class="button" type="submit">Verify and Open Dashboard</button>
-    </form>
-  </div>
-</section>
+      <section class="auth-stage auth-stage--admin auth-stage--verify">
+        <div class="auth-stage__dotfield" aria-hidden="true"></div>
+        <div class="auth-stage__building auth-stage__building--admin" aria-hidden="true"></div>
+        <div class="auth-stage__arc auth-stage__arc--admin" aria-hidden="true"></div>
+        <div class="auth-stage__glow auth-stage__glow--blue" aria-hidden="true"></div>
 
-<%- include("partials/public-shell-end") %>
+        <div class="auth-stage__grid">
+          <article class="auth-hero-copy auth-hero-copy--admin">
+            <span class="auth-hero-copy__badge auth-hero-copy__badge--admin" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M17 8h-1V6a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-6 0V6a2 2 0 1 1 4 0v2h-4Z" fill="currentColor"/>
+              </svg>
+            </span>
+
+            <h1>
+              Finish <span>secure</span><br />
+              sign in
+            </h1>
+
+            <p>
+              Two-factor authentication is enabled for the election committee. Open your
+              authenticator app and enter the current six-digit code.
+            </p>
+
+            <div class="auth-schedule-card auth-schedule-card--admin">
+              <span class="auth-schedule-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M12 3a9 9 0 1 0 9 9 9.01 9.01 0 0 0-9-9Zm1 9.59 3.3 3.3-1.41 1.41L11 13V7h2Z" fill="currentColor"/>
+                </svg>
+              </span>
+              <div class="auth-schedule-card__copy">
+                <span>Authenticator Step</span>
+                <strong>The code refreshes in your authenticator app every few seconds.</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="auth-login-panel auth-login-panel--admin auth-login-panel--compact">
+            <span class="auth-login-panel__icon auth-login-panel__icon--admin" aria-hidden="true">
+              <svg viewBox="0 0 64 64" focusable="false">
+                <circle cx="32" cy="32" r="32" fill="currentColor" opacity=".08" />
+                <path d="M32 15 18 21v9.14c0 8.16 5.23 15.06 14 18.86 8.77-3.8 14-10.7 14-18.86V21L32 15Zm-2.1 24.83-5.6-5.6 2.12-2.12 3.48 3.48 7.68-7.68 2.12 2.12-9.8 9.8Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3"/>
+              </svg>
+            </span>
+
+            <h2>Authenticator Check</h2>
+            <p>Enter the current six-digit verification code to open the dashboard.</p>
+
+            <form class="auth-form" action="/admin/verify-2fa" method="post">
+              <label class="auth-field">
+                <span>AUTHENTICATOR CODE</span>
+                <div class="auth-field__control">
+                  <span class="auth-field__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M7 4h10v3H7V4Zm-2 5h14v11H5V9Zm4 3v2h2v-2H9Zm4 0v2h2v-2h-2Z" fill="currentColor"/>
+                    </svg>
+                  </span>
+                  <input
+                    name="verificationCode"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    placeholder="123456"
+                    maxlength="6"
+                    required
+                  />
+                </div>
+              </label>
+
+              <button class="auth-submit auth-submit--admin" type="submit">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="m10.2 6.4 1.4 1.4-2.2 2.2H21v2H9.4l2.2 2.2-1.4 1.4L5.6 11l4.6-4.6ZM5 5h2v12H5V5Z" fill="currentColor"/>
+                </svg>
+                <span>Verify and Open Dashboard</span>
+              </button>
+            </form>
+          </article>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <section class="auth-mobile-shell auth-mobile-shell--admin">
+    <div class="auth-mobile-shell__top-curve" aria-hidden="true"></div>
+    <div class="auth-mobile-shell__bottom-curve" aria-hidden="true"></div>
+    <div class="auth-mobile-shell__lineart auth-mobile-shell__lineart--admin" aria-hidden="true"></div>
+
+    <main class="auth-mobile-main">
+      <%- include("partials/flash") %>
+
+      <article class="auth-mobile-card">
+        <span class="auth-mobile-card__icon auth-mobile-card__icon--admin" aria-hidden="true">
+          <svg viewBox="0 0 160 160" focusable="false">
+            <circle cx="80" cy="80" r="78" fill="currentColor" opacity=".08" />
+            <circle cx="80" cy="80" r="60" fill="currentColor" opacity=".08" />
+            <path d="M80 32 48 45v22c0 20 12.7 36.2 32 44 19.3-7.8 32-24 32-44V45L80 32Zm-4.4 50.8-10-10 5-5 5 5 14-14 5 5-19 19Z" fill="#2458e5"/>
+          </svg>
+        </span>
+
+        <h1>ADMIN 2FA</h1>
+
+        <div class="auth-mobile-card__divider" aria-hidden="true">
+          <span></span>
+          <i>
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="m12 3 2.8 5.67 6.27.91-4.53 4.41 1.07 6.24L12 17.26 6.39 20.23l1.07-6.24L2.93 9.58l6.27-.91L12 3Z" fill="currentColor"/>
+            </svg>
+          </i>
+          <span></span>
+        </div>
+
+        <p class="auth-mobile-card__lead">
+          Enter the code from your authenticator app to finish signing in.
+        </p>
+
+        <form class="auth-mobile-form" action="/admin/verify-2fa" method="post">
+          <label class="auth-mobile-field">
+            <span>Authenticator Code</span>
+            <div class="auth-mobile-field__control">
+              <span class="auth-mobile-field__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M7 4h10v3H7V4Zm-2 5h14v11H5V9Zm4 3v2h2v-2H9Zm4 0v2h2v-2h-2Z" fill="currentColor"/>
+                </svg>
+              </span>
+              <input
+                name="verificationCode"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                placeholder="123456"
+                maxlength="6"
+                required
+              />
+            </div>
+          </label>
+
+          <button class="auth-mobile-submit auth-mobile-submit--admin" type="submit">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M10.2 6.4 8.8 7.8 12.99 12l-4.2 4.2 1.42 1.4 5.6-5.6-5.6-5.6Z" fill="currentColor"/>
+            </svg>
+            <span>Verify</span>
+          </button>
+        </form>
+      </article>
+    </main>
+  </section>
+</div>
+</body>
+</html>

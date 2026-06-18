@@ -1,40 +1,304 @@
-<%- include("partials/public-shell-start", { pageTitle }) %>
+<%- include("partials/head", { pageTitle, bodyClass: "auth-body auth-body--admin" }) %>
 
-<section class="split-stage">
-  <div class="panel panel-dark stack-lg">
-    <span class="eyebrow">Election Committee</span>
-    <h2>Administrator access for election setup and results.</h2>
-    <p>
-      Sign in here to import voters, register positions and candidates, control the voting
-      window, create backups, review audit activity, and unlock final results.
-    </p>
-    <% if (adminTwoFactorEnabled) { %>
-      <p class="note-block">After your password is accepted, you will also enter a 6-digit authenticator code.</p>
-    <% } %>
-  </div>
+<%
+  const authStatusClass = electionState.isOpen
+    ? "is-open"
+    : electionState.isScheduled
+      ? "is-scheduled"
+      : electionState.isClosed
+        ? "is-closed"
+        : "is-setup";
+  const authStatusLabel = electionState.isOpen
+    ? "OPEN"
+    : electionState.isScheduled
+      ? "SCHEDULED"
+      : electionState.isClosed
+        ? "CLOSED"
+        : "SETUP";
+  const authStatusCopy = electionState.isOpen
+    ? "Election control center online"
+    : electionState.isScheduled
+      ? "Election schedule prepared"
+      : electionState.isClosed
+        ? "Election window completed"
+        : "Election setup in progress";
+%>
 
-  <div class="panel panel-light">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Admin Login</span>
-        <h3>Enter committee credentials</h3>
+<div class="auth-page auth-page--admin">
+  <section class="auth-desktop-shell">
+    <header class="auth-desktop-header">
+      <a class="auth-brand" href="/">
+        <% if (settings.organizationLogoPath) { %>
+          <img class="auth-brand__logo" src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
+        <% } else { %>
+          <span class="auth-brand__crest">AD</span>
+        <% } %>
+        <span class="auth-brand__copy">
+          <strong><%= settings.electionName %></strong>
+          <small>Election Administration</small>
+        </span>
+      </a>
+
+      <div class="auth-desktop-header__status">
+        <span class="auth-state-pill <%= authStatusClass %>">
+          <span class="auth-state-pill__dot"></span>
+          <%= authStatusLabel %>
+        </span>
+        <span class="auth-desktop-header__divider" aria-hidden="true"></span>
+        <p><%= authStatusCopy %></p>
+        <span class="auth-desktop-header__divider" aria-hidden="true"></span>
+        <p>Protected admin access</p>
       </div>
-    </div>
+    </header>
 
-    <form class="stack-md" action="/admin/login" method="post">
-      <label class="field">
-        <span>Username</span>
-        <input name="username" required />
-      </label>
+    <main class="auth-desktop-main">
+      <%- include("partials/flash") %>
 
-      <label class="field">
-        <span>Password</span>
-        <input name="password" type="password" required />
-      </label>
+      <section class="auth-stage auth-stage--admin">
+        <div class="auth-stage__dotfield" aria-hidden="true"></div>
+        <div class="auth-stage__building auth-stage__building--admin" aria-hidden="true"></div>
+        <div class="auth-stage__arc auth-stage__arc--admin" aria-hidden="true"></div>
+        <div class="auth-stage__glow auth-stage__glow--blue" aria-hidden="true"></div>
 
-      <button class="button" type="submit">Open Dashboard</button>
-    </form>
-  </div>
-</section>
+        <div class="auth-stage__grid">
+          <article class="auth-hero-copy auth-hero-copy--admin">
+            <span class="auth-hero-copy__badge auth-hero-copy__badge--admin" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M17 8h-1V6a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-6 0V6a2 2 0 1 1 4 0v2h-4Z" fill="currentColor"/>
+              </svg>
+            </span>
 
-<%- include("partials/public-shell-end") %>
+            <h1>
+              Secure <span>admin</span><br />
+              access
+            </h1>
+
+            <p>
+              Sign in here to manage voters, positions, candidates, audit activity,
+              and final election results.
+            </p>
+
+            <div class="auth-schedule-card auth-schedule-card--admin">
+              <span class="auth-schedule-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm-1.07 13.82L7.76 12.65l1.41-1.41 1.76 1.76 4.24-4.24 1.41 1.41-5.65 5.65Z" fill="currentColor"/>
+                </svg>
+              </span>
+              <div class="auth-schedule-card__copy">
+                <span>Admin Security</span>
+                <strong>Credential verification required for dashboard access.</strong>
+              </div>
+            </div>
+
+            <div class="auth-schedule-card auth-schedule-card--admin">
+              <span class="auth-schedule-card__icon auth-schedule-card__icon--lock" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M12 3a9 9 0 1 0 9 9 9.01 9.01 0 0 0-9-9Zm1 9.59 3.3 3.3-1.41 1.41L11 13V7h2Z" fill="currentColor"/>
+                </svg>
+              </span>
+              <div class="auth-schedule-card__copy">
+                <span>Two-Factor Protection</span>
+                <strong><%= adminTwoFactorEnabled ? "Authenticator challenge is enabled after password entry." : "Password-only sign-in is currently enabled." %></strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="auth-login-panel auth-login-panel--admin">
+            <span class="auth-login-panel__icon auth-login-panel__icon--admin" aria-hidden="true">
+              <svg viewBox="0 0 64 64" focusable="false">
+                <circle cx="32" cy="32" r="32" fill="currentColor" opacity=".08" />
+                <path d="M32 18a8 8 0 1 0 8 8 8 8 0 0 0-8-8Zm0 20c-7.18 0-13 3.58-13 8v2h26v-2c0-4.42-5.82-8-13-8Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6"/>
+                <path d="M45 28h-6v-2a7 7 0 0 0-14 0v2h-2.4a1.8 1.8 0 0 0-1.8 1.8v10.4a1.8 1.8 0 0 0 1.8 1.8H45a1.8 1.8 0 0 0 1.8-1.8V29.8A1.8 1.8 0 0 0 45 28Zm-14-2a3 3 0 1 1 6 0v2h-6v-2Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4"/>
+              </svg>
+            </span>
+
+            <h2>Administrator Login</h2>
+            <p>Enter committee credentials to continue to the election dashboard.</p>
+
+            <form class="auth-form" action="/admin/login" method="post">
+              <label class="auth-field">
+                <span>USERNAME</span>
+                <div class="auth-field__control">
+                  <span class="auth-field__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.31 0-6 1.79-6 4v1h12v-1c0-2.21-2.69-4-6-4Z" fill="currentColor"/>
+                    </svg>
+                  </span>
+                  <input name="username" autocomplete="username" required />
+                </div>
+              </label>
+
+              <label class="auth-field">
+                <span>PASSWORD</span>
+                <div class="auth-field__control">
+                  <span class="auth-field__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M17 8h-1V6a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-6 0V6a2 2 0 1 1 4 0v2h-4Z" fill="currentColor"/>
+                    </svg>
+                  </span>
+                  <input name="password" type="password" autocomplete="current-password" required />
+                </div>
+              </label>
+
+              <button class="auth-submit auth-submit--admin" type="submit">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="m10.2 6.4 1.4 1.4-2.2 2.2H21v2H9.4l2.2 2.2-1.4 1.4L5.6 11l4.6-4.6ZM5 5h2v12H5V5Z" fill="currentColor"/>
+                </svg>
+                <span>Open Dashboard</span>
+              </button>
+            </form>
+
+            <div class="auth-login-panel__privacy auth-login-panel__privacy--admin">
+              <span class="auth-login-panel__privacy-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm-1.07 13.82L7.76 12.65l1.41-1.41 1.76 1.76 4.24-4.24 1.41 1.41-5.65 5.65Z" fill="currentColor"/>
+                </svg>
+              </span>
+              <p>
+                <%= adminTwoFactorEnabled
+                  ? "After your password is accepted, you will enter a 6-digit authenticator code."
+                  : "Only authorized election committee members should use this page." %>
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="auth-admin-footer-strip">
+        <div class="auth-admin-footer-strip__item">
+          <span class="auth-countdown-strip__label-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M17 8h-1V6a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-6 0V6a2 2 0 1 1 4 0v2h-4Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <div>
+            <span>Admin Access</span>
+            <strong>Protected committee sign-in</strong>
+          </div>
+        </div>
+
+        <div class="auth-admin-footer-strip__item auth-admin-footer-strip__item--wide">
+          <span class="auth-countdown-strip__label-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M12 3a9 9 0 1 0 9 9 9.01 9.01 0 0 0-9-9Zm1 9.59 3.3 3.3-1.41 1.41L11 13V7h2Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <div>
+            <span>Election Status</span>
+            <strong><%= electionState.message %></strong>
+          </div>
+        </div>
+
+        <div class="auth-admin-footer-strip__item">
+          <span class="auth-countdown-strip__label-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M7.05 4.5h2.1c.38 0 .71.26.8.63l.72 2.88a.84.84 0 0 1-.21.79l-1.37 1.37a13.53 13.53 0 0 0 4.74 4.74l1.37-1.37a.84.84 0 0 1 .79-.21l2.88.72c.37.09.63.42.63.8v2.1c0 .47-.38.85-.85.85A14.65 14.65 0 0 1 6.2 5.35c0-.47.38-.85.85-.85Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <div>
+            <span>Support</span>
+            <strong>0592934612</strong>
+          </div>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <section class="auth-mobile-shell auth-mobile-shell--admin">
+    <div class="auth-mobile-shell__top-curve" aria-hidden="true"></div>
+    <div class="auth-mobile-shell__bottom-curve" aria-hidden="true"></div>
+    <div class="auth-mobile-shell__lineart auth-mobile-shell__lineart--admin" aria-hidden="true"></div>
+
+    <main class="auth-mobile-main">
+      <%- include("partials/flash") %>
+
+      <article class="auth-mobile-card">
+        <span class="auth-mobile-card__icon auth-mobile-card__icon--admin" aria-hidden="true">
+          <svg viewBox="0 0 160 160" focusable="false">
+            <circle cx="80" cy="80" r="78" fill="currentColor" opacity=".08" />
+            <circle cx="80" cy="80" r="60" fill="currentColor" opacity=".08" />
+            <rect x="44" y="70" width="72" height="46" rx="14" fill="#2458e5"/>
+            <path d="M60 70v-8a20 20 0 1 1 40 0v8" fill="none" stroke="#244eb2" stroke-width="8"/>
+            <path d="M80 32a20 20 0 0 1 20 20v8H60v-8a20 20 0 0 1 20-20Z" fill="none"/>
+            <path d="M80 82a10 10 0 0 1 10 10c0 3.7-2.03 6.94-5.04 8.65V108h-9.92v-7.35A9.95 9.95 0 0 1 70 92a10 10 0 0 1 10-10Z" fill="#fff"/>
+          </svg>
+        </span>
+
+        <h1>ADMIN LOGIN</h1>
+
+        <div class="auth-mobile-card__divider" aria-hidden="true">
+          <span></span>
+          <i>
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="m12 3 2.8 5.67 6.27.91-4.53 4.41 1.07 6.24L12 17.26 6.39 20.23l1.07-6.24L2.93 9.58l6.27-.91L12 3Z" fill="currentColor"/>
+            </svg>
+          </i>
+          <span></span>
+        </div>
+
+        <p class="auth-mobile-card__lead">
+          Login to access the election administration portal.
+        </p>
+
+        <form class="auth-mobile-form" action="/admin/login" method="post">
+          <label class="auth-mobile-field">
+            <span>Username</span>
+            <div class="auth-mobile-field__control">
+              <span class="auth-mobile-field__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.31 0-6 1.79-6 4v1h12v-1c0-2.21-2.69-4-6-4Z" fill="currentColor"/>
+                </svg>
+              </span>
+              <input name="username" autocomplete="username" required />
+            </div>
+          </label>
+
+          <label class="auth-mobile-field">
+            <span>Password</span>
+            <div class="auth-mobile-field__control">
+              <span class="auth-mobile-field__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M17 8h-1V6a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-6 0V6a2 2 0 1 1 4 0v2h-4Z" fill="currentColor"/>
+                </svg>
+              </span>
+              <input name="password" type="password" autocomplete="current-password" required />
+            </div>
+          </label>
+
+          <button class="auth-mobile-submit auth-mobile-submit--admin" type="submit">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M10.2 6.4 8.8 7.8 12.99 12l-4.2 4.2 1.42 1.4 5.6-5.6-5.6-5.6Z" fill="currentColor"/>
+            </svg>
+            <span>Login</span>
+          </button>
+        </form>
+
+        <div class="auth-mobile-card__or">
+          <span></span>
+          <strong>OR</strong>
+          <span></span>
+        </div>
+
+        <a class="auth-mobile-card__support" href="tel:+233592934612">
+          <span aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.31 0-6 1.79-6 4v1h12v-1c0-2.21-2.69-4-6-4Zm7-10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3.17l-2.2 2.2a.8.8 0 0 1-1.13 0L10.3 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+            </svg>
+          </span>
+          <span>Need Help? Contact Support</span>
+        </a>
+      </article>
+
+      <p class="auth-mobile-main__tagline">
+        <span aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm-1.07 13.82L7.76 12.65l1.41-1.41 1.76 1.76 4.24-4.24 1.41 1.41-5.65 5.65Z" fill="currentColor"/>
+          </svg>
+        </span>
+        <span><%= adminTwoFactorEnabled ? "Authenticator verification follows after password entry." : "Protected election committee sign-in." %></span>
+      </p>
+    </main>
+  </section>
+</div>
+</body>
+</html>
