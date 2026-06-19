@@ -7460,6 +7460,7 @@ app.post("/admin/candidates/:id/ballot-order", requireAdmin, (req, res) => {
   const candidateId = parseInteger(req.params.id, 0);
   const sortOrder = parseInteger(req.body.sortOrder, 0);
   const redirectPositionId = parseInteger(req.body.positionId, 0);
+  const redirectTo = String(req.body.redirectTo || "").trim();
   const candidate = db.prepare(`
     SELECT
       c.id,
@@ -7500,6 +7501,11 @@ app.post("/admin/candidates/:id/ballot-order", requireAdmin, (req, res) => {
     "success",
     `${candidate.name} will now appear with ballot order ${sortOrder} under ${candidate.positionName}.`,
   );
+
+  if (redirectTo.startsWith("/admin/setup") || redirectTo.startsWith("/admin/ballot-layout")) {
+    return res.redirect(redirectTo);
+  }
+
   return res.redirect(
     `/admin/ballot-layout${redirectPositionId ? `#position-${redirectPositionId}` : ""}`,
   );

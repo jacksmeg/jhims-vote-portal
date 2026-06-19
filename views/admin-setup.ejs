@@ -1,180 +1,392 @@
 <%- include("partials/admin-shell-start", {
   pageTitle,
-  pageHeading: "Positions and Candidates",
-  pageIntro: "Build the ballot structure and upload each candidate with a photo and position.",
-  currentSection: "setup"
+  pageHeading: "Candidate Management",
+  pageIntro: "Manage candidate profiles, photos, positions and ballot order.",
+  currentSection: "candidates"
 }) %>
 
-<section class="admin-grid">
-  <article class="panel panel-light stack-md" id="position-management">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Add Position</span>
-        <h2>Create ballot categories</h2>
-      </div>
-      <p>Examples: President, Secretary, Treasurer.</p>
+<%
+  const groupedPositions = positions.map((position, index) => ({
+    ...position,
+    toneClass: ['is-green', 'is-blue', 'is-amber', 'is-violet'][index % 4],
+    candidates: candidates.filter((candidate) => candidate.positionId === position.id),
+  }));
+  const candidatesWithPhotos = candidates.filter((candidate) => candidate.photoPath).length;
+  const photoUploadRate = candidates.length ? candidatesWithPhotos / candidates.length : 0;
+  const ballotReady = positions.length > 0 && positions.every((position) =>
+    candidates.some((candidate) => candidate.positionId === position.id)
+  );
+  const ballotPreviewCandidates = candidates.slice(0, 4);
+  const firstPrintablePosition = groupedPositions.find((position) => position.candidates.length > 0);
+  const setupNotice = electionState.canEditSetup
+    ? "Setup mode: candidates can still be edited before voting opens."
+    : "Candidate editing is locked because voting has opened or closed.";
+%>
+
+<section class="candidate-control-metrics" aria-label="Candidate management summary">
+  <article class="candidate-control-metric">
+    <span class="candidate-control-metric__icon is-green" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M16 11a4 4 0 1 0-3.999-4A4 4 0 0 0 16 11Zm-8 2a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V20h9v-1.5c0-.97.4-1.86 1.12-2.59A11.66 11.66 0 0 0 8 15Zm8 0c-2.67 0-8 1.34-8 4v1h16v-1c0-2.66-5.33-4-8-4Z" fill="currentColor"/>
+      </svg>
+    </span>
+    <div>
+      <span>Total Candidates</span>
+      <strong><%= candidates.length.toLocaleString() %></strong>
+      <small>Across all positions</small>
     </div>
-
-    <form class="stack-md" action="/admin/positions" method="post">
-      <label class="field">
-        <span>Position Name</span>
-        <input name="positionName" required />
-      </label>
-
-      <label class="field">
-        <span>Sort Order</span>
-        <input name="sortOrder" type="number" value="0" />
-      </label>
-
-      <button class="button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
-        Add Position
-      </button>
-    </form>
   </article>
 
-  <article class="panel panel-light stack-md" id="candidate-management">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Add Candidate</span>
-        <h2>Upload candidate details</h2>
-      </div>
-      <p>Attach a photo, candidate name, ballot order, and the position they are standing for.</p>
+  <article class="candidate-control-metric">
+    <span class="candidate-control-metric__icon is-blue" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M9 3h6a2 2 0 0 1 2 2v2h3a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9a2 2 0 0 1 2-2h3V5a2 2 0 0 1 2-2Zm0 4h6V5H9v2Zm3 9 5-5-1.4-1.4-3.6 3.58-1.6-1.58L9 13.6 12 16Z" fill="currentColor"/>
+      </svg>
+    </span>
+    <div>
+      <span>Active Positions</span>
+      <strong><%= positions.length.toLocaleString() %></strong>
+      <small>Positions open</small>
     </div>
+  </article>
 
-    <form class="stack-md" action="/admin/candidates" method="post" enctype="multipart/form-data">
-      <label class="field">
-        <span>Candidate Name</span>
-        <input name="name" required />
-      </label>
+  <article class="candidate-control-metric">
+    <span class="candidate-control-metric__icon is-amber" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 12h10l-3.1-4.12-2.32 2.9-1.52-1.92L7 16Zm2-5.5A1.5 1.5 0 1 0 7.5 9 1.5 1.5 0 0 0 9 10.5Z" fill="currentColor"/>
+      </svg>
+    </span>
+    <div>
+      <span>Photos Uploaded</span>
+      <strong><%= candidatesWithPhotos.toLocaleString() %></strong>
+      <small><%= formatPercent(photoUploadRate) %> of candidates</small>
+    </div>
+  </article>
 
-      <label class="field">
-        <span>Position</span>
-        <select name="positionId" required>
-          <option value="">Select a position</option>
-          <% positions.forEach((position) => { %>
-            <option value="<%= position.id %>"><%= position.name %></option>
-          <% }) %>
-        </select>
-      </label>
-
-      <label class="field">
-        <span>Short Bio or Note</span>
-        <textarea name="bio" rows="3" placeholder="Optional description"></textarea>
-      </label>
-
-      <div class="form-grid">
-        <label class="field">
-          <span>Sort Order</span>
-          <input name="sortOrder" type="number" value="0" />
-        </label>
-
-        <label class="field">
-          <span>Photo</span>
-          <input name="photo" type="file" accept="image/*" />
-        </label>
-      </div>
-
-      <button class="button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
-        Add Candidate
-      </button>
-    </form>
+  <article class="candidate-control-metric">
+    <span class="candidate-control-metric__icon is-mint" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm-1.06 13.78-3.18-3.17 1.41-1.42 1.77 1.77 4.24-4.24 1.41 1.41-5.65 5.65Z" fill="currentColor"/>
+      </svg>
+    </span>
+    <div>
+      <span>Ballot Ready</span>
+      <strong><%= ballotReady ? 'Yes' : 'No' %></strong>
+      <small><%= ballotReady ? 'Ready for printing' : 'Add candidates to all positions' %></small>
+    </div>
   </article>
 </section>
 
-<section class="admin-grid">
-  <article class="panel panel-light stack-md">
-    <div class="section-heading">
+<section class="candidate-control-layout">
+  <article class="candidate-control-card candidate-roster-card" id="candidate-management">
+    <div class="candidate-control-card__header">
       <div>
-        <span class="eyebrow">Positions</span>
-        <h2>Current ballot positions</h2>
+        <h2>Candidate Roster</h2>
+        <p>Review candidate photos, positions and ballot order.</p>
       </div>
+      <a class="candidate-control-icon-button" href="/admin/ballot-layout" aria-label="Open ballot layout">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="M4 5h16v2H4V5Zm3 6h10v2H7v-2Zm3 6h4v2h-4v-2Z" fill="currentColor"/>
+        </svg>
+      </a>
     </div>
 
-    <% if (positions.length === 0) { %>
-      <div class="empty-state">No positions added yet.</div>
-    <% } else { %>
-      <div class="stack-sm">
-        <% positions.forEach((position) => { %>
-          <article class="mini-card mini-card--row">
-            <div class="position-order-card__summary">
-              <strong><%= position.name %></strong>
-              <span>Current order: <%= position.sortOrder %></span>
-            </div>
+    <div class="candidate-roster-toolbar">
+      <label class="candidate-search" aria-label="Search candidates">
+        <input type="search" placeholder="Search candidates by name..." />
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="m21 20-4.35-4.35A7.5 7.5 0 1 0 15.24 17L19.59 21 21 20ZM5 10.5A5.5 5.5 0 1 1 10.5 16 5.5 5.5 0 0 1 5 10.5Z" fill="currentColor"/>
+        </svg>
+      </label>
 
-            <div class="position-order-card__actions">
-              <form class="position-order-form" action="/admin/positions/<%= position.id %>" method="post">
-                <label class="field">
-                  <span>Sort Order</span>
+      <select class="candidate-select" aria-label="Filter candidates by position">
+        <option>All Positions</option>
+        <% positions.forEach((position) => { %>
+          <option><%= position.name %></option>
+        <% }) %>
+      </select>
+    </div>
+
+    <div class="candidate-filter-row" aria-label="Position filters">
+      <a class="candidate-filter-chip active" href="#candidate-management">All</a>
+      <% positions.slice(0, 5).forEach((position) => { %>
+        <a class="candidate-filter-chip" href="#candidate-position-<%= position.id %>"><%= position.name %></a>
+      <% }) %>
+    </div>
+
+    <div class="candidate-position-list">
+      <% if (positions.length === 0) { %>
+        <div class="candidate-roster-empty">
+          <strong>No positions created yet.</strong>
+          <p>Create a position below before adding candidates.</p>
+        </div>
+      <% } %>
+
+      <% groupedPositions.forEach((position) => { %>
+        <section class="candidate-position-group <%= position.toneClass %>" id="candidate-position-<%= position.id %>">
+          <header class="candidate-position-group__header">
+            <strong><%= position.name.toUpperCase() %> (<%= position.candidates.length %>)</strong>
+            <span aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="m6 14 6-6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+              </svg>
+            </span>
+          </header>
+
+          <% if (position.candidates.length === 0) { %>
+            <div class="candidate-row candidate-row--empty">
+              <p>No candidates added under <%= position.name %> yet.</p>
+            </div>
+          <% } %>
+
+          <% position.candidates.forEach((candidate) => { %>
+            <article class="candidate-row">
+              <span class="candidate-row__handle" aria-hidden="true"></span>
+              <span class="candidate-row__order"><%= candidate.sortOrder || 0 %></span>
+
+              <div class="candidate-row__avatar">
+                <% if (candidate.photoPath) { %>
+                  <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+                <% } else { %>
+                  <div class="candidate-avatar-fallback"><%= getInitials(candidate.name) %></div>
+                <% } %>
+              </div>
+
+              <div class="candidate-row__identity">
+                <strong><%= candidate.name %></strong>
+                <span><%= candidate.positionName %></span>
+              </div>
+
+              <span class="candidate-photo-pill <%= candidate.photoPath ? 'is-uploaded' : 'is-missing' %>">
+                <%= candidate.photoPath ? 'Photo Uploaded' : 'No Photo' %>
+              </span>
+
+              <div class="candidate-row__actions">
+                <a class="candidate-action-button is-edit" href="/admin/candidates/<%= candidate.id %>/edit">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M5 18.08V21h2.92L18.56 10.36l-2.92-2.92L5 18.08ZM20.71 8.21a1 1 0 0 0 0-1.42l-1.5-1.5a1 1 0 0 0-1.42 0l-1.08 1.08 2.92 2.92 1.08-1.08Z" fill="currentColor"/>
+                  </svg>
+                  Edit
+                </a>
+
+                <form class="candidate-order-form" action="/admin/candidates/<%= candidate.id %>/ballot-order" method="post">
+                  <input type="hidden" name="redirectTo" value="/admin/setup#candidate-position-<%= candidate.positionId %>" />
                   <input
                     name="sortOrder"
                     type="number"
-                    value="<%= position.sortOrder %>"
+                    value="<%= candidate.sortOrder %>"
+                    aria-label="Ballot order for <%= candidate.name %>"
                     <%= electionState.canEditSetup ? '' : 'disabled' %>
                   />
-                </label>
+                  <button class="candidate-action-button is-order" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M7 4h10v2H7V4Zm0 14h10v2H7v-2Zm3-10h7v2h-7V8Zm0 4h7v2h-7v-2ZM5 8l2 2-2 2V8Zm14 4-2-2 2-2v4Z" fill="currentColor"/>
+                    </svg>
+                    Order
+                  </button>
+                </form>
 
-                <button class="button button-ghost" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
-                  Save Order
-                </button>
-              </form>
-
-              <form action="/admin/positions/<%= position.id %>/delete" method="post">
-                <button class="button button-ghost" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
-                  Remove
-                </button>
-              </form>
-            </div>
-          </article>
-        <% }) %>
-      </div>
-    <% } %>
+                <form action="/admin/candidates/<%= candidate.id %>/delete" method="post">
+                  <button class="candidate-action-button is-remove" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M8 5V3h8v2h5v2H3V5h5Zm-1 4h10l-.7 11H7.7L7 9Z" fill="currentColor"/>
+                    </svg>
+                    Remove
+                  </button>
+                </form>
+              </div>
+            </article>
+          <% }) %>
+        </section>
+      <% }) %>
+    </div>
   </article>
 
-  <article class="panel panel-light stack-md">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Candidates</span>
-        <h2>Current candidate roster</h2>
+  <aside class="candidate-side-stack">
+    <article class="candidate-control-card add-candidate-card">
+      <div class="candidate-control-card__header">
+        <div>
+          <h2>Add Candidate</h2>
+          <p>Attach a profile photo and assign the ballot position.</p>
+        </div>
       </div>
-    </div>
 
-    <% if (candidates.length === 0) { %>
-      <div class="empty-state">No candidates added yet.</div>
-    <% } else { %>
-      <div class="stack-sm">
-        <% candidates.forEach((candidate) => { %>
-          <article class="candidate-summary">
-            <div class="candidate-summary__media">
+      <form class="candidate-add-form" action="/admin/candidates" method="post" enctype="multipart/form-data">
+        <label class="field">
+          <span>Candidate Name</span>
+          <input name="name" placeholder="Enter full name" <%= electionState.canEditSetup ? '' : 'disabled' %> required />
+        </label>
+
+        <label class="field">
+          <span>Position</span>
+          <select name="positionId" <%= electionState.canEditSetup ? '' : 'disabled' %> required>
+            <option value="">Select position</option>
+            <% positions.forEach((position) => { %>
+              <option value="<%= position.id %>"><%= position.name %></option>
+            <% }) %>
+          </select>
+        </label>
+
+        <label class="field candidate-order-field">
+          <span>Ballot Order</span>
+          <input name="sortOrder" type="number" value="1" <%= electionState.canEditSetup ? '' : 'disabled' %> />
+          <small>Lower numbers appear first on ballot</small>
+        </label>
+
+        <label class="candidate-upload-field">
+          <span>Photo Upload</span>
+          <input name="photo" type="file" accept="image/*" <%= electionState.canEditSetup ? '' : 'disabled' %> />
+          <strong>Click to upload photo</strong>
+          <small>JPG, PNG, WEBP</small>
+        </label>
+
+        <label class="field candidate-note-field">
+          <span>Short Note <small>(Optional)</small></span>
+          <textarea name="bio" rows="3" maxlength="150" placeholder="Enter brief notes about the candidate..." <%= electionState.canEditSetup ? '' : 'disabled' %>></textarea>
+        </label>
+
+        <button class="candidate-add-button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z" fill="currentColor"/>
+          </svg>
+          Add Candidate
+        </button>
+      </form>
+    </article>
+
+    <article class="candidate-control-card ballot-preview-card">
+      <div class="candidate-control-card__header">
+        <div>
+          <h2>Ballot Preview</h2>
+          <p>This is how candidates will appear to voters.</p>
+        </div>
+      </div>
+
+      <div class="ballot-preview-list">
+        <% if (ballotPreviewCandidates.length === 0) { %>
+          <div class="candidate-roster-empty">
+            <strong>No ballot preview yet.</strong>
+            <p>Add candidates to see the ballot arrangement.</p>
+          </div>
+        <% } %>
+
+        <% ballotPreviewCandidates.forEach((candidate, index) => { %>
+          <article class="ballot-preview-row">
+            <span class="candidate-row__handle" aria-hidden="true"></span>
+            <span class="ballot-preview-row__rank"><%= index + 1 %></span>
+            <div class="candidate-row__avatar">
               <% if (candidate.photoPath) { %>
                 <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
               <% } else { %>
                 <div class="candidate-avatar-fallback"><%= getInitials(candidate.name) %></div>
               <% } %>
             </div>
-
-            <div class="candidate-summary__body">
+            <div>
               <strong><%= candidate.name %></strong>
               <span><%= candidate.positionName %></span>
-              <small><%= candidate.bio || 'No note added.' %></small>
-            </div>
-
-            <div class="candidate-summary__actions">
-              <a
-                class="button button-ghost"
-                href="/admin/candidates/<%= candidate.id %>/edit"
-              >
-                Edit
-              </a>
-              <form action="/admin/candidates/<%= candidate.id %>/delete" method="post">
-                <button class="button button-ghost" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
-                  Remove
-                </button>
-              </form>
             </div>
           </article>
         <% }) %>
       </div>
-    <% } %>
+
+      <a
+        class="candidate-print-button"
+        href="<%= firstPrintablePosition ? `/admin/positions/${firstPrintablePosition.id}/ballot-paper/print` : '/admin/ballot-layout' %>"
+        target="<%= firstPrintablePosition ? '_blank' : '_self' %>"
+        rel="<%= firstPrintablePosition ? 'noreferrer' : '' %>"
+      >
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="M6 9V3h12v6h1a3 3 0 0 1 3 3v5h-4v4H6v-4H2v-5a3 3 0 0 1 3-3h1Zm2-4v4h8V5H8Zm0 11v3h8v-3H8Z" fill="currentColor"/>
+        </svg>
+        Print Ballot Paper
+      </a>
+    </article>
+  </aside>
+</section>
+
+<section class="candidate-setup-alert">
+  <span class="candidate-setup-alert__icon" aria-hidden="true">i</span>
+  <div>
+    <strong><%= setupNotice %></strong>
+    <p>
+      <% if (settings.opensAt) { %>
+        Voting opens on <%= formatDateTime(settings.opensAt) %>.
+      <% } else { %>
+        Set the voting opening time in Election Settings before opening voting.
+      <% } %>
+    </p>
+  </div>
+  <a class="candidate-schedule-link" href="/admin#election-settings">
+    <svg viewBox="0 0 24 24" focusable="false">
+      <path d="M7 2h2v2h6V2h2v2h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V2Zm12 8H5v9h14v-9Z" fill="currentColor"/>
+    </svg>
+    View Election Schedule
+  </a>
+</section>
+
+<section class="candidate-position-admin" id="position-management">
+  <article class="candidate-control-card">
+    <div class="candidate-control-card__header">
+      <div>
+        <h2>Position Setup</h2>
+        <p>Create positions and rearrange their order before voting opens.</p>
+      </div>
+    </div>
+
+    <div class="candidate-position-admin__grid">
+      <form class="candidate-position-form" action="/admin/positions" method="post">
+        <label class="field">
+          <span>Position Name</span>
+          <input name="positionName" placeholder="e.g. President" <%= electionState.canEditSetup ? '' : 'disabled' %> required />
+        </label>
+
+        <label class="field">
+          <span>Sort Order</span>
+          <input name="sortOrder" type="number" value="0" <%= electionState.canEditSetup ? '' : 'disabled' %> />
+        </label>
+
+        <button class="candidate-add-button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+          Add Position
+        </button>
+      </form>
+
+      <div class="candidate-position-list-admin">
+        <% if (positions.length === 0) { %>
+          <div class="candidate-roster-empty">
+            <strong>No positions added yet.</strong>
+            <p>Add at least one position before adding candidates.</p>
+          </div>
+        <% } %>
+
+        <% positions.forEach((position) => { %>
+          <article class="candidate-position-admin-row">
+            <div>
+              <strong><%= position.name %></strong>
+              <span>Current order: <%= position.sortOrder %></span>
+            </div>
+
+            <form action="/admin/positions/<%= position.id %>" method="post">
+              <input
+                name="sortOrder"
+                type="number"
+                value="<%= position.sortOrder %>"
+                aria-label="Sort order for <%= position.name %>"
+                <%= electionState.canEditSetup ? '' : 'disabled' %>
+              />
+              <button class="candidate-action-button is-order" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+                Save Order
+              </button>
+            </form>
+
+            <form action="/admin/positions/<%= position.id %>/delete" method="post">
+              <button class="candidate-action-button is-remove" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
+                Remove
+              </button>
+            </form>
+          </article>
+        <% }) %>
+      </div>
+    </div>
   </article>
 </section>
 

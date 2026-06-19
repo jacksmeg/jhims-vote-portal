@@ -54,7 +54,7 @@
           <span>Voters</span>
         </a>
 
-        <a class="admin-nav__link <%= currentSection === 'setup' ? 'active' : '' %>" href="/admin/setup#candidate-management">
+        <a class="admin-nav__link <%= currentSection === 'candidates' || currentSection === 'setup' ? 'active' : '' %>" href="/admin/setup#candidate-management">
           <span class="admin-nav__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false">
               <path d="M12 3 4 7v4c0 5 3.41 9.68 8 10.96 4.59-1.28 8-5.96 8-10.96V7l-8-4Zm-1.2 11.52-2.32-2.32 1.42-1.41 1.16 1.15 3.54-3.54 1.41 1.41-4.95 4.96Z" fill="currentColor"/>
@@ -63,7 +63,7 @@
           <span>Candidates</span>
         </a>
 
-        <a class="admin-nav__link <%= currentSection === 'setup' ? 'active' : '' %>" href="/admin/setup#position-management">
+        <a class="admin-nav__link <%= currentSection === 'positions' ? 'active' : '' %>" href="/admin/setup#position-management">
           <span class="admin-nav__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false">
               <path d="M5 4h14a1 1 0 0 1 1 1v3H4V5a1 1 0 0 1 1-1Zm-1 6h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Zm3 2v2h2v-2H7Zm4 0v2h6v-2h-6Zm-4 4v2h2v-2H7Zm4 0v2h4v-2h-4Z" fill="currentColor"/>
