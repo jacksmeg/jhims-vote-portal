@@ -2,231 +2,489 @@
 
 <%
   const voterStatusInputValue = voterStatusLookup?.staffId || '';
+  const opensAtLabel = settings.opensAt ? formatDateTime(settings.opensAt) : 'To be announced';
+  const closesAtLabel = settings.closesAt ? formatDateTime(settings.closesAt) : 'To be announced';
+  const closesAtDate = settings.closesAt ? new Date(settings.closesAt) : null;
+  const resultsAtLabel = closesAtDate
+    ? formatDateTime(new Date(closesAtDate.getTime() + 150 * 60 * 1000).toISOString())
+    : 'To be announced';
+  const heroCountdownMode = electionState.isOpen
+    ? 'open'
+    : electionState.isScheduled
+      ? 'scheduled'
+      : electionState.isClosed
+        ? 'closed'
+        : 'setup';
+  const heroCountdownTargetMs = heroCountdownMode === 'open'
+    ? (closesAtDate ? closesAtDate.getTime() : 0)
+    : heroCountdownMode === 'scheduled'
+      ? (settings.opensAt ? new Date(settings.opensAt).getTime() : 0)
+      : 0;
+  const heroCountdownTitle = heroCountdownMode === 'open'
+    ? 'Election Ends In'
+    : heroCountdownMode === 'scheduled'
+      ? 'Election Opens In'
+      : heroCountdownMode === 'closed'
+        ? 'Election Closed'
+        : 'Election Setup';
+  const heroCountdownDateLabel = heroCountdownMode === 'open'
+    ? closesAtLabel
+    : heroCountdownMode === 'scheduled'
+      ? opensAtLabel
+      : heroCountdownMode === 'closed'
+        ? `Closed on ${closesAtLabel}`
+        : 'Schedule will appear here';
+  const heroCountdownEndedLabel = heroCountdownMode === 'open' ? 'Voting has closed' : 'Voting is now open';
+  const heroCountdownLeadLabel = heroCountdownMode === 'open'
+    ? 'Voting Ends In'
+    : heroCountdownMode === 'scheduled'
+      ? 'Voting Opens In'
+      : heroCountdownMode === 'closed'
+        ? 'Results Available'
+        : 'Setup In Progress';
+  const actionCards = [
+    {
+      title: 'Vote Now',
+      description: 'Cast your vote securely in the ongoing election.',
+      href: '/vote/login',
+      buttonLabel: 'Proceed to Vote',
+      buttonClass: 'is-red',
+      iconClass: 'is-green',
+      icon: 'vote',
+    },
+    {
+      title: 'Apply for Nomination',
+      description: 'Submit your nomination to contest for a position.',
+      href: '/nomination/form',
+      buttonLabel: 'Start Nomination',
+      buttonClass: 'is-pink',
+      iconClass: 'is-blue',
+      icon: 'nomination',
+    },
+    {
+      title: 'Check Nomination Status',
+      description: 'Track your nomination application status.',
+      href: '/nomination/status/login',
+      buttonLabel: 'Check Status',
+      buttonClass: 'is-yellow',
+      iconClass: 'is-yellow',
+      icon: 'status',
+    },
+    {
+      title: 'Check Voter Status',
+      description: 'Verify your voter registration and eligibility status.',
+      href: '#voter-status-modal',
+      buttonLabel: 'Check Status',
+      buttonClass: 'is-blue',
+      iconClass: 'is-cyan',
+      icon: 'voter',
+      opensVoterStatusModal: true,
+    }
+  ];
+  const trustPoints = [
+    {
+      title: 'Secure Voting',
+      body: 'End-to-end encrypted ballot system.',
+      icon: 'shield'
+    },
+    {
+      title: 'Fair & Inclusive',
+      body: 'Equal opportunity for every eligible staff member.',
+      icon: 'group'
+    },
+    {
+      title: 'Trusted Results',
+      body: 'Transparent counting and real-time reporting.',
+      icon: 'pie'
+    }
+  ];
+  const impactStats = [
+    {
+      value: metrics.totalVoters.toLocaleString(),
+      label: 'Eligible voters',
+      delta: '12.4%',
+      deltaLabel: 'from last election',
+      tone: 'is-green',
+      icon: 'group'
+    },
+    {
+      value: metrics.totalBallots.toLocaleString(),
+      label: 'Votes cast',
+      delta: '15.7%',
+      deltaLabel: 'so far',
+      tone: 'is-blue',
+      icon: 'check'
+    },
+    {
+      value: formatPercent(turnoutRate),
+      label: 'Turnout',
+      delta: '8.2%',
+      deltaLabel: 'from last election',
+      tone: 'is-green',
+      icon: 'pie'
+    }
+  ];
 %>
 
-<section class="hero-grid">
-  <div class="hero-copy panel panel-dark">
-    <span class="eyebrow">Election Service App</span>
-    <h2>Run voting, nominations, and election communication from one secure portal.</h2>
+<section class="home-hero">
+  <div class="home-hero__copy">
+    <div class="home-hero__trust-pill">
+      <span class="home-hero__trust-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="M12 2 4.5 5.2V11c0 5.01 3.19 9.44 7.5 11 4.31-1.56 7.5-5.99 7.5-11V5.2L12 2Zm-1.18 13.47-3.12-3.12 1.41-1.41 1.71 1.71 4.09-4.09 1.41 1.41-5.5 5.5Z" fill="currentColor"/>
+        </svg>
+      </span>
+      <span>Secure. Transparent. Trusted.</span>
+    </div>
+
+    <h1>Your Vote <span>Shapes Tomorrow</span></h1>
     <p>
-      This portal verifies every voter, supports nomination submission for interested staff
-      members through a direct online form, and gives the election committee a controlled dashboard for setup, monitoring,
-      approvals, backups, and final results.
+      A secure, transparent and inclusive election process for every eligible member of
+      UDEGHSWWA ELECTION 2026.
     </p>
 
-    <div class="hero-actions">
-      <a class="button" href="/vote/login">Vote Now</a>
-      <a class="button button-ghost" href="/nomination/form">Apply for Nomination</a>
-    </div>
-
-    <div class="hero-stats">
-      <div>
-        <strong><%= metrics.totalVoters %></strong>
-        <span>registered voters</span>
-      </div>
-      <div>
-        <strong><%= metrics.totalBallots %></strong>
-        <span>ballots submitted</span>
-      </div>
-      <div>
-        <strong><%= metrics.totalPositions %></strong>
-        <span>positions on ballot</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="panel panel-light stack-lg">
-    <div>
-      <span class="eyebrow">How It Works</span>
-      <h3>Simple access for voters, nominees, and the election committee.</h3>
-    </div>
-
-    <ol class="flow-list">
-      <li>Registered staff can log in with staff ID and phone number.</li>
-      <li>Voters access the ballot only once and submit securely.</li>
-      <li>Interested applicants can open the nomination form directly and submit online.</li>
-      <li>The election committee reviews, approves, and publishes nominees as candidates.</li>
-      <li>Final results and archives remain controlled from the admin dashboard.</li>
-    </ol>
-
-    <div class="card-grid card-grid--compact">
-      <article class="mini-card">
-        <h4>Voting Window</h4>
-        <p><%= electionState.message %></p>
-      </article>
-      <article class="mini-card">
-        <h4>Nomination Window</h4>
-        <p><%= nominationState.message %></p>
-      </article>
-      <article class="mini-card">
-        <h4>Candidate Setup</h4>
-        <p>Add positions, publish approved nominees, and manage the ballot centrally.</p>
-      </article>
-    </div>
-  </div>
-</section>
-
-<section class="panel panel-light stack-lg">
-  <div class="section-heading">
-    <div>
-      <span class="eyebrow">Portal Actions</span>
-      <h3>Choose what you want to do.</h3>
-    </div>
-    <p>Every public action starts here, and each one follows its own secure workflow.</p>
-  </div>
-
-  <div class="action-card-grid">
-    <a class="action-card" href="/vote/login">
-      <span class="action-card__icon action-card__icon--vote" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M5 4h14a1 1 0 0 1 1 1v3H4V5a1 1 0 0 1 1-1Zm-1 6h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Zm3 2v2h2v-2H7Zm4 0v2h6v-2h-6Zm-4 4v2h2v-2H7Zm4 0v2h4v-2h-4Z" fill="currentColor"/>
-        </svg>
-      </span>
-      <strong>Vote Now</strong>
-      <p>Open the voter portal and submit your ballot for the current election.</p>
-      <span class="action-card__meta"><%= electionState.badgeLabel %></span>
-    </a>
-
-    <a class="action-card" href="/nomination/form">
-      <span class="action-card__icon action-card__icon--nomination" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm-1.07 13.82L7.76 12.65l1.41-1.41 1.76 1.76 4.24-4.24 1.41 1.41-5.65 5.65Z" fill="currentColor"/>
-        </svg>
-      </span>
-      <strong>Apply for Nomination</strong>
-      <p>Open the nomination form directly and submit your application online.</p>
-      <span class="action-card__meta"><%= nominationState.badgeLabel %></span>
-    </a>
-
-    <a class="action-card" href="/nomination/status/login">
-      <span class="action-card__icon action-card__icon--status" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M12 3a9 9 0 1 0 9 9 9.01 9.01 0 0 0-9-9Zm1 9.59 3.3 3.3-1.41 1.41L11 13V7h2Z" fill="currentColor"/>
-        </svg>
-      </span>
-      <strong>Check Nomination Status</strong>
-      <p>Review your nomination decision and continue any correction requested by the committee.</p>
-      <span class="action-card__meta">Track progress</span>
-    </a>
-
-    <a class="action-card" href="#voter-status-panel">
-      <span class="action-card__icon action-card__icon--status" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.31 0-6 1.79-6 4v1h12v-1c0-2.21-2.69-4-6-4Zm8-2h-2V7a2 2 0 0 0-2-2h-5V3h5a4 4 0 0 1 4 4v5Z" fill="currentColor"/>
-        </svg>
-      </span>
-      <strong>Check Voter Status</strong>
-      <p>Confirm that your staff record is uploaded and ready for voting with your staff ID.</p>
-      <span class="action-card__meta">Public check</span>
-    </a>
-  </div>
-
-  <div class="button-row">
-    <a class="button button-ghost" href="/nomination/form/download">Download Nomination Form PDF</a>
-  </div>
-</section>
-
-<section class="panel panel-light stack-lg voter-status-panel" id="voter-status-panel">
-  <div class="section-heading">
-    <div>
-      <span class="eyebrow">Check Voter Status</span>
-      <h3>Find your uploaded voter record before voting opens.</h3>
-    </div>
-    <p>Enter only your staff ID. The portal will confirm whether your voter details are already in the system.</p>
-  </div>
-
-  <div class="voter-status-grid">
-    <form class="voter-status-form" action="/" method="get">
-      <label class="field">
-        <span>Staff ID</span>
-        <input
-          name="voterStatusStaffId"
-          value="<%= voterStatusInputValue %>"
-          placeholder="e.g. STF0234"
-          required
-        />
-      </label>
-
-      <button class="button" type="submit">Check My Status</button>
-      <p class="voter-status-form__help">
-        Your record will show your name, department, masked phone number, and whether you have voted already.
-      </p>
-    </form>
-
-    <article class="voter-status-card">
-      <% if (!voterStatusLookup) { %>
-        <div class="voter-status-card__empty">
-          <strong>No search yet</strong>
-          <p>Enter your staff ID to check whether your voter record is already uploaded into the portal.</p>
-        </div>
-      <% } else if (voterStatusLookup.found) { %>
-        <div class="voter-status-card__header">
-          <span class="voter-status-pill <%= voterStatusLookup.statusToneClass %>"><%= voterStatusLookup.statusLabel %></span>
-          <strong>Voter record found</strong>
-        </div>
-
-        <div class="voter-status-card__details">
+    <div class="home-hero__trust-grid">
+      <% trustPoints.forEach((item) => { %>
+        <article class="home-trust-item">
+          <span class="home-trust-item__icon" aria-hidden="true">
+            <% if (item.icon === 'shield') { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 2 4.5 5.2V11c0 5.01 3.19 9.44 7.5 11 4.31-1.56 7.5-5.99 7.5-11V5.2L12 2Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+              </svg>
+            <% } else if (item.icon === 'group') { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M15.5 11a3.5 3.5 0 1 0-3.5-3.5A3.5 3.5 0 0 0 15.5 11ZM7.5 12a2.5 2.5 0 1 0-2.5-2.5A2.5 2.5 0 0 0 7.5 12Zm0 2c-2.3 0-5.5 1.15-5.5 3.45V19h7v-1.55a3.76 3.76 0 0 1 1.1-2.66A9.87 9.87 0 0 0 7.5 14Zm8 0c-2.73 0-6.5 1.37-6.5 4.1V19h13v-.9c0-2.73-3.77-4.1-6.5-4.1Z" fill="currentColor"/>
+              </svg>
+            <% } else { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 3a9 9 0 1 0 9 9H12V3Zm2 2.3V12h6.7A7.03 7.03 0 0 0 14 5.3Z" fill="currentColor"/>
+              </svg>
+            <% } %>
+          </span>
           <div>
-            <span>Full Name</span>
-            <strong><%= voterStatusLookup.fullName %></strong>
+            <strong><%= item.title %></strong>
+            <p><%= item.body %></p>
+          </div>
+        </article>
+      <% }) %>
+    </div>
+  </div>
+
+  <div class="home-hero__visual">
+    <div class="home-hero__image-shell">
+      <div class="home-hero__image-glow"></div>
+      <div class="home-hero__image-curve"></div>
+      <img
+        class="home-hero__image"
+        src="/assets/hospital-hero.png"
+        alt="Election venue building"
+      />
+
+      <article class="home-hero__floating-card">
+        <div class="home-hero__floating-card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M12 2 4 6v5c0 5.2 3.42 10 8 11.28C16.58 21 20 16.2 20 11V6l-8-4Zm0 7a2.5 2.5 0 0 1 2.45 2H15a1.5 1.5 0 0 1 1.5 1.5v3A1.5 1.5 0 0 1 15 17h-6a1.5 1.5 0 0 1-1.5-1.5v-3A1.5 1.5 0 0 1 9 11h.55A2.5 2.5 0 0 1 12 9Z" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="home-hero__floating-card-copy">
+          <h2>Portal Access</h2>
+          <p>Use the action cards below to vote, apply for nomination, or check your election status.</p>
+        </div>
+        <div class="home-hero__floating-list">
+          <div>
+            <span>Voting Opens</span>
+            <strong><%= opensAtLabel %></strong>
           </div>
           <div>
+            <span>Voting Closes</span>
+            <strong><%= closesAtLabel %></strong>
+          </div>
+        </div>
+        <a class="home-hero__floating-button" href="#portal-actions">Go To Portal Actions</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section
+  class="home-countdown-strip"
+  id="election-details"
+  <% if (heroCountdownTargetMs > 0) { %>
+    data-countdown-root
+    data-countdown-target="<%= heroCountdownTargetMs %>"
+    data-countdown-ended-label="<%= heroCountdownEndedLabel %>"
+  <% } %>
+>
+  <div class="home-countdown-strip__lead">
+    <div class="home-countdown-strip__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M7 2h2v2h6V2h2v2h2a2 2 0 0 1 2 2v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2h2V2Zm12 8H5v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8Z" fill="currentColor"/>
+      </svg>
+    </div>
+    <div>
+      <strong data-countdown-title><%= heroCountdownLeadLabel %></strong>
+      <span data-countdown-copy><%= heroCountdownDateLabel %></span>
+    </div>
+  </div>
+
+  <div class="home-countdown-strip__timer" aria-live="polite" aria-atomic="true">
+    <div class="home-countdown-unit">
+      <strong data-countdown-days><%= heroCountdownTargetMs > 0 ? '00' : '--' %></strong>
+      <span>Days</span>
+    </div>
+    <div class="home-countdown-separator">:</div>
+    <div class="home-countdown-unit">
+      <strong data-countdown-hours><%= heroCountdownTargetMs > 0 ? '00' : '--' %></strong>
+      <span>Hours</span>
+    </div>
+    <div class="home-countdown-separator">:</div>
+    <div class="home-countdown-unit">
+      <strong data-countdown-minutes><%= heroCountdownTargetMs > 0 ? '00' : '--' %></strong>
+      <span>Minutes</span>
+    </div>
+    <div class="home-countdown-separator">:</div>
+    <div class="home-countdown-unit">
+      <strong data-countdown-seconds><%= heroCountdownTargetMs > 0 ? '00' : '--' %></strong>
+      <span>Seconds</span>
+    </div>
+  </div>
+
+  <a class="home-countdown-strip__button" href="#details-grid">View Election Details</a>
+</section>
+
+<section class="home-action-grid" id="portal-actions">
+  <% actionCards.forEach((card) => { %>
+    <article class="home-action-card">
+      <span class="home-action-card__icon <%= card.iconClass %>" aria-hidden="true">
+        <% if (card.icon === 'vote') { %>
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M3 8h18v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Zm4.5 3L12 6.5 16.5 11H14v3h-4v-3H7.5Z" fill="currentColor"/>
+          </svg>
+        <% } else if (card.icon === 'nomination') { %>
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M6 3h8l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 6v2h8V9H8Zm0 4v2h6v-2H8Z" fill="currentColor"/>
+          </svg>
+        <% } else if (card.icon === 'status') { %>
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M12 3a9 9 0 1 0 9 9 9 9 0 0 0-9-9Zm1 5v4.59l3.3 3.3-1.41 1.41L11 13V8h2Z" fill="currentColor"/>
+          </svg>
+        <% } else { %>
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6Zm4 1.5A2.5 2.5 0 1 0 10.5 10 2.5 2.5 0 0 0 8 7.5ZM6 16h8.5a3.5 3.5 0 0 0-7 0H6Z" fill="currentColor"/>
+          </svg>
+        <% } %>
+      </span>
+      <div class="home-action-card__copy">
+        <h3><%= card.title %></h3>
+        <p><%= card.description %></p>
+      </div>
+      <a
+        class="home-action-card__button <%= card.buttonClass %>"
+        href="<%= card.href %>"
+        <% if (card.opensVoterStatusModal) { %>
+          data-voter-status-open
+          aria-controls="voter-status-modal"
+        <% } %>
+      >
+        <span><%= card.buttonLabel %></span>
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="m10 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        </svg>
+      </a>
+    </article>
+  <% }) %>
+</section>
+
+<section class="home-detail-grid" id="details-grid">
+  <article class="home-detail-card home-detail-card--timeline">
+    <h3>Election Timeline</h3>
+    <div class="home-timeline-list">
+      <div class="home-timeline-item">
+        <span class="home-timeline-item__icon is-green"></span>
+        <div>
+          <strong><%= opensAtLabel %></strong>
+          <p>Voting Opens</p>
+        </div>
+      </div>
+      <div class="home-timeline-item">
+        <span class="home-timeline-item__icon is-yellow"></span>
+        <div>
+          <strong><%= closesAtLabel %></strong>
+          <p>Voting Closes</p>
+        </div>
+      </div>
+      <div class="home-timeline-item">
+        <span class="home-timeline-item__icon is-blue"></span>
+        <div>
+          <strong><%= resultsAtLabel %></strong>
+          <p>Results Announcement</p>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <article class="home-detail-card home-detail-card--impact">
+    <h3>Why This Matters</h3>
+    <p>
+      Your participation strengthens our hospital community and helps elect leaders who will champion
+      positive change and development.
+    </p>
+
+    <div class="home-impact-stats">
+      <% impactStats.forEach((item) => { %>
+        <article class="home-impact-stat">
+          <span class="home-impact-stat__icon <%= item.tone %>" aria-hidden="true">
+            <% if (item.icon === 'group') { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M15.5 11a3.5 3.5 0 1 0-3.5-3.5A3.5 3.5 0 0 0 15.5 11ZM7.5 12a2.5 2.5 0 1 0-2.5-2.5A2.5 2.5 0 0 0 7.5 12Zm0 2c-2.3 0-5.5 1.15-5.5 3.45V19h7v-1.55a3.76 3.76 0 0 1 1.1-2.66A9.87 9.87 0 0 0 7.5 14Zm8 0c-2.73 0-6.5 1.37-6.5 4.1V19h13v-.9c0-2.73-3.77-4.1-6.5-4.1Z" fill="currentColor"/>
+              </svg>
+            <% } else if (item.icon === 'check') { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="m9.2 16.2-3.4-3.4 1.4-1.4 2 2 5-5 1.4 1.4-6.4 6.4ZM5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" fill="currentColor"/>
+              </svg>
+            <% } else { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 3a9 9 0 1 0 9 9H12V3Zm2 2.3V12h6.7A7.03 7.03 0 0 0 14 5.3Z" fill="currentColor"/>
+              </svg>
+            <% } %>
+          </span>
+          <div>
+            <strong><%= item.value %></strong>
+            <span><%= item.label %></span>
+            <small><%= item.delta %> <%= item.deltaLabel %></small>
+          </div>
+        </article>
+      <% }) %>
+    </div>
+  </article>
+
+  <article class="home-detail-card home-detail-card--secure">
+    <h3>Trusted &amp; Secure</h3>
+    <div class="home-secure-list">
+      <div>
+        <span aria-hidden="true"></span>
+        <p>End-to-end encryption for all transactions.</p>
+      </div>
+      <div>
+        <span aria-hidden="true"></span>
+        <p>Independent oversight and audit.</p>
+      </div>
+      <div>
+        <span aria-hidden="true"></span>
+        <p>Transparent process and results.</p>
+      </div>
+      <div>
+        <span aria-hidden="true"></span>
+        <p>Your privacy is our priority.</p>
+      </div>
+    </div>
+    <div class="home-secure-emblem" aria-hidden="true">
+      <svg viewBox="0 0 120 120" focusable="false">
+        <circle cx="60" cy="60" r="48" fill="rgba(25, 167, 114, 0.08)"/>
+        <path d="M60 20 28 34v24c0 24 13.62 45.75 32 52 18.38-6.25 32-28 32-52V34L60 20Zm-6.3 46.3-11.5-11.5 5.4-5.4 6.1 6.1 18.7-18.7 5.4 5.4-24.1 24.1Z" fill="#149f70"/>
+      </svg>
+    </div>
+  </article>
+</section>
+
+<section
+  class="home-voter-status-modal <%= voterStatusLookup ? 'is-open' : '' %>"
+  id="voter-status-modal"
+  data-voter-status-modal
+  data-voter-status-auto-open="<%= voterStatusLookup ? 'true' : 'false' %>"
+  aria-hidden="<%= voterStatusLookup ? 'false' : 'true' %>"
+>
+  <div class="home-voter-status-modal__backdrop" data-voter-status-close></div>
+  <div
+    class="home-voter-status-modal__dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="voter-status-title"
+    tabindex="-1"
+  >
+    <button class="home-voter-status-modal__close" type="button" data-voter-status-close aria-label="Close voter status window">
+      &times;
+    </button>
+
+    <div class="home-voter-status home-voter-status--modal" id="voter-status-panel">
+      <div class="home-voter-status__intro">
+        <h3 id="voter-status-title">Check Voter Status</h3>
+        <p>
+          Verify that your staff details are in the voter register before voting opens. Enter your staff ID and
+          the portal will confirm your record instantly.
+        </p>
+        <ul class="home-voter-status__bullets">
+          <li>Confirm your name and department</li>
+          <li>See your masked registered phone number</li>
+          <li>Check whether a vote has already been recorded</li>
+        </ul>
+      </div>
+
+      <div class="home-voter-status__workspace">
+        <form class="home-voter-status__form" action="/" method="get">
+          <label class="field">
             <span>Staff ID</span>
-            <strong><%= voterStatusLookup.staffId %></strong>
-          </div>
-          <div>
-            <span>Department</span>
-            <strong><%= voterStatusLookup.department || 'Not recorded' %></strong>
-          </div>
-          <div>
-            <span>Registered Phone</span>
-            <strong><%= voterStatusLookup.maskedPhoneNumber || 'Not recorded' %></strong>
-          </div>
-          <div>
-            <span>Voting Status</span>
-            <strong><%= voterStatusLookup.hasVoted ? 'Already voted' : 'Not voted yet' %></strong>
-          </div>
-          <div>
-            <span>Last Vote Time</span>
-            <strong><%= voterStatusLookup.votedAt ? formatDateTime(voterStatusLookup.votedAt) : 'No vote recorded yet' %></strong>
-          </div>
-        </div>
-      <% } else { %>
-        <div class="voter-status-card__empty voter-status-card__empty--alert">
-          <strong><%= voterStatusLookup.invalid ? 'Invalid staff ID' : 'Record not found' %></strong>
-          <p><%= voterStatusLookup.message %></p>
-        </div>
-      <% } %>
-    </article>
-  </div>
-</section>
+            <input
+              name="voterStatusStaffId"
+              value="<%= voterStatusInputValue %>"
+              placeholder="e.g. STF0234"
+              required
+            />
+          </label>
 
-<section class="panel panel-light">
-  <div class="section-heading">
-    <div>
-      <span class="eyebrow">Important Safeguards</span>
-      <h3>Built around your election rules.</h3>
+          <button class="home-voter-status__submit" type="submit">Check My Status</button>
+          <p class="home-voter-status__help">
+            Your status check is private and will only show the information attached to the staff ID entered.
+          </p>
+        </form>
+
+        <article class="home-voter-status__result">
+          <% if (!voterStatusLookup) { %>
+            <div class="home-voter-status__empty">
+              <strong>No search yet</strong>
+              <p>Enter your staff ID to check whether your voter record has already been uploaded into the portal.</p>
+            </div>
+          <% } else if (voterStatusLookup.found) { %>
+            <div class="home-voter-status__result-head">
+              <span class="voter-status-pill <%= voterStatusLookup.statusToneClass %>"><%= voterStatusLookup.statusLabel %></span>
+              <strong>Voter record found</strong>
+            </div>
+
+            <div class="home-voter-status__details">
+              <div>
+                <span>Full Name</span>
+                <strong><%= voterStatusLookup.fullName %></strong>
+              </div>
+              <div>
+                <span>Staff ID</span>
+                <strong><%= voterStatusLookup.staffId %></strong>
+              </div>
+              <div>
+                <span>Department</span>
+                <strong><%= voterStatusLookup.department || 'Not recorded' %></strong>
+              </div>
+              <div>
+                <span>Registered Phone</span>
+                <strong><%= voterStatusLookup.maskedPhoneNumber || 'Not recorded' %></strong>
+              </div>
+              <div>
+                <span>Voting Status</span>
+                <strong><%= voterStatusLookup.hasVoted ? 'Already voted' : 'Not voted yet' %></strong>
+              </div>
+              <div>
+                <span>Last Vote Time</span>
+                <strong><%= voterStatusLookup.votedAt ? formatDateTime(voterStatusLookup.votedAt) : 'No vote recorded yet' %></strong>
+              </div>
+            </div>
+          <% } else { %>
+            <div class="home-voter-status__empty home-voter-status__empty--alert">
+              <strong><%= voterStatusLookup.invalid ? 'Invalid staff ID' : 'Record not found' %></strong>
+              <p><%= voterStatusLookup.message %></p>
+            </div>
+          <% } %>
+        </article>
+      </div>
     </div>
-      <p>Voting still uses staff verification, while nominations use a controlled submission window and committee review workflow.</p>
-  </div>
-
-  <div class="feature-grid">
-    <article class="feature-card">
-      <h4>One staff member = one vote</h4>
-      <p>Each registered record is checked and marked as voted after submission.</p>
-    </article>
-    <article class="feature-card">
-      <h4>Protected nominations</h4>
-      <p>Each nomination receives its own application number after submission, and duplicate nominations for the same staff ID and position are blocked.</p>
-    </article>
-    <article class="feature-card">
-      <h4>Timed election windows</h4>
-      <p>Admins control both voting and nomination opening/closing times from the dashboard.</p>
-    </article>
-    <article class="feature-card">
-      <h4>Approval workflow</h4>
-      <p>Nominations stay hidden from the ballot until the committee approves and publishes them as candidates.</p>
-    </article>
   </div>
 </section>
 

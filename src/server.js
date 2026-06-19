@@ -4285,7 +4285,7 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(uploadsRootDirectory));
-app.use(express.static(publicDirectory));
+app.use(express.static(publicDirectory, { redirect: false }));
 app.use(
   session({
     secret: sessionSecret,
@@ -4332,6 +4332,7 @@ app.use((req, res, next) => {
 
 app.get("/", (req, res) => {
   const metrics = getDashboardMetrics();
+  const turnoutRate = metrics.totalVoters ? metrics.votedCount / metrics.totalVoters : 0;
   const requestedStaffId = String(req.query.voterStatusStaffId || "").trim();
   const normalizedStaffId = normalizeStaffId(requestedStaffId);
   let voterStatusLookup = null;
@@ -4364,6 +4365,7 @@ app.get("/", (req, res) => {
   res.render("home", {
     pageTitle: "Election Portal",
     metrics,
+    turnoutRate,
     voterStatusLookup,
   });
 });

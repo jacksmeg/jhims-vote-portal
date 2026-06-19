@@ -28,6 +28,66 @@
 </div>
 <script>
   (() => {
+    const modal = document.querySelector("[data-voter-status-modal]");
+    if (!modal) {
+      return;
+    }
+
+    const openButtons = Array.from(document.querySelectorAll("[data-voter-status-open]"));
+    const closeButtons = Array.from(document.querySelectorAll("[data-voter-status-close]"));
+    const dialog = modal.querySelector(".home-voter-status-modal__dialog");
+    const firstField = modal.querySelector("input[name='voterStatusStaffId']");
+    let lastFocusedElement = null;
+
+    const setModalState = (isOpen, { focusField = false, updateHash = true } = {}) => {
+      modal.classList.toggle("is-open", isOpen);
+      modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+      document.body.classList.toggle("is-voter-status-modal-open", isOpen);
+
+      if (isOpen) {
+        lastFocusedElement = document.activeElement;
+        if (updateHash && window.location.hash !== "#voter-status-modal") {
+          window.history.pushState(null, "", "#voter-status-modal");
+        }
+        window.setTimeout(() => {
+          (focusField ? firstField : dialog)?.focus();
+        }, 30);
+        return;
+      }
+
+      if (updateHash && window.location.hash === "#voter-status-modal") {
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+      }
+      if (lastFocusedElement?.focus) {
+        lastFocusedElement.focus();
+      }
+    };
+
+    openButtons.forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        setModalState(true, { focusField: true });
+      });
+    });
+
+    closeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setModalState(false);
+      });
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && modal.classList.contains("is-open")) {
+        setModalState(false);
+      }
+    });
+
+    if (modal.getAttribute("data-voter-status-auto-open") === "true" || window.location.hash === "#voter-status-modal") {
+      setModalState(true, { focusField: false, updateHash: false });
+    }
+  })();
+
+  (() => {
     const countdownRoots = Array.from(document.querySelectorAll("[data-countdown-root]"));
     if (countdownRoots.length === 0) {
       return;
