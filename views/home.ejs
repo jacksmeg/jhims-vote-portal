@@ -1,5 +1,9 @@
 <%- include("partials/public-shell-start", { pageTitle }) %>
 
+<%
+  const voterStatusInputValue = voterStatusLookup?.staffId || '';
+%>
+
 <section class="hero-grid">
   <div class="hero-copy panel panel-dark">
     <span class="eyebrow">Election Service App</span>
@@ -104,10 +108,96 @@
       <p>Review your nomination decision and continue any correction requested by the committee.</p>
       <span class="action-card__meta">Track progress</span>
     </a>
+
+    <a class="action-card" href="#voter-status-panel">
+      <span class="action-card__icon action-card__icon--status" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.31 0-6 1.79-6 4v1h12v-1c0-2.21-2.69-4-6-4Zm8-2h-2V7a2 2 0 0 0-2-2h-5V3h5a4 4 0 0 1 4 4v5Z" fill="currentColor"/>
+        </svg>
+      </span>
+      <strong>Check Voter Status</strong>
+      <p>Confirm that your staff record is uploaded and ready for voting with your staff ID.</p>
+      <span class="action-card__meta">Public check</span>
+    </a>
   </div>
 
   <div class="button-row">
     <a class="button button-ghost" href="/nomination/form/download">Download Nomination Form PDF</a>
+  </div>
+</section>
+
+<section class="panel panel-light stack-lg voter-status-panel" id="voter-status-panel">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Check Voter Status</span>
+      <h3>Find your uploaded voter record before voting opens.</h3>
+    </div>
+    <p>Enter only your staff ID. The portal will confirm whether your voter details are already in the system.</p>
+  </div>
+
+  <div class="voter-status-grid">
+    <form class="voter-status-form" action="/" method="get">
+      <label class="field">
+        <span>Staff ID</span>
+        <input
+          name="voterStatusStaffId"
+          value="<%= voterStatusInputValue %>"
+          placeholder="e.g. STF0234"
+          required
+        />
+      </label>
+
+      <button class="button" type="submit">Check My Status</button>
+      <p class="voter-status-form__help">
+        Your record will show your name, department, masked phone number, and whether you have voted already.
+      </p>
+    </form>
+
+    <article class="voter-status-card">
+      <% if (!voterStatusLookup) { %>
+        <div class="voter-status-card__empty">
+          <strong>No search yet</strong>
+          <p>Enter your staff ID to check whether your voter record is already uploaded into the portal.</p>
+        </div>
+      <% } else if (voterStatusLookup.found) { %>
+        <div class="voter-status-card__header">
+          <span class="voter-status-pill <%= voterStatusLookup.statusToneClass %>"><%= voterStatusLookup.statusLabel %></span>
+          <strong>Voter record found</strong>
+        </div>
+
+        <div class="voter-status-card__details">
+          <div>
+            <span>Full Name</span>
+            <strong><%= voterStatusLookup.fullName %></strong>
+          </div>
+          <div>
+            <span>Staff ID</span>
+            <strong><%= voterStatusLookup.staffId %></strong>
+          </div>
+          <div>
+            <span>Department</span>
+            <strong><%= voterStatusLookup.department || 'Not recorded' %></strong>
+          </div>
+          <div>
+            <span>Registered Phone</span>
+            <strong><%= voterStatusLookup.maskedPhoneNumber || 'Not recorded' %></strong>
+          </div>
+          <div>
+            <span>Voting Status</span>
+            <strong><%= voterStatusLookup.hasVoted ? 'Already voted' : 'Not voted yet' %></strong>
+          </div>
+          <div>
+            <span>Last Vote Time</span>
+            <strong><%= voterStatusLookup.votedAt ? formatDateTime(voterStatusLookup.votedAt) : 'No vote recorded yet' %></strong>
+          </div>
+        </div>
+      <% } else { %>
+        <div class="voter-status-card__empty voter-status-card__empty--alert">
+          <strong><%= voterStatusLookup.invalid ? 'Invalid staff ID' : 'Record not found' %></strong>
+          <p><%= voterStatusLookup.message %></p>
+        </div>
+      <% } %>
+    </article>
   </div>
 </section>
 

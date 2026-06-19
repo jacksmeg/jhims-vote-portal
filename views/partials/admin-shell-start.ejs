@@ -1,6 +1,25 @@
-<%- include("head", { pageTitle }) %>
-<div class="admin-shell">
-  <aside class="admin-sidebar">
+<%- include("head", { pageTitle, bodyClass: "admin-app-body" }) %>
+<%
+  const isDashboardView = currentSection === "dashboard";
+  const dashboardMetricCount = typeof metrics !== "undefined" ? metrics.totalVoters : null;
+  const dashboardNotificationCount = typeof activityFeed !== "undefined" ? activityFeed.length : 0;
+  const shellStatusLabel = electionState.isOpen
+    ? "OPEN"
+    : electionState.isScheduled
+      ? "SCHEDULED"
+      : electionState.isClosed
+        ? "CLOSED"
+        : "SETUP";
+  const shellStatusMeta = electionState.isOpen
+    ? "Live voting in progress"
+    : electionState.isScheduled
+      ? "Auto-open enabled"
+      : electionState.isClosed
+        ? "Ballot locked and finalized"
+        : "Election setup in progress";
+%>
+<div class="admin-shell <%= isDashboardView ? 'admin-shell--dashboard' : '' %>">
+  <aside class="admin-sidebar <%= isDashboardView ? 'admin-sidebar--dashboard' : '' %>">
     <a class="brand-mark brand-mark--stacked" href="/admin">
       <% if (settings.organizationLogoPath) { %>
         <img class="brand-mark__logo" src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
@@ -35,22 +54,22 @@
           <span>Voters</span>
         </a>
 
-        <a class="admin-nav__link <%= currentSection === 'setup' ? 'active' : '' %>" href="/admin/setup">
+        <a class="admin-nav__link <%= currentSection === 'setup' ? 'active' : '' %>" href="/admin/setup#candidate-management">
+          <span class="admin-nav__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M12 3 4 7v4c0 5 3.41 9.68 8 10.96 4.59-1.28 8-5.96 8-10.96V7l-8-4Zm-1.2 11.52-2.32-2.32 1.42-1.41 1.16 1.15 3.54-3.54 1.41 1.41-4.95 4.96Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <span>Candidates</span>
+        </a>
+
+        <a class="admin-nav__link <%= currentSection === 'setup' ? 'active' : '' %>" href="/admin/setup#position-management">
           <span class="admin-nav__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false">
               <path d="M5 4h14a1 1 0 0 1 1 1v3H4V5a1 1 0 0 1 1-1Zm-1 6h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Zm3 2v2h2v-2H7Zm4 0v2h6v-2h-6Zm-4 4v2h2v-2H7Zm4 0v2h4v-2h-4Z" fill="currentColor"/>
             </svg>
           </span>
-          <span>Positions & Candidates</span>
-        </a>
-
-        <a class="admin-nav__link <%= currentSection === 'ballots' ? 'active' : '' %>" href="/admin/ballot-layout">
-          <span class="admin-nav__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 4v2h2V8H7Zm4 0v2h6V8h-6Zm-4 4v2h2v-2H7Zm4 0v2h6v-2h-6Zm-4 4v2h2v-2H7Zm4 0v2h6v-2h-6Z" fill="currentColor"/>
-            </svg>
-          </span>
-          <span>Ballot Layout</span>
+          <span>Positions</span>
         </a>
 
         <a class="admin-nav__link <%= currentSection === 'nominations' ? 'active' : '' %>" href="/admin/nominations">
@@ -61,10 +80,6 @@
           </span>
           <span>Nominations</span>
         </a>
-      </div>
-
-      <div class="admin-nav__group">
-        <span class="admin-nav__label">Election</span>
 
         <a class="admin-nav__link <%= currentSection === 'results' ? 'active' : '' %>" href="/admin/results">
           <span class="admin-nav__icon" aria-hidden="true">
@@ -72,21 +87,17 @@
               <path d="M5 19h14v2H3V5h2v14Zm3-8h2v6H8v-6Zm4-4h2v10h-2V7Zm4 2h2v8h-2V9Z" fill="currentColor"/>
             </svg>
           </span>
-          <span>Live Results</span>
+          <span>Results</span>
         </a>
 
-        <a class="admin-nav__link <%= currentSection === 'archives' ? 'active' : '' %>" href="/admin/archives">
+        <a class="admin-nav__link <%= currentSection === 'audit' ? 'active' : '' %>" href="/admin/audit">
           <span class="admin-nav__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false">
-              <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3H4V5Zm0 5h16v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9Zm5 2v2h6v-2H9Z" fill="currentColor"/>
+              <path d="M12 3a9 9 0 1 0 9 9 9.01 9.01 0 0 0-9-9Zm1 9.59 3.3 3.3-1.41 1.41L11 13V7h2Z" fill="currentColor"/>
             </svg>
           </span>
-          <span>Archives</span>
+          <span>Audit Logs</span>
         </a>
-      </div>
-
-      <div class="admin-nav__group">
-        <span class="admin-nav__label">System</span>
 
         <a class="admin-nav__link <%= currentSection === 'otp-settings' ? 'active' : '' %>" href="/admin/otp-settings">
           <span class="admin-nav__icon" aria-hidden="true">
@@ -94,7 +105,20 @@
               <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm0 6a2.5 2.5 0 0 1 2.45 2h1.05A1.5 1.5 0 0 1 17 11.5v5A1.5 1.5 0 0 1 15.5 18h-7A1.5 1.5 0 0 1 7 16.5v-5A1.5 1.5 0 0 1 8.5 10h1.05A2.5 2.5 0 0 1 12 8Zm0 1.5a1 1 0 0 0-.99.85L11 10.5h2l-.01-.15A1 1 0 0 0 12 9.5Z" fill="currentColor"/>
             </svg>
           </span>
-          <span>OTP Settings</span>
+          <span>Settings</span>
+        </a>
+      </div>
+
+      <div class="admin-nav__group">
+        <span class="admin-nav__label">More</span>
+
+        <a class="admin-nav__link <%= currentSection === 'ballots' ? 'active' : '' %>" href="/admin/ballot-layout">
+          <span class="admin-nav__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 4v2h2V8H7Zm4 0v2h6V8h-6Zm-4 4v2h2v-2H7Zm4 0v2h6v-2h-6Zm-4 4v2h2v-2H7Zm4 0v2h6v-2h-6Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <span>Ballot Layout</span>
         </a>
 
         <a class="admin-nav__link <%= currentSection === 'otp-logs' ? 'active' : '' %>" href="/admin/otp-logs">
@@ -106,13 +130,13 @@
           <span>OTP Activity</span>
         </a>
 
-        <a class="admin-nav__link <%= currentSection === 'audit' ? 'active' : '' %>" href="/admin/audit">
+        <a class="admin-nav__link <%= currentSection === 'archives' ? 'active' : '' %>" href="/admin/archives">
           <span class="admin-nav__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false">
-              <path d="M12 3a9 9 0 1 0 9 9 9.01 9.01 0 0 0-9-9Zm1 9.59 3.3 3.3-1.41 1.41L11 13V7h2Z" fill="currentColor"/>
+              <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3H4V5Zm0 5h16v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9Zm5 2v2h6v-2H9Z" fill="currentColor"/>
             </svg>
           </span>
-          <span>Audit Logs</span>
+          <span>Archives</span>
         </a>
       </div>
     </nav>
@@ -123,20 +147,40 @@
         <%= electionState.badgeLabel %>
       </div>
       <p><%= electionState.message %></p>
+      <small>Secure. Fair. Transparent.</small>
     </div>
 
-    <div class="admin-sidebar__theme-preview">
-      <span class="admin-nav__label">Theme</span>
-      <div class="admin-sidebar__swatches">
-        <span class="admin-sidebar__swatch admin-sidebar__swatch--cyan"></span>
-        <span class="admin-sidebar__swatch admin-sidebar__swatch--blue"></span>
-        <span class="admin-sidebar__swatch admin-sidebar__swatch--amber"></span>
+    <% if (isDashboardView && dashboardMetricCount !== null) { %>
+      <a class="admin-sidebar__metric-card" href="/admin/voters">
+        <span class="admin-sidebar__metric-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M16 11a4 4 0 1 0-3.999-4A4 4 0 0 0 16 11Zm-8 2a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V20h9v-1.5c0-.97.4-1.86 1.12-2.59A11.66 11.66 0 0 0 8 15Zm8 0c-2.67 0-8 1.34-8 4v1h16v-1c0-2.66-5.33-4-8-4Z" fill="currentColor"/>
+          </svg>
+        </span>
+        <div>
+          <small>Registered Staff</small>
+          <strong><%= dashboardMetricCount.toLocaleString() %></strong>
+        </div>
+        <span class="admin-sidebar__metric-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="m10 6 6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          </svg>
+        </span>
+      </a>
+    <% } else { %>
+      <div class="admin-sidebar__theme-preview">
+        <span class="admin-nav__label">Theme</span>
+        <div class="admin-sidebar__swatches">
+          <span class="admin-sidebar__swatch admin-sidebar__swatch--cyan"></span>
+          <span class="admin-sidebar__swatch admin-sidebar__swatch--blue"></span>
+          <span class="admin-sidebar__swatch admin-sidebar__swatch--amber"></span>
+        </div>
       </div>
-    </div>
+    <% } %>
   </aside>
 
-  <div class="admin-main">
-    <header class="admin-topbar">
+  <div class="admin-main <%= isDashboardView ? 'admin-main--dashboard' : '' %>">
+    <header class="admin-topbar <%= isDashboardView ? 'admin-topbar--dashboard' : '' %>">
       <div class="admin-topbar__leading">
         <button class="admin-icon-button admin-icon-button--menu" type="button" aria-label="Dashboard menu">
           <svg viewBox="0 0 24 24" focusable="false">
@@ -150,29 +194,44 @@
         </div>
       </div>
 
-      <div class="admin-topbar__actions">
-        <div class="signed-in-tag">
-          <span class="status-dot"></span>
-          <span><%= electionState.badgeLabel %></span>
+      <div class="admin-topbar__status-panel">
+        <span class="admin-topbar__status-label">Election Status</span>
+        <div class="admin-topbar__status-copy">
+          <span class="admin-topbar__status-indicator <%= electionState.badgeClass %>">
+            <span class="status-dot"></span>
+            <strong><%= shellStatusLabel %></strong>
+          </span>
+          <small><%= shellStatusMeta %></small>
         </div>
+      </div>
 
+      <div class="admin-topbar__actions">
         <button class="admin-icon-button" type="button" aria-label="Notifications">
           <svg viewBox="0 0 24 24" focusable="false">
             <path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-4H5l1.5-2v-5a5.5 5.5 0 1 1 11 0v5L19 18Z" fill="currentColor"/>
           </svg>
-          <span class="admin-icon-button__dot"></span>
+          <% if (dashboardNotificationCount > 0) { %>
+            <span class="admin-icon-button__count"><%= dashboardNotificationCount %></span>
+          <% } else { %>
+            <span class="admin-icon-button__dot"></span>
+          <% } %>
         </button>
 
         <div class="admin-identity-chip">
+          <div class="admin-avatar"><%= getInitials(admin.username) %></div>
           <div class="admin-identity-chip__copy">
             <strong><%= admin.username %></strong>
-            <small>Super Administrator</small>
+            <small>Super Admin</small>
           </div>
-          <div class="admin-avatar"><%= getInitials(admin.username) %></div>
+          <span class="admin-identity-chip__caret" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+            </svg>
+          </span>
         </div>
 
         <form action="/admin/logout" method="post">
-          <button class="button button-ghost button-small" type="submit">Log Out</button>
+          <button class="button button-ghost button-small admin-topbar__logout" type="submit">Log Out</button>
         </form>
       </div>
     </header>

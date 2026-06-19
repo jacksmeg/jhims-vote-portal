@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
+const os = require("node:os");
 const path = require("node:path");
 const dayjs = require("dayjs");
 const express = require("express");
@@ -117,6 +118,49 @@ const themeOptions = [
     description: "Deep blue contrast with brighter highlights for readability.",
   },
 ];
+
+function getNetworkUrls(serverHost, serverPort) {
+  const urls = [];
+  const normalizedHost = String(serverHost || "").trim();
+
+  if (
+    !normalizedHost ||
+    normalizedHost === "0.0.0.0" ||
+    normalizedHost === "::"
+  ) {
+    urls.push(`http://localhost:${serverPort}`);
+
+    const interfaces = os.networkInterfaces();
+    const seenAddresses = new Set();
+
+    for (const networkInterface of Object.values(interfaces)) {
+      for (const address of networkInterface || []) {
+        if (
+          !address ||
+          address.internal ||
+          address.family !== "IPv4" ||
+          seenAddresses.has(address.address)
+        ) {
+          continue;
+        }
+
+        seenAddresses.add(address.address);
+        urls.push(`http://${address.address}:${serverPort}`);
+      }
+    }
+
+    return urls;
+  }
+
+  if (
+    normalizedHost === "127.0.0.1" ||
+    normalizedHost.toLowerCase() === "localhost"
+  ) {
+    return [`http://localhost:${serverPort}`];
+  }
+
+  return [`http://${normalizedHost}:${serverPort}`];
+}
 
 const totpTimeStepSeconds = 30;
 const totpDigits = 6;
@@ -3280,6 +3324,37 @@ function getVoters() {
   `).all();
 }
 
+function getPublicVoterStatusByStaffId(staffId) {
+  const normalizedStaffId = normalizeStaffId(staffId);
+  if (!normalizedStaffId) {
+    return null;
+  }
+
+  const voter = db.prepare(`
+    SELECT
+      staff_id AS staffId,
+      phone_number AS phoneNumber,
+      full_name AS fullName,
+      department,
+      has_voted AS hasVoted,
+      voted_at AS votedAt
+    FROM voters
+    WHERE staff_id = ?
+    LIMIT 1
+  `).get(normalizedStaffId);
+
+  if (!voter) {
+    return null;
+  }
+
+  return {
+    ...voter,
+    maskedPhoneNumber: maskPhoneNumber(voter.phoneNumber),
+    statusLabel: voter.hasVoted ? "Vote already cast" : "Ready to vote",
+    statusToneClass: voter.hasVoted ? "is-voted" : "is-ready",
+  };
+}
+
 function getPositions() {
   return db.prepare(`
     SELECT
@@ -4257,7 +4332,40 @@ app.use((req, res, next) => {
 
 app.get("/", (req, res) => {
   const metrics = getDashboardMetrics();
-  res.render("home", { pageTitle: "Election Portal", metrics });
+  const requestedStaffId = String(req.query.voterStatusStaffId || "").trim();
+  const normalizedStaffId = normalizeStaffId(requestedStaffId);
+  let voterStatusLookup = null;
+
+  if (requestedStaffId) {
+    if (!normalizedStaffId) {
+      voterStatusLookup = {
+        staffId: requestedStaffId,
+        found: false,
+        invalid: true,
+        message: "Enter a valid staff ID to check voter details.",
+      };
+    } else {
+      const voterRecord = getPublicVoterStatusByStaffId(normalizedStaffId);
+      voterStatusLookup = voterRecord
+        ? {
+            found: true,
+            invalid: false,
+            ...voterRecord,
+          }
+        : {
+            staffId: normalizedStaffId,
+            found: false,
+            invalid: false,
+            message: "No registered voter record was found for that staff ID.",
+          };
+    }
+  }
+
+  res.render("home", {
+    pageTitle: "Election Portal",
+    metrics,
+    voterStatusLookup,
+  });
 });
 
 app.get("/health", (_req, res) => {
@@ -5656,6 +5764,7 @@ app.get("/admin", requireAdmin, async (req, res) => {
     archives,
     turnoutRate,
     notVotedCount,
+    resultsPreview,
     activityFeed,
     topCandidates,
     positionBars,
@@ -7715,7 +7824,29 @@ async function start() {
   await ensureVoterTemplate(staffLoginTemplatePath);
 
   app.listen(port, host, () => {
-    console.log(`Vote portal running on http://localhost:${port}`);
+    const urls = getNetworkUrls(host, port);
+
+    console.log("Vote portal is running.");
+    console.log("");
+    console.log("Open on this PC:");
+    console.log(`- ${urls[0]}`);
+
+    if (urls.length > 1) {
+      console.log("");
+      console.log("Open from other PCs on the same network:");
+
+      for (const url of urls.slice(1)) {
+        console.log(`- ${url}`);
+      }
+    }
+
+    console.log("");
+    console.log("Useful links:");
+    console.log(`- Voter login: ${urls[0]}/vote/login`);
+    console.log(`- Admin login: ${urls[0]}/admin/login`);
+    console.log("");
+    console.log(`Database file: ${databasePath}`);
+    console.log(`Storage folder: ${storageRoot}`);
   });
 }
 

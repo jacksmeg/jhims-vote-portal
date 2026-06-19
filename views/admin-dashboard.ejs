@@ -1,7 +1,7 @@
 <%- include("partials/admin-shell-start", {
   pageTitle,
   pageHeading: "Admin Dashboard",
-  pageIntro: "Follow turnout, track readiness, and open deeper tools only when you need them.",
+  pageIntro: "Live turnout, election schedule, and committee actions in one control center.",
   currentSection: "dashboard"
 }) %>
 
@@ -32,108 +32,168 @@
       ? 'Every listed position already has at least one candidate.'
       : `${positionsNeedingCandidates.length} position${positionsNeedingCandidates.length === 1 ? '' : 's'} still need candidate setup before the ballot is fully ready.`;
   const recentArchives = archives.slice(0, 2);
+  const leadingCandidate = topCandidates[0] || null;
+  const clearLeadPositions = resultsPreview.filter((position) =>
+    position.totalVotes > 0 &&
+    position.marginLabel !== 'Tie' &&
+    position.winnerLabel !== 'No votes recorded' &&
+    position.winnerLabel !== 'No candidates added'
+  );
+  const closeRaceCount = resultsPreview.filter((position) =>
+    position.totalVotes > 0 &&
+    position.marginLabel !== 'Tie' &&
+    position.marginVotes > 0 &&
+    position.marginVotes <= 5
+  ).length;
+  const declaredPositionCount = electionState.isClosed ? clearLeadPositions.length : 0;
+  const projectedWinnersCount = electionState.isClosed ? declaredPositionCount : clearLeadPositions.length;
+  const closesAtDate = settings.closesAt ? new Date(settings.closesAt) : null;
+  const countingDate = closesAtDate ? new Date(closesAtDate.getTime() + 2 * 60 * 60 * 1000) : null;
+  const declarationDate = closesAtDate ? new Date(closesAtDate.getTime() + Math.round(2.5 * 60 * 60 * 1000)) : null;
+  const timeLeftMs = closesAtDate ? closesAtDate.getTime() - Date.now() : null;
+  const timeLeftLabel =
+    electionState.isOpen && timeLeftMs && timeLeftMs > 0
+      ? `In ${Math.floor(timeLeftMs / 3600000)}h ${Math.floor((timeLeftMs % 3600000) / 60000)}m`
+      : electionState.isClosed
+        ? 'Closed'
+        : electionState.isScheduled
+          ? 'Scheduled'
+          : 'Upcoming';
+  const scheduleMoments = [
+    {
+      label: 'Voting Opens',
+      value: settings.opensAt ? formatDateTime(settings.opensAt) : 'Not scheduled yet',
+      badge: electionState.isOpen || electionState.isClosed ? 'Open' : electionState.isScheduled ? 'Scheduled' : 'Pending',
+      toneClass: electionState.isOpen || electionState.isClosed ? 'is-green' : electionState.isScheduled ? 'is-blue' : 'is-slate',
+    },
+    {
+      label: 'Voting Closes',
+      value: settings.closesAt ? formatDateTime(settings.closesAt) : 'Not scheduled yet',
+      badge: timeLeftLabel,
+      toneClass: electionState.isOpen ? 'is-amber' : electionState.isClosed ? 'is-slate' : 'is-blue',
+    },
+    {
+      label: 'Counting & Verification',
+      value: countingDate ? formatDateTime(countingDate.toISOString()) : 'After close of polls',
+      badge: electionState.isClosed ? 'Active' : 'Upcoming',
+      toneClass: electionState.isClosed ? 'is-green' : 'is-slate',
+    },
+    {
+      label: 'Results Announcement',
+      value: declarationDate ? formatDateTime(declarationDate.toISOString()) : 'Committee controlled',
+      badge: electionState.isClosed ? 'Ready' : 'Upcoming',
+      toneClass: electionState.isClosed ? 'is-blue' : 'is-slate',
+    }
+  ];
+  const lineChartTicks = Array.from({ length: 5 }, (_, index) => {
+    const ratio = 1 - index / 4;
+    return Math.round((timelineChart.maxValue * ratio) / 100) * 100;
+  });
 %>
 
-<section class="dashboard-summary-grid">
-  <article class="dashboard-summary-card dashboard-summary-card--cyan">
-    <div class="dashboard-summary-card__icon" aria-hidden="true">
+<section class="control-metrics-grid">
+  <article class="control-metric-card control-metric-card--emerald">
+    <span class="control-metric-card__icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" focusable="false">
-        <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.31 0-6 1.79-6 4v1h12v-1c0-2.21-2.69-4-6-4Z" fill="currentColor"/>
+        <path d="M16 11a4 4 0 1 0-3.999-4A4 4 0 0 0 16 11Zm-8 2a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V20h9v-1.5c0-.97.4-1.86 1.12-2.59A11.66 11.66 0 0 0 8 15Zm8 0c-2.67 0-8 1.34-8 4v1h16v-1c0-2.66-5.33-4-8-4Z" fill="currentColor"/>
       </svg>
-    </div>
-    <div>
+    </span>
+    <div class="control-metric-card__body">
       <span>Registered Voters</span>
       <strong><%= metrics.totalVoters.toLocaleString() %></strong>
       <small>Total eligible voters</small>
     </div>
   </article>
 
-  <article class="dashboard-summary-card dashboard-summary-card--green">
-    <div class="dashboard-summary-card__icon" aria-hidden="true">
+  <article class="control-metric-card control-metric-card--blue">
+    <span class="control-metric-card__icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" focusable="false">
-        <path d="M5 19h14v2H3V5h2v14Zm3-8h2v6H8v-6Zm4-4h2v10h-2V7Zm4 2h2v8h-2V9Z" fill="currentColor"/>
+        <path d="m10 16.2-3.5-3.5 1.4-1.4 2.1 2.1 5-5L16.4 9l-6.4 7.2ZM5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" fill="currentColor"/>
       </svg>
-    </div>
-    <div>
-      <span>Voters Turned Out</span>
+    </span>
+    <div class="control-metric-card__body">
+      <span>Voted</span>
       <strong><%= metrics.votedCount.toLocaleString() %></strong>
-      <small><%= formatPercent(turnoutRate) %> turnout</small>
+      <small>Total votes cast</small>
     </div>
   </article>
 
-  <article class="dashboard-summary-card dashboard-summary-card--violet">
-    <div class="dashboard-summary-card__icon" aria-hidden="true">
+  <article class="control-metric-card control-metric-card--teal">
+    <span class="control-metric-card__icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" focusable="false">
-        <path d="M5 4h14a1 1 0 0 1 1 1v3H4V5a1 1 0 0 1 1-1Zm-1 6h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Zm3 2v2h2v-2H7Zm4 0v2h6v-2h-6Zm-4 4v2h2v-2H7Zm4 0v2h4v-2h-4Z" fill="currentColor"/>
+        <path d="M12 2a10 10 0 1 0 10 10H12V2Zm2 2.3V12h7.7A8 8 0 0 0 14 4.3Z" fill="currentColor"/>
       </svg>
+    </span>
+    <div class="control-metric-card__body">
+      <span>Turnout</span>
+      <strong><%= formatPercent(turnoutRate) %></strong>
+      <small><%= notVotedCount.toLocaleString() %> voters pending</small>
     </div>
-    <div>
-      <span>Positions</span>
+  </article>
+
+  <article class="control-metric-card control-metric-card--amber">
+    <span class="control-metric-card__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M7 2h2v2h6V2h2v2h2a2 2 0 0 1 2 2v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2h2V2Zm12 8H5v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8Z" fill="currentColor"/>
+      </svg>
+    </span>
+    <div class="control-metric-card__body">
+      <span>Active Positions</span>
       <strong><%= metrics.totalPositions.toLocaleString() %></strong>
-      <small>Active election positions</small>
-    </div>
-  </article>
-
-  <article class="dashboard-summary-card dashboard-summary-card--mint">
-    <div class="dashboard-summary-card__icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24" focusable="false">
-        <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm-1.07 13.82L7.76 12.65l1.41-1.41 1.76 1.76 4.24-4.24 1.41 1.41-5.65 5.65Z" fill="currentColor"/>
-      </svg>
-    </div>
-    <div>
-      <span>Election Status</span>
-      <strong><%= scheduleStateLabel %></strong>
-      <small><%= scheduleMetaLabel %></small>
+      <small><%= metrics.totalCandidates.toLocaleString() %> active candidates</small>
     </div>
   </article>
 </section>
 
-<section class="dashboard-hero-grid">
-  <article class="panel panel-light dashboard-schedule-card">
-    <div class="section-heading section-heading--tight">
+<section class="control-stage-grid">
+  <article class="control-card control-card--schedule">
+    <div class="control-card__header">
       <div>
-        <span class="eyebrow">Election Schedule</span>
-        <h2>Voting window</h2>
-      </div>
-      <span class="inline-badge <%= electionState.badgeClass %>"><%= scheduleMetaLabel %></span>
-    </div>
-
-    <div class="dashboard-schedule-list">
-      <div class="dashboard-schedule-list__item">
-        <span>Opens At</span>
-        <strong><%= settings.opensAt ? formatDateTime(settings.opensAt) : 'Not scheduled yet' %></strong>
-      </div>
-      <div class="dashboard-schedule-list__item">
-        <span>Closes At</span>
-        <strong><%= settings.closesAt ? formatDateTime(settings.closesAt) : 'Not scheduled yet' %></strong>
+        <h2>Election Schedule</h2>
+        <p>All times are in GMT and follow the active election window.</p>
       </div>
     </div>
 
-    <div class="dashboard-schedule-footer">
-      <div class="dashboard-schedule-footer__status">
-        <strong><%= scheduleStateLabel %></strong>
-        <span><%= electionState.message %></span>
-      </div>
+    <div class="control-schedule-list">
+      <% scheduleMoments.forEach((entry, index) => { %>
+        <div class="control-schedule-item">
+          <div class="control-schedule-item__rail">
+            <span class="control-schedule-item__dot <%= index === 0 ? 'is-open' : index === 1 ? 'is-blue' : 'is-slate' %>"></span>
+            <% if (index < scheduleMoments.length - 1) { %>
+              <span class="control-schedule-item__line"></span>
+            <% } %>
+          </div>
+          <div class="control-schedule-item__body">
+            <strong><%= entry.label %></strong>
+            <span><%= entry.value %></span>
+          </div>
+          <span class="control-schedule-badge <%= entry.toneClass %>"><%= entry.badge %></span>
+        </div>
+      <% }) %>
+    </div>
 
-      <div class="dashboard-inline-actions">
-        <a class="button button-ghost button-small" href="/admin/voters">Manage Voters</a>
-        <a class="button button-ghost button-small" href="/admin/results">View Results</a>
-      </div>
+    <div class="control-schedule-note">
+      <span aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="M12 3a9 9 0 1 0 9 9 9.01 9.01 0 0 0-9-9Zm1 9.59 3.3 3.3-1.41 1.41L11 13V7h2Z" fill="currentColor"/>
+        </svg>
+      </span>
+      <p><%= electionState.message %></p>
     </div>
   </article>
 
-  <article class="panel panel-light dashboard-turnout-card">
-    <div class="section-heading section-heading--tight">
+  <article class="control-card control-card--turnout">
+    <div class="control-card__header">
       <div>
-        <span class="eyebrow">Live Turnout</span>
-        <h2>Participation</h2>
+        <h2>Live Turnout</h2>
+        <p>Updated from the current ballots recorded in the system.</p>
       </div>
-      <a class="button button-ghost button-small" href="/admin/results">View Live</a>
+      <a class="control-inline-link" href="/admin/results">View details</a>
     </div>
 
-    <div class="dashboard-turnout-card__content">
+    <div class="control-turnout-layout">
       <div
-        class="turnout-donut"
+        class="turnout-donut control-turnout-donut"
         style="--turnout-circumference: <%= turnoutStrokeCircumference %>; --turnout-progress: <%= turnoutStroke %>;"
       >
         <svg viewBox="0 0 120 120" aria-hidden="true">
@@ -142,160 +202,135 @@
         </svg>
         <div class="turnout-donut__label">
           <strong><%= formatPercent(turnoutRate) %></strong>
+          <span>Turnout</span>
         </div>
       </div>
 
-      <div class="dashboard-turnout-card__legend">
+      <div class="control-turnout-legend">
         <div>
-          <span class="dashboard-turnout-card__dot dashboard-turnout-card__dot--green"></span>
+          <span class="control-turnout-legend__dot is-voted"></span>
           <span>Voted</span>
-          <strong><%= metrics.votedCount.toLocaleString() %></strong>
+          <strong><%= metrics.votedCount.toLocaleString() %> (<%= formatPercent(turnoutRate) %>)</strong>
         </div>
         <div>
-          <span class="dashboard-turnout-card__dot dashboard-turnout-card__dot--slate"></span>
+          <span class="control-turnout-legend__dot is-pending"></span>
           <span>Not Voted</span>
-          <strong><%= notVotedCount.toLocaleString() %></strong>
+          <strong><%= notVotedCount.toLocaleString() %> (<%= formatPercent(metrics.totalVoters ? notVotedCount / metrics.totalVoters : 0) %>)</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="control-turnout-footer">
+      <span class="control-turnout-footer__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="M16 11a4 4 0 1 0-3.999-4A4 4 0 0 0 16 11Zm-8 2a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V20h9v-1.5c0-.97.4-1.86 1.12-2.59A11.66 11.66 0 0 0 8 15Zm8 0c-2.67 0-8 1.34-8 4v1h16v-1c0-2.66-5.33-4-8-4Z" fill="currentColor"/>
+        </svg>
+      </span>
+      <p><strong><%= metrics.votedCount.toLocaleString() %></strong> of <strong><%= metrics.totalVoters.toLocaleString() %></strong> voters have voted.</p>
+    </div>
+  </article>
+
+  <article class="control-card control-card--trend">
+    <div class="control-card__header">
+      <div>
+        <h2>Votes Over Time</h2>
+        <p>Ballot submissions across the active voting window.</p>
+      </div>
+      <span class="control-select-pill">Today</span>
+    </div>
+
+    <div class="control-chart-shell">
+      <div class="control-chart-yaxis">
+        <% lineChartTicks.forEach((tick) => { %>
+          <span><%= tick.toLocaleString() %></span>
+        <% }) %>
+      </div>
+
+      <div class="control-chart-plot">
+        <div class="control-chart-gridlines" aria-hidden="true">
+          <% lineChartTicks.forEach(() => { %>
+            <span></span>
+          <% }) %>
+        </div>
+        <div class="dashboard-line-chart control-line-chart">
+          <svg viewBox="0 0 <%= timelineChart.width %> <%= timelineChart.height %>" aria-hidden="true">
+            <defs>
+              <linearGradient id="controlTrendFill" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="rgba(14, 187, 168, 0.32)"></stop>
+                <stop offset="100%" stop-color="rgba(14, 187, 168, 0)"></stop>
+              </linearGradient>
+            </defs>
+            <polygon points="<%= timelineChart.areaPoints %>" fill="url(#controlTrendFill)"></polygon>
+            <polyline points="<%= timelineChart.points %>" fill="none"></polyline>
+          </svg>
+
+          <div class="dashboard-line-chart__axis control-line-chart__axis">
+            <% timelineSeries.forEach((point) => { %>
+              <span><%= point.label %></span>
+            <% }) %>
+          </div>
         </div>
       </div>
     </div>
   </article>
 </section>
 
-<section class="dashboard-analytics-grid">
-  <article class="panel panel-light dashboard-chart-card">
-    <div class="section-heading section-heading--tight">
+<section class="control-bottom-grid">
+  <article class="control-card control-card--candidates">
+    <div class="control-card__header">
       <div>
-        <span class="eyebrow">Votes Over Time</span>
-        <h2>Voting trend</h2>
+        <h2>Top Candidates</h2>
+        <p>Live ranking by vote count.</p>
       </div>
-      <span class="inline-badge">Today</span>
+      <a class="control-inline-link" href="/admin/results">View all</a>
     </div>
 
-    <div class="dashboard-line-chart">
-      <svg viewBox="0 0 <%= timelineChart.width %> <%= timelineChart.height %>" aria-hidden="true">
-        <defs>
-          <linearGradient id="dashboardTrendFill" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#2ac0c1" stop-opacity="0.34"></stop>
-            <stop offset="100%" stop-color="#2ac0c1" stop-opacity="0.04"></stop>
-          </linearGradient>
-        </defs>
-        <polygon points="<%= timelineChart.areaPoints %>" fill="url(#dashboardTrendFill)"></polygon>
-        <polyline points="<%= timelineChart.points %>" fill="none"></polyline>
-      </svg>
-
-      <div class="dashboard-line-chart__axis">
-        <% timelineSeries.forEach((point) => { %>
-          <span><%= point.label %></span>
-        <% }) %>
-      </div>
-    </div>
-  </article>
-
-  <article class="panel panel-light dashboard-bars-card">
-    <div class="section-heading section-heading--tight">
-      <div>
-        <span class="eyebrow">Votes By Position</span>
-        <h2>Position performance</h2>
-      </div>
-      <span class="inline-badge">All positions</span>
-    </div>
-
-    <div class="dashboard-bars-list">
-      <% if (positionBars.length === 0) { %>
-        <div class="empty-state">No positions have been added yet.</div>
+    <div class="control-candidate-list">
+      <% if (topCandidates.length === 0) { %>
+        <div class="empty-state">Candidates will appear here after setup.</div>
       <% } else { %>
-        <% positionBars.forEach((position) => { %>
-          <div class="dashboard-bar">
-            <div class="dashboard-bar__label">
-              <span><%= position.name %></span>
-              <strong><%= position.totalVotes.toLocaleString() %></strong>
+        <% topCandidates.slice(0, 3).forEach((candidate, index) => { %>
+          <div class="control-candidate-row">
+            <span class="control-candidate-rank"><%= index + 1 %></span>
+
+            <% if (candidate.photoPath) { %>
+              <img class="control-candidate-avatar" src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+            <% } else { %>
+              <span class="control-candidate-avatar control-candidate-avatar--fallback"><%= getInitials(candidate.name) %></span>
+            <% } %>
+
+            <div class="control-candidate-copy">
+              <strong><%= candidate.name %></strong>
+              <span><%= candidate.voteCount.toLocaleString() %> votes</span>
+              <div class="control-candidate-meter">
+                <span style="width: <%= candidate.shareRatio ? `${Math.max(candidate.shareRatio * 100, 14)}%` : '0%' %>;"></span>
+              </div>
             </div>
-            <div class="dashboard-bar__track">
-              <span class="dashboard-bar__fill <%= position.toneClass %>" style="width: <%= position.fillWidth %>;"></span>
-            </div>
+
+            <div class="control-candidate-share"><%= formatPercent(candidate.shareRatio || 0) %></div>
           </div>
         <% }) %>
       <% } %>
     </div>
   </article>
-</section>
 
-<section class="dashboard-support-grid">
-  <article class="panel panel-light dashboard-actions-card">
-    <div class="section-heading section-heading--tight">
+  <article class="control-card control-card--activity">
+    <div class="control-card__header">
       <div>
-        <span class="eyebrow">Command Center</span>
-        <h2>Primary actions</h2>
+        <h2>Recent Activity</h2>
+        <p>Latest committee and voter actions.</p>
       </div>
+      <a class="control-inline-link" href="/admin/audit">View all</a>
     </div>
 
-    <div class="dashboard-actions-grid dashboard-actions-grid--compact">
-      <a class="dashboard-action-tile" href="/admin/voters">
-        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--blue" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.31 0-6 1.79-6 4v1h12v-1c0-2.21-2.69-4-6-4Z" fill="currentColor"/>
-          </svg>
-        </span>
-        <strong>Voters</strong>
-        <small>Manage records</small>
-      </a>
-
-      <a class="dashboard-action-tile" href="/admin/setup">
-        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--amber" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M5 4h14a1 1 0 0 1 1 1v3H4V5a1 1 0 0 1 1-1Zm-1 6h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Z" fill="currentColor"/>
-          </svg>
-        </span>
-        <strong>Setup</strong>
-        <small>Positions and candidates</small>
-      </a>
-
-      <a class="dashboard-action-tile" href="/admin/nominations">
-        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--mint" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M12 2 4 5.5v5.22c0 5.18 3.42 9.99 8 11.28 4.58-1.29 8-6.1 8-11.28V5.5L12 2Zm-1.07 13.82L7.76 12.65l1.41-1.41 1.76 1.76 4.24-4.24 1.41 1.41-5.65 5.65Z" fill="currentColor"/>
-          </svg>
-        </span>
-        <strong>Nominations</strong>
-        <small>Review applicants</small>
-      </a>
-
-      <a class="dashboard-action-tile" href="/admin/results">
-        <span class="dashboard-action-tile__icon dashboard-action-tile__icon--green" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M5 19h14v2H3V5h2v14Zm3-8h2v6H8v-6Zm4-4h2v10h-2V7Zm4 2h2v8h-2V9Z" fill="currentColor"/>
-          </svg>
-        </span>
-        <strong>Results</strong>
-        <small>Watch live totals</small>
-      </a>
-    </div>
-
-    <div class="dashboard-secondary-links">
-      <a class="dashboard-secondary-link" href="/admin/audit">Audit Logs</a>
-      <a class="dashboard-secondary-link" href="/admin/archives">Archives</a>
-      <a class="dashboard-secondary-link" href="/admin/otp-settings">OTP Settings</a>
-      <a class="dashboard-secondary-link" href="/admin/otp-logs">OTP Activity</a>
-      <a class="dashboard-secondary-link" href="#workspace-settings">Settings</a>
-    </div>
-  </article>
-
-  <article class="panel panel-light dashboard-activity-card">
-    <div class="section-heading section-heading--tight">
-      <div>
-        <span class="eyebrow">Recent Activity</span>
-        <h2>Latest updates</h2>
-      </div>
-    </div>
-
-    <div class="dashboard-activity-list">
+    <div class="control-activity-list">
       <% if (activityFeed.length === 0) { %>
         <div class="empty-state">No activity has been recorded yet.</div>
       <% } else { %>
         <% activityFeed.forEach((entry) => { %>
-          <div class="dashboard-activity-item">
-            <span class="dashboard-activity__dot <%= entry.accentClass %>"></span>
-            <div class="dashboard-activity-item__body">
+          <div class="control-activity-row">
+            <span class="control-activity-dot <%= entry.accentClass %>"></span>
+            <div class="control-activity-copy">
               <strong><%= entry.actionLabel %></strong>
               <span><%= entry.detailLabel || entry.actorIdentifier %></span>
             </div>
@@ -306,43 +341,104 @@
     </div>
   </article>
 
-  <article class="panel panel-light dashboard-top-candidates-card">
-    <div class="section-heading section-heading--tight">
-      <div>
-        <span class="eyebrow">Top Candidates</span>
-        <h2>Live standings</h2>
+  <div class="control-side-stack">
+    <article class="control-card control-card--quick-actions">
+      <div class="control-card__header">
+        <div>
+          <h2>Quick Actions</h2>
+          <p>Open the core election tools faster.</p>
+        </div>
       </div>
-    </div>
 
-    <div class="dashboard-candidate-list">
-      <% if (topCandidates.length === 0) { %>
-        <div class="empty-state">Candidates will appear here after setup.</div>
-      <% } else { %>
-        <% topCandidates.forEach((candidate) => { %>
-          <div class="dashboard-candidate-row">
-            <% if (candidate.photoPath) { %>
-              <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
-            <% } else { %>
-              <span class="candidate-avatar-fallback"><%= getInitials(candidate.name) %></span>
-            <% } %>
+      <div class="control-action-grid">
+        <a class="control-action-tile" href="/admin/voters">
+          <span class="control-action-tile__icon is-green" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M16 11a4 4 0 1 0-3.999-4A4 4 0 0 0 16 11Zm-8 2a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V20h9v-1.5c0-.97.4-1.86 1.12-2.59A11.66 11.66 0 0 0 8 15Zm8 0c-2.67 0-8 1.34-8 4v1h16v-1c0-2.66-5.33-4-8-4Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <strong>Add Voter</strong>
+        </a>
 
-            <div class="dashboard-candidate-row__body">
-              <strong><%= candidate.name %></strong>
-              <span><%= candidate.positionName %></span>
-              <div class="dashboard-candidate-row__meter">
-                <span style="width: <%= candidate.shareRatio ? `${Math.max(candidate.shareRatio * 100, 12)}%` : '0%' %>;"></span>
-              </div>
-            </div>
+        <a class="control-action-tile" href="/admin/setup#candidate-management">
+          <span class="control-action-tile__icon is-blue" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M5 4h14a1 1 0 0 1 1 1v3H4V5a1 1 0 0 1 1-1Zm-1 6h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Zm3 2v2h2v-2H7Zm4 0v2h6v-2h-6Zm-4 4v2h2v-2H7Zm4 0v2h4v-2h-4Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <strong>Add Candidate</strong>
+        </a>
 
-            <div class="dashboard-candidate-row__totals">
-              <strong><%= candidate.voteCount.toLocaleString() %></strong>
-              <small><%= formatPercent(candidate.shareRatio || 0) %></small>
-            </div>
-          </div>
-        <% }) %>
-      <% } %>
-    </div>
-  </article>
+        <a class="control-action-tile" href="/admin/setup#position-management">
+          <span class="control-action-tile__icon is-violet" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h10v2H4v-2Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <strong>Create Position</strong>
+        </a>
+
+        <a class="control-action-tile" href="/admin/results">
+          <span class="control-action-tile__icon is-teal" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M5 19h14v2H3V5h2v14Zm3-8h2v6H8v-6Zm4-4h2v10h-2V7Zm4 2h2v8h-2V9Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <strong>View Reports</strong>
+        </a>
+
+        <a class="control-action-tile" href="/admin/otp-settings">
+          <span class="control-action-tile__icon is-amber" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M3 5h18v10H8l-5 4V5Zm4 3v2h10V8H7Zm0 4v2h6v-2H7Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <strong>Send SMS</strong>
+        </a>
+      </div>
+    </article>
+
+    <article class="control-card control-card--snapshot">
+      <div class="control-card__header">
+        <div>
+          <h2>Results Snapshot</h2>
+          <p>High-level outcome view from the live tallies.</p>
+        </div>
+        <a class="control-inline-link" href="/admin/results">View results</a>
+      </div>
+
+      <div class="control-snapshot-grid">
+        <article class="control-snapshot-card is-mint">
+          <span>Projected</span>
+          <strong><%= projectedWinnersCount %></strong>
+          <small>Positions with a clear leader</small>
+        </article>
+
+        <article class="control-snapshot-card is-blue">
+          <span>Leading</span>
+          <% if (leadingCandidate) { %>
+            <strong><%= leadingCandidate.name %></strong>
+            <small><%= formatPercent(leadingCandidate.shareRatio || 0) %></small>
+          <% } else { %>
+            <strong>None yet</strong>
+            <small>Awaiting votes</small>
+          <% } %>
+        </article>
+
+        <article class="control-snapshot-card is-amber">
+          <span>Close Race</span>
+          <strong><%= closeRaceCount %></strong>
+          <small>Positions under 5-vote margin</small>
+        </article>
+
+        <article class="control-snapshot-card is-violet">
+          <span>Declared</span>
+          <strong><%= declaredPositionCount %></strong>
+          <small>Final only after close</small>
+        </article>
+      </div>
+    </article>
+  </div>
 </section>
 
 <section class="panel panel-light stack-lg dashboard-workspace-panel" id="workspace-settings">
