@@ -128,8 +128,9 @@
           <input
             name="arkeselApiKey"
             type="password"
-            value="<%= otpSettings.arkeselApiKey %>"
-            placeholder="Enter your main Arkesel API key"
+            value=""
+            autocomplete="new-password"
+            placeholder="<%= otpSettings.arkeselConfigured ? 'Leave blank to keep the saved key' : 'Enter your main Arkesel API key' %>"
           />
         </label>
 

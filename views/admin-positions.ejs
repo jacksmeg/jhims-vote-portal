@@ -1,0 +1,181 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Positions & Election Schedule",
+  pageIntro: "Arrange the ballot, set the voting window, and control when the election opens.",
+  currentSection: "positions",
+  pageBodyClass: "positions-control-body",
+  pageMainClass: "positions-control-main"
+}) %>
+
+<%
+  const positionCards = positions.map((position, index) => ({
+    ...position,
+    index: index + 1,
+    candidateCount: candidates.filter((candidate) => candidate.positionId === position.id).length,
+    tone: ['red', 'pink', 'yellow', 'blue'][index % 4],
+  }));
+  const readyPositionCount = positionCards.filter((position) => position.candidateCount > 0).length;
+  const ballotReady = positions.length > 0 && readyPositionCount === positions.length;
+  const scheduleConfigured = Boolean(settings.opensAt && settings.closesAt);
+  const scheduleLabel = electionState.isOpen ? 'Live' : electionState.isClosed ? 'Closed' : electionState.isScheduled ? 'Scheduled' : 'Draft';
+  const scheduleTone = electionState.isOpen ? 'is-open' : electionState.isClosed ? 'is-closed' : electionState.isScheduled ? 'is-scheduled' : 'is-draft';
+  const closesAtTime = settings.closesAt ? new Date(settings.closesAt).getTime() : 0;
+  const remainingMs = Math.max(closesAtTime - Date.now(), 0);
+  const remainingHours = Math.floor(remainingMs / 3600000);
+  const remainingMinutes = Math.floor((remainingMs % 3600000) / 60000);
+%>
+
+<section class="position-summary-grid" aria-label="Position and schedule summary">
+  <article class="position-summary-card is-red">
+    <span class="position-summary-card__icon" aria-hidden="true">P</span>
+    <div><small>Total Positions</small><strong><%= positions.length %></strong><span>Ballot categories</span></div>
+  </article>
+  <article class="position-summary-card is-pink">
+    <span class="position-summary-card__icon" aria-hidden="true">C</span>
+    <div><small>Total Candidates</small><strong><%= candidates.length %></strong><span>Approved contestants</span></div>
+  </article>
+  <article class="position-summary-card is-yellow">
+    <span class="position-summary-card__icon" aria-hidden="true">R</span>
+    <div><small>Ballot Readiness</small><strong><%= ballotReady ? 'Ready' : `${readyPositionCount}/${positions.length}` %></strong><span><%= ballotReady ? 'Every position has candidates' : 'Positions with candidates' %></span></div>
+  </article>
+  <article class="position-summary-card is-blue">
+    <span class="position-summary-card__icon" aria-hidden="true">S</span>
+    <div><small>Election Status</small><strong><%= scheduleLabel %></strong><span><%= scheduleConfigured ? 'Voting window configured' : 'Schedule not completed' %></span></div>
+  </article>
+</section>
+
+<section class="position-control-grid">
+  <div class="position-control-primary">
+    <article class="position-panel election-schedule-panel">
+      <header class="position-panel__header">
+        <div>
+          <span class="position-panel__kicker">Election Schedule</span>
+          <h2>Voting window</h2>
+          <p>The portal opens and closes automatically at these times.</p>
+        </div>
+        <span class="schedule-state-pill <%= scheduleTone %>"><%= scheduleLabel %></span>
+      </header>
+
+      <div class="schedule-timeline">
+        <article class="schedule-timeline__item is-start">
+          <span class="schedule-timeline__marker" aria-hidden="true"></span>
+          <div><small>Voting Opens</small><strong><%= settings.opensAt ? formatDateTime(settings.opensAt) : 'Not scheduled' %></strong><span>Automatic ballot access begins</span></div>
+        </article>
+        <span class="schedule-timeline__line" aria-hidden="true"></span>
+        <article class="schedule-timeline__item is-close">
+          <span class="schedule-timeline__marker" aria-hidden="true"></span>
+          <div><small>Voting Closes</small><strong><%= settings.closesAt ? formatDateTime(settings.closesAt) : 'Not scheduled' %></strong><span>Voting locks and results become final</span></div>
+        </article>
+      </div>
+
+      <% if (electionState.isOpen && remainingMs > 0) { %>
+        <div class="schedule-live-strip">
+          <span class="schedule-live-strip__pulse"></span>
+          <div><strong>Voting is live</strong><span>Approximately <%= remainingHours %>h <%= remainingMinutes %>m remaining</span></div>
+          <a href="/admin/results">View live results</a>
+        </div>
+      <% } %>
+
+      <form class="schedule-form" action="/admin/settings" method="post">
+        <input type="hidden" name="returnTo" value="/admin/positions" />
+        <label class="field schedule-form__name">
+          <span>Election Name</span>
+          <input name="electionName" value="<%= settings.electionName %>" <%= electionState.canEditSetup ? '' : 'disabled' %> required />
+        </label>
+        <label class="field">
+          <span>Opening Date & Time</span>
+          <input name="opensAt" type="datetime-local" value="<%= settings.opensAt %>" <%= electionState.canEditSetup ? '' : 'disabled' %> required />
+        </label>
+        <label class="field">
+          <span>Closing Date & Time</span>
+          <input name="closesAt" type="datetime-local" value="<%= settings.closesAt %>" <%= electionState.canEditSetup ? '' : 'disabled' %> required />
+        </label>
+        <button class="position-primary-button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>Save Election Schedule</button>
+      </form>
+    </article>
+
+    <article class="position-panel position-directory-panel">
+      <header class="position-panel__header">
+        <div>
+          <span class="position-panel__kicker">Ballot Structure</span>
+          <h2>Positions and display order</h2>
+          <p>Lower sort-order numbers appear first to voters.</p>
+        </div>
+        <a class="position-outline-button" href="/admin/ballot-layout">Preview Ballot</a>
+      </header>
+
+      <% if (positionCards.length === 0) { %>
+        <div class="position-empty-state">
+          <strong>No positions created yet</strong>
+          <p>Use the Add Position panel to create the first ballot category.</p>
+        </div>
+      <% } else { %>
+        <div class="position-directory">
+          <% positionCards.forEach((position) => { %>
+            <article class="position-directory-row is-<%= position.tone %>">
+              <span class="position-directory-row__rank"><%= position.index %></span>
+              <div class="position-directory-row__identity">
+                <strong><%= position.name %></strong>
+                <span><%= position.candidateCount %> candidate<%= position.candidateCount === 1 ? '' : 's' %></span>
+              </div>
+              <span class="position-ready-pill <%= position.candidateCount > 0 ? 'is-ready' : 'is-empty' %>"><%= position.candidateCount > 0 ? 'Ballot ready' : 'Needs candidate' %></span>
+              <form class="position-order-form" action="/admin/positions/<%= position.id %>" method="post">
+                <input type="hidden" name="returnTo" value="/admin/positions" />
+                <label><span>Sort order</span><input name="sortOrder" type="number" value="<%= position.sortOrder %>" <%= electionState.canEditSetup ? '' : 'disabled' %> /></label>
+                <button type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>Save</button>
+              </form>
+              <form action="/admin/positions/<%= position.id %>/delete" method="post" onsubmit="return confirm('Remove <%= position.name %> from this election?');">
+                <input type="hidden" name="returnTo" value="/admin/positions" />
+                <button class="position-delete-button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %> aria-label="Remove <%= position.name %>">Remove</button>
+              </form>
+            </article>
+          <% }) %>
+        </div>
+      <% } %>
+    </article>
+  </div>
+
+  <aside class="position-control-sidebar">
+    <article class="position-panel add-position-panel">
+      <header class="position-panel__header">
+        <div><span class="position-panel__kicker">New Category</span><h2>Add Position</h2><p>Create a position voters can select on the ballot.</p></div>
+      </header>
+      <form class="add-position-form" action="/admin/positions" method="post">
+        <input type="hidden" name="returnTo" value="/admin/positions" />
+        <label class="field"><span>Position Name</span><input name="positionName" placeholder="e.g. President" <%= electionState.canEditSetup ? '' : 'disabled' %> required /></label>
+        <label class="field"><span>Starting Sort Order</span><input name="sortOrder" type="number" value="<%= positions.length + 1 %>" <%= electionState.canEditSetup ? '' : 'disabled' %> /></label>
+        <button class="position-add-button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>+ Add Position</button>
+      </form>
+    </article>
+
+    <article class="position-panel readiness-panel">
+      <header class="position-panel__header"><div><span class="position-panel__kicker">Pre-flight Check</span><h2>Election readiness</h2></div></header>
+      <div class="readiness-score <%= readiness.isReady ? 'is-ready' : 'is-pending' %>">
+        <strong><%= readiness.isReady ? '100%' : `${Math.max(0, 100 - readiness.issues.length * 25)}%` %></strong>
+        <span><%= readiness.isReady ? 'Ready to open' : 'Setup in progress' %></span>
+      </div>
+      <div class="readiness-checklist">
+        <div class="<%= metrics.totalVoters > 0 ? 'is-complete' : '' %>"><span></span>Voters uploaded</div>
+        <div class="<%= positions.length > 0 ? 'is-complete' : '' %>"><span></span>Positions created</div>
+        <div class="<%= ballotReady ? 'is-complete' : '' %>"><span></span>Candidates assigned</div>
+        <div class="<%= scheduleConfigured ? 'is-complete' : '' %>"><span></span>Schedule configured</div>
+      </div>
+      <% if (!readiness.isReady && readiness.issues.length) { %><p class="readiness-warning"><%= readiness.issues[0] %></p><% } %>
+    </article>
+
+    <article class="position-panel election-actions-panel">
+      <header class="position-panel__header"><div><span class="position-panel__kicker">Election Controls</span><h2>Open or close voting</h2></div></header>
+      <form action="/admin/election/open" method="post">
+        <input type="hidden" name="returnTo" value="/admin/positions" />
+        <button class="position-control-action is-open" type="submit" <%= electionState.canEditSetup && readiness.isReady ? '' : 'disabled' %>>Open Voting Now</button>
+      </form>
+      <form action="/admin/election/close" method="post" onsubmit="return confirm('Close voting and finalize the election results?');">
+        <input type="hidden" name="returnTo" value="/admin/positions" />
+        <button class="position-control-action is-close" type="submit" <%= settings.phase === 'open' ? '' : 'disabled' %>>Close Voting</button>
+      </form>
+      <p><%= electionState.message %></p>
+    </article>
+  </aside>
+</section>
+
+<%- include("partials/admin-shell-end") %>

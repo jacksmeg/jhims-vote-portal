@@ -188,6 +188,16 @@ function setFlash(req, type, message) {
   req.session.flash = { type, message };
 }
 
+function getAdminReturnPath(req, fallback = "/admin") {
+  const returnTo = String(req.body?.returnTo || "").trim();
+
+  if (returnTo.startsWith("/admin") && !returnTo.startsWith("//")) {
+    return returnTo;
+  }
+
+  return fallback;
+}
+
 function parseInteger(value, fallback = 0) {
   const parsed = Number.parseInt(String(value || ""), 10);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -4462,7 +4472,7 @@ function ensureSetupMode(req, res) {
       "error",
       "Setup is locked once voting has been opened. Create a new election cycle to make structural changes.",
     );
-    res.redirect("/admin");
+    res.redirect(getAdminReturnPath(req, "/admin"));
     return false;
   }
 
@@ -6038,6 +6048,53 @@ app.get("/admin", requireAdmin, async (req, res) => {
   });
 });
 
+app.get("/admin/positions", requireAdmin, (req, res) => {
+  const settings = getElectionSettings();
+  const positions = getPositions();
+  const candidates = getCandidates();
+  const metrics = getDashboardMetrics();
+  const readiness = getElectionReadiness(settings);
+
+  return res.render("admin-positions", {
+    pageTitle: "Positions & Election Schedule",
+    settings,
+    positions,
+    candidates,
+    metrics,
+    readiness,
+  });
+});
+
+app.get("/admin/settings", requireAdmin, async (req, res) => {
+  const settings = getElectionSettings();
+  const metrics = getDashboardMetrics();
+  const adminTwoFactorState = getAdminTwoFactorState();
+  let pendingAdminTwoFactorSetup = req.session.adminTwoFactorSetup || null;
+
+  if (pendingAdminTwoFactorSetup?.otpauthUri) {
+    pendingAdminTwoFactorSetup = {
+      ...pendingAdminTwoFactorSetup,
+      qrCodeDataUrl: await buildAdminTotpQrCodeDataUrl(
+        pendingAdminTwoFactorSetup.otpauthUri,
+      ),
+    };
+  }
+
+  return res.render("admin-settings", {
+    pageTitle: "System Settings",
+    settings,
+    metrics,
+    readiness: getElectionReadiness(settings),
+    otpSettings: getAdminOtpSettingsView(),
+    otpActivity: getOtpActivityLogs(7),
+    themeOptions: getThemeOptions(),
+    adminTwoFactorState,
+    pendingAdminTwoFactorSetup,
+    archives: getElectionArchives().slice(0, 3),
+    isProduction,
+  });
+});
+
 app.get("/admin/otp-settings", requireAdmin, (req, res) => {
   return res.render("admin-otp-settings", {
     pageTitle: "OTP Settings",
@@ -6051,7 +6108,8 @@ app.post("/admin/otp-settings", requireAdmin, (req, res) => {
   const provider = String(req.body.provider || "disabled").trim().toLowerCase();
   const ttlMinutes = clampInteger(req.body.ttlMinutes, 10, 1, 30);
   const resendCooldownSeconds = clampInteger(req.body.resendCooldownSeconds, 30, 0, 300);
-  const arkeselApiKey = String(req.body.arkeselApiKey || "").trim();
+  const submittedArkeselApiKey = String(req.body.arkeselApiKey || "").trim();
+  const arkeselApiKey = submittedArkeselApiKey || getAdminOtpSettingsView().arkeselApiKey;
   const arkeselSenderId = String(req.body.arkeselSenderId || "").trim();
   const arkeselOtpMessage = String(
     req.body.arkeselOtpMessage || defaultArkeselOtpMessageTemplate,
@@ -6060,22 +6118,22 @@ app.post("/admin/otp-settings", requireAdmin, (req, res) => {
 
   if (!validProviders.has(provider)) {
     setFlash(req, "error", "Choose a valid OTP provider before saving.");
-    return res.redirect("/admin/otp-settings");
+    return res.redirect(getAdminReturnPath(req, "/admin/settings#security"));
   }
 
   if (provider === "dev" && isProduction) {
     setFlash(req, "error", "Development OTP mode cannot be enabled on the live site.");
-    return res.redirect("/admin/otp-settings");
+    return res.redirect(getAdminReturnPath(req, "/admin/settings#security"));
   }
 
   if (arkeselSenderId && arkeselSenderId.length > 11) {
     setFlash(req, "error", "Arkesel sender ID must be 11 characters or fewer.");
-    return res.redirect("/admin/otp-settings");
+    return res.redirect(getAdminReturnPath(req, "/admin/settings#security"));
   }
 
   if (arkeselOtpMessage && !arkeselOtpMessage.includes("%otp_code%")) {
     setFlash(req, "error", "Arkesel OTP message must include %otp_code%.");
-    return res.redirect("/admin/otp-settings");
+    return res.redirect(getAdminReturnPath(req, "/admin/settings#security"));
   }
 
   if (provider === "arkesel" && (!arkeselApiKey || !arkeselSenderId)) {
@@ -6084,7 +6142,7 @@ app.post("/admin/otp-settings", requireAdmin, (req, res) => {
       "error",
       "Enter both the Arkesel API key and sender ID before enabling Arkesel OTP.",
     );
-    return res.redirect("/admin/otp-settings");
+    return res.redirect(getAdminReturnPath(req, "/admin/settings#security"));
   }
 
   runTransaction(() => {
@@ -6114,7 +6172,7 @@ app.post("/admin/otp-settings", requireAdmin, (req, res) => {
         : "";
 
   setFlash(req, "success", `${providerLabel} OTP settings saved.${configSuffix}`);
-  return res.redirect("/admin/otp-settings");
+  return res.redirect(getAdminReturnPath(req, "/admin/settings#security"));
 });
 
 app.post("/admin/otp-settings/test", requireAdmin, async (req, res) => {
@@ -6124,7 +6182,7 @@ app.post("/admin/otp-settings/test", requireAdmin, async (req, res) => {
 
   if (!rawPhoneNumber) {
     setFlash(req, "error", "Enter a phone number before sending a test OTP.");
-    return res.redirect("/admin/otp-settings");
+    return res.redirect(getAdminReturnPath(req, "/admin/settings#security"));
   }
 
   if (!isOtpVerificationEnabled(otpConfig)) {
@@ -6133,7 +6191,7 @@ app.post("/admin/otp-settings/test", requireAdmin, async (req, res) => {
       "error",
       "OTP is currently disabled. Save and enable an OTP provider first before sending a test.",
     );
-    return res.redirect("/admin/otp-settings");
+    return res.redirect(getAdminReturnPath(req, "/admin/settings#security"));
   }
 
   const smsPhoneNumber = toSmsPhoneNumber(rawPhoneNumber);
@@ -6144,7 +6202,7 @@ app.post("/admin/otp-settings/test", requireAdmin, async (req, res) => {
       reason: "invalid_sms_phone_format",
     });
     setFlash(req, "error", "Enter a valid phone number in SMS format before testing OTP.");
-    return res.redirect("/admin/otp-settings");
+    return res.redirect(getAdminReturnPath(req, "/admin/settings#security"));
   }
 
   try {
@@ -6173,7 +6231,7 @@ app.post("/admin/otp-settings/test", requireAdmin, async (req, res) => {
     setFlash(req, "error", error.message);
   }
 
-  return res.redirect("/admin/otp-settings");
+  return res.redirect(getAdminReturnPath(req, "/admin/settings#security"));
 });
 
 app.get("/admin/otp-logs", requireAdmin, (req, res) => {
@@ -6188,7 +6246,7 @@ app.post("/admin/2fa/setup", requireAdmin, (req, res) => {
 
   if (adminTwoFactorState.enabled) {
     setFlash(req, "error", "Admin two-factor authentication is already enabled.");
-    return res.redirect("/admin#security-panel");
+    return res.redirect("/admin/settings#security");
   }
 
   const secret = generateTotpSecret();
@@ -6209,13 +6267,13 @@ app.post("/admin/2fa/setup", requireAdmin, (req, res) => {
     "success",
     "Two-factor setup is ready. Scan the QR code with your authenticator app, then enter the 6-digit code to activate it.",
   );
-  return res.redirect("/admin#security-panel");
+  return res.redirect("/admin/settings#security");
 });
 
 app.post("/admin/2fa/cancel-setup", requireAdmin, (req, res) => {
   req.session.adminTwoFactorSetup = null;
   setFlash(req, "success", "Pending two-factor setup was cancelled.");
-  return res.redirect("/admin#security-panel");
+  return res.redirect("/admin/settings#security");
 });
 
 app.post("/admin/2fa/enable", requireAdmin, (req, res) => {
@@ -6224,13 +6282,13 @@ app.post("/admin/2fa/enable", requireAdmin, (req, res) => {
 
   if (!pendingAdminTwoFactorSetup?.secret) {
     setFlash(req, "error", "Start two-factor setup first before trying to enable it.");
-    return res.redirect("/admin#security-panel");
+    return res.redirect("/admin/settings#security");
   }
 
   if (!verifyTotpToken(pendingAdminTwoFactorSetup.secret, verificationCode)) {
     logAudit(req, "admin", req.session.admin.username, "admin_2fa_enable_failed");
     setFlash(req, "error", "Invalid authenticator code. Enter the latest 6-digit code and try again.");
-    return res.redirect("/admin#security-panel");
+    return res.redirect("/admin/settings#security");
   }
 
   setSetting("admin_2fa_secret", pendingAdminTwoFactorSetup.secret);
@@ -6238,7 +6296,7 @@ app.post("/admin/2fa/enable", requireAdmin, (req, res) => {
   req.session.adminTwoFactorSetup = null;
   logAudit(req, "admin", req.session.admin.username, "admin_2fa_enabled");
   setFlash(req, "success", "Admin two-factor authentication is now enabled.");
-  return res.redirect("/admin#security-panel");
+  return res.redirect("/admin/settings#security");
 });
 
 app.post("/admin/2fa/disable", requireAdmin, (req, res) => {
@@ -6247,13 +6305,13 @@ app.post("/admin/2fa/disable", requireAdmin, (req, res) => {
 
   if (!adminTwoFactorState.enabled) {
     setFlash(req, "error", "Admin two-factor authentication is not enabled right now.");
-    return res.redirect("/admin#security-panel");
+    return res.redirect("/admin/settings#security");
   }
 
   if (!verifyTotpToken(adminTwoFactorState.secret, verificationCode)) {
     logAudit(req, "admin", req.session.admin.username, "admin_2fa_disable_failed");
     setFlash(req, "error", "Invalid authenticator code. Enter the latest 6-digit code to disable 2FA.");
-    return res.redirect("/admin#security-panel");
+    return res.redirect("/admin/settings#security");
   }
 
   setSetting("admin_2fa_secret", "");
@@ -6703,12 +6761,12 @@ app.post("/admin/settings", requireAdmin, (req, res) => {
 
   if (!electionName) {
     setFlash(req, "error", "Enter an election name before saving settings.");
-    return res.redirect("/admin");
+    return res.redirect(getAdminReturnPath(req, "/admin/positions"));
   }
 
   if (opensAt && closesAt && !dayjs(opensAt).isBefore(dayjs(closesAt))) {
     setFlash(req, "error", "The closing time must be later than the opening time.");
-    return res.redirect("/admin");
+    return res.redirect(getAdminReturnPath(req, "/admin/positions"));
   }
 
   setSetting("election_name", electionName);
@@ -6760,7 +6818,7 @@ app.post("/admin/settings", requireAdmin, (req, res) => {
     setFlash(req, "success", "Election settings updated.");
   }
 
-  return res.redirect("/admin");
+  return res.redirect(getAdminReturnPath(req, "/admin/positions"));
 });
 
 app.post(
@@ -6781,7 +6839,7 @@ app.post(
     if (!declarationTitle || !committeeName) {
       await safeRemoveUploadedRequestFiles(req.files);
       setFlash(req, "error", "Enter the declaration title and committee name before saving.");
-      return res.redirect("/admin");
+      return res.redirect(getAdminReturnPath(req, "/admin/settings#declaration"));
     }
 
     const currentSettings = getElectionSettings();
@@ -6833,7 +6891,7 @@ app.post(
       setFlash(req, "error", `Declaration update failed: ${error.message}`);
     }
 
-    return res.redirect("/admin");
+    return res.redirect(getAdminReturnPath(req, "/admin/settings#declaration"));
   },
 );
 
@@ -6843,7 +6901,7 @@ app.post("/admin/theme", requireAdmin, (req, res) => {
 
   if (!selectedTheme) {
     setFlash(req, "error", "Choose one of the available software themes.");
-    return res.redirect("/admin");
+    return res.redirect(getAdminReturnPath(req, "/admin/settings#appearance"));
   }
 
   setSetting("theme_name", selectedTheme.value);
@@ -6851,7 +6909,7 @@ app.post("/admin/theme", requireAdmin, (req, res) => {
     themeName: selectedTheme.value,
   });
   setFlash(req, "success", `${selectedTheme.label} has been applied across the portal.`);
-  return res.redirect("/admin");
+  return res.redirect(getAdminReturnPath(req, "/admin/settings#appearance"));
 });
 
 app.post(
@@ -6861,7 +6919,7 @@ app.post(
   async (req, res) => {
     if (!req.file) {
       setFlash(req, "error", "Choose a logo image to upload.");
-      return res.redirect("/admin");
+      return res.redirect(getAdminReturnPath(req, "/admin/settings#appearance"));
     }
 
     const nextLogoPath = normalizeAssetPath(req.file.path);
@@ -6884,7 +6942,7 @@ app.post(
       setFlash(req, "error", `Logo upload failed: ${error.message}`);
     }
 
-    return res.redirect("/admin");
+    return res.redirect(getAdminReturnPath(req, "/admin/settings#appearance"));
   },
 );
 
@@ -6898,7 +6956,7 @@ app.post("/admin/election/open", requireAdmin, (req, res) => {
 
   if (!readiness.isReady) {
     setFlash(req, "error", readiness.issues[0]);
-    return res.redirect("/admin");
+    return res.redirect(getAdminReturnPath(req, "/admin/positions"));
   }
 
   setSetting("election_phase", "open");
@@ -6914,7 +6972,7 @@ app.post("/admin/election/open", requireAdmin, (req, res) => {
   });
 
   setFlash(req, "success", "Voting has been opened and the election setup is now locked.");
-  return res.redirect("/admin");
+  return res.redirect(getAdminReturnPath(req, "/admin/positions"));
 });
 
 app.post("/admin/election/close", requireAdmin, (req, res) => {
@@ -6922,7 +6980,7 @@ app.post("/admin/election/close", requireAdmin, (req, res) => {
 
   if (settings.phase !== "open") {
     setFlash(req, "error", "Voting is not currently open.");
-    return res.redirect("/admin");
+    return res.redirect(getAdminReturnPath(req, "/admin/positions"));
   }
 
   setSetting("election_phase", "closed");
@@ -7043,12 +7101,12 @@ app.post("/admin/system/fresh-reset", requireAdmin, async (req, res) => {
 
   if (settings.phase === "open") {
     setFlash(req, "error", "Close voting before running a full fresh reset.");
-    return res.redirect("/admin#fresh-reset-panel");
+    return res.redirect("/admin/settings#maintenance");
   }
 
   if (confirmationText !== "RESET ENTIRE SYSTEM") {
     setFlash(req, "error", "Type RESET ENTIRE SYSTEM exactly before running the fresh reset.");
-    return res.redirect("/admin#fresh-reset-panel");
+    return res.redirect("/admin/settings#maintenance");
   }
 
   const candidatePhotoRows = db.prepare(`
@@ -7068,7 +7126,7 @@ app.post("/admin/system/fresh-reset", requireAdmin, async (req, res) => {
     await fsp.copyFile(databasePath, backupPath);
   } catch (error) {
     setFlash(req, "error", `Fresh reset backup failed: ${error.message}`);
-    return res.redirect("/admin#fresh-reset-panel");
+    return res.redirect("/admin/settings#maintenance");
   }
 
   runTransaction(() => {
@@ -7119,7 +7177,7 @@ app.post("/admin/system/fresh-reset", requireAdmin, async (req, res) => {
     "success",
     `Fresh reset complete. Test voters, nominations, candidates, results history, and audit logs were cleared. Safety backup saved as ${backupName}.`,
   );
-  return res.redirect("/admin#fresh-reset-panel");
+  return res.redirect("/admin/settings#maintenance");
 });
 
 app.post("/admin/backup", requireAdmin, async (req, res) => {
@@ -7136,7 +7194,7 @@ app.post("/admin/backup", requireAdmin, async (req, res) => {
     setFlash(req, "error", `Backup failed: ${error.message}`);
   }
 
-  return res.redirect("/admin");
+  return res.redirect(getAdminReturnPath(req, "/admin/settings#maintenance"));
 });
 
 app.get("/admin/voters", requireAdmin, (req, res) => {
@@ -7614,7 +7672,7 @@ app.post("/admin/positions", requireAdmin, (req, res) => {
 
   if (!positionName) {
     setFlash(req, "error", "Enter a position name.");
-    return res.redirect("/admin/setup");
+    return res.redirect(getAdminReturnPath(req, "/admin/positions"));
   }
 
   try {
@@ -7632,7 +7690,7 @@ app.post("/admin/positions", requireAdmin, (req, res) => {
     setFlash(req, "error", "That position already exists or could not be created.");
   }
 
-  return res.redirect("/admin/setup");
+  return res.redirect(getAdminReturnPath(req, "/admin/positions"));
 });
 
 app.post("/admin/positions/:id", requireAdmin, (req, res) => {
@@ -7654,7 +7712,7 @@ app.post("/admin/positions/:id", requireAdmin, (req, res) => {
 
   if (!position) {
     setFlash(req, "error", "Position not found.");
-    return res.redirect("/admin/setup");
+    return res.redirect(getAdminReturnPath(req, "/admin/positions"));
   }
 
   db.prepare(`
@@ -7676,7 +7734,7 @@ app.post("/admin/positions/:id", requireAdmin, (req, res) => {
     "success",
     `${position.name} display order updated to ${sortOrder}. Smaller numbers appear first.`,
   );
-  return res.redirect("/admin/setup");
+  return res.redirect(getAdminReturnPath(req, "/admin/positions"));
 });
 
 app.post("/admin/positions/:id/delete", requireAdmin, (req, res) => {
@@ -7697,7 +7755,7 @@ app.post("/admin/positions/:id/delete", requireAdmin, (req, res) => {
       "error",
       "This position has nomination applications. Review or clear those nominations before deleting the position.",
     );
-    return res.redirect("/admin/setup");
+    return res.redirect(getAdminReturnPath(req, "/admin/positions"));
   }
 
   const candidateCount = db.prepare(`
@@ -7713,7 +7771,7 @@ app.post("/admin/positions/:id/delete", requireAdmin, (req, res) => {
       "error",
       "Remove candidates from this position before deleting the position.",
     );
-    return res.redirect("/admin/setup");
+    return res.redirect(getAdminReturnPath(req, "/admin/positions"));
   }
 
   db.prepare("DELETE FROM positions WHERE id = ?").run(positionId);
@@ -7721,7 +7779,7 @@ app.post("/admin/positions/:id/delete", requireAdmin, (req, res) => {
     positionId,
   });
   setFlash(req, "success", "Position removed.");
-  return res.redirect("/admin/setup");
+  return res.redirect(getAdminReturnPath(req, "/admin/positions"));
 });
 
 app.post(

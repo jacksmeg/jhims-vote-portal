@@ -25,5 +25,30 @@
     </a>
   </div>
 </div>
+<script>
+  (() => {
+    const menuButton = document.querySelector('.admin-icon-button--menu');
+    const backdrop = document.querySelector('.admin-mobile-backdrop');
+    const sidebar = document.querySelector('#admin-sidebar');
+
+    if (!menuButton || !backdrop || !sidebar) return;
+
+    const setMenuOpen = (isOpen) => {
+      document.body.classList.toggle('admin-nav-open', isOpen);
+      menuButton.setAttribute('aria-expanded', String(isOpen));
+    };
+
+    menuButton.addEventListener('click', () => {
+      setMenuOpen(!document.body.classList.contains('admin-nav-open'));
+    });
+    backdrop.addEventListener('click', () => setMenuOpen(false));
+    sidebar.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => setMenuOpen(false));
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    });
+  })();
+</script>
 </body>
 </html>

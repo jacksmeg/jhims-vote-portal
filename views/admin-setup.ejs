@@ -316,78 +316,12 @@
       <% } %>
     </p>
   </div>
-  <a class="candidate-schedule-link" href="/admin#election-settings">
+  <a class="candidate-schedule-link" href="/admin/positions">
     <svg viewBox="0 0 24 24" focusable="false">
       <path d="M7 2h2v2h6V2h2v2h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V2Zm12 8H5v9h14v-9Z" fill="currentColor"/>
     </svg>
     View Election Schedule
   </a>
-</section>
-
-<section class="candidate-position-admin" id="position-management">
-  <article class="candidate-control-card">
-    <div class="candidate-control-card__header">
-      <div>
-        <h2>Position Setup</h2>
-        <p>Create positions and rearrange their order before voting opens.</p>
-      </div>
-    </div>
-
-    <div class="candidate-position-admin__grid">
-      <form class="candidate-position-form" action="/admin/positions" method="post">
-        <label class="field">
-          <span>Position Name</span>
-          <input name="positionName" placeholder="e.g. President" <%= electionState.canEditSetup ? '' : 'disabled' %> required />
-        </label>
-
-        <label class="field">
-          <span>Sort Order</span>
-          <input name="sortOrder" type="number" value="0" <%= electionState.canEditSetup ? '' : 'disabled' %> />
-        </label>
-
-        <button class="candidate-add-button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
-          Add Position
-        </button>
-      </form>
-
-      <div class="candidate-position-list-admin">
-        <% if (positions.length === 0) { %>
-          <div class="candidate-roster-empty">
-            <strong>No positions added yet.</strong>
-            <p>Add at least one position before adding candidates.</p>
-          </div>
-        <% } %>
-
-        <% positions.forEach((position) => { %>
-          <article class="candidate-position-admin-row">
-            <div>
-              <strong><%= position.name %></strong>
-              <span>Current order: <%= position.sortOrder %></span>
-            </div>
-
-            <form action="/admin/positions/<%= position.id %>" method="post">
-              <input
-                name="sortOrder"
-                type="number"
-                value="<%= position.sortOrder %>"
-                aria-label="Sort order for <%= position.name %>"
-                <%= electionState.canEditSetup ? '' : 'disabled' %>
-              />
-              <button class="candidate-action-button is-order" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
-                Save Order
-              </button>
-            </form>
-
-            <form action="/admin/positions/<%= position.id %>/delete" method="post">
-              <button class="candidate-action-button is-remove" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>
-                Remove
-              </button>
-            </form>
-          </article>
-        <% }) %>
-      </div>
-    </div>
-  </article>
 </section>
 
 <%- include("partials/admin-shell-end") %>

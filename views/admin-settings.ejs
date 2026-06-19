@@ -1,0 +1,179 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "System Settings",
+  pageIntro: "Manage election identity, branding, security, declarations, and system maintenance.",
+  currentSection: "settings",
+  pageBodyClass: "settings-control-body",
+  pageMainClass: "settings-control-main"
+}) %>
+
+<%
+  const otpStatusLabel = otpSettings.isEnabled ? 'Enabled' : 'Disabled';
+  const logoStatusLabel = settings.organizationLogoPath ? 'Uploaded' : 'Not Set';
+  const twoFactorStatusLabel = adminTwoFactorState.enabled ? 'Protected' : 'Off';
+  const scheduleStatusLabel = electionState.isOpen ? 'Open' : electionState.isClosed ? 'Closed' : electionState.isScheduled ? 'Scheduled' : 'Setup';
+%>
+
+<section class="settings-summary-grid" aria-label="System settings summary">
+  <article class="settings-summary-card is-red"><span class="settings-summary-card__icon">E</span><div><small>Election</small><strong><%= scheduleStatusLabel %></strong><span><%= readiness.isReady ? 'Configuration ready' : `${readiness.issues.length} item${readiness.issues.length === 1 ? '' : 's'} need attention` %></span></div></article>
+  <article class="settings-summary-card is-pink"><span class="settings-summary-card__icon">B</span><div><small>Branding</small><strong><%= logoStatusLabel %></strong><span><%= settings.themeName ? 'Theme active' : 'Default theme' %></span></div></article>
+  <article class="settings-summary-card is-yellow"><span class="settings-summary-card__icon">O</span><div><small>Voter OTP</small><strong><%= otpStatusLabel %></strong><span><%= otpSettings.effectiveProviderLabel %></span></div></article>
+  <article class="settings-summary-card is-blue"><span class="settings-summary-card__icon">2</span><div><small>Admin 2FA</small><strong><%= twoFactorStatusLabel %></strong><span>Authenticator protection</span></div></article>
+</section>
+
+<nav class="settings-section-nav" aria-label="Settings sections">
+  <a href="#general">General</a>
+  <a href="#appearance">Branding & Theme</a>
+  <a href="#security">Security & OTP</a>
+  <a href="#declaration">Declaration</a>
+  <a href="#maintenance">Maintenance</a>
+</nav>
+
+<section class="settings-section" id="general">
+  <header class="settings-section__header">
+    <div><span>01</span><div><h2>General Election Settings</h2><p>Control the election identity and review the active voting window.</p></div></div>
+    <a href="/admin/positions">Open Schedule Control</a>
+  </header>
+  <div class="settings-two-column">
+    <article class="settings-panel">
+      <div class="settings-panel__heading"><h3>Election identity</h3><p>This name appears across the public portal, ballot, and result reports.</p></div>
+      <form class="settings-form" action="/admin/settings" method="post">
+        <input type="hidden" name="returnTo" value="/admin/settings#general" />
+        <input type="hidden" name="opensAt" value="<%= settings.opensAt %>" />
+        <input type="hidden" name="closesAt" value="<%= settings.closesAt %>" />
+        <label class="field"><span>Election Name</span><input name="electionName" value="<%= settings.electionName %>" <%= electionState.canEditSetup ? '' : 'disabled' %> required /></label>
+        <button class="settings-primary-button" type="submit" <%= electionState.canEditSetup ? '' : 'disabled' %>>Save Election Name</button>
+      </form>
+    </article>
+    <article class="settings-panel settings-schedule-preview">
+      <div class="settings-panel__heading"><h3>Voting window</h3><p>Schedule changes are managed from the Positions & Schedule page.</p></div>
+      <div class="settings-info-row"><span>Opens</span><strong><%= settings.opensAt ? formatDateTime(settings.opensAt) : 'Not scheduled' %></strong></div>
+      <div class="settings-info-row"><span>Closes</span><strong><%= settings.closesAt ? formatDateTime(settings.closesAt) : 'Not scheduled' %></strong></div>
+      <div class="settings-info-row"><span>Automatic opening</span><strong><%= settings.opensAt ? 'Enabled' : 'Waiting for schedule' %></strong></div>
+      <a class="settings-secondary-button" href="/admin/positions">Edit Schedule & Positions</a>
+    </article>
+  </div>
+</section>
+
+<section class="settings-section" id="appearance">
+  <header class="settings-section__header"><div><span>02</span><div><h2>Branding & Theme</h2><p>Keep the admin portal, voter pages, and printed reports visually consistent.</p></div></div></header>
+  <div class="settings-brand-grid">
+    <article class="settings-panel brand-settings-panel">
+      <div class="settings-panel__heading"><h3>Organization logo</h3><p>Upload a clear PNG, JPG, or WEBP image.</p></div>
+      <div class="settings-logo-preview">
+        <% if (settings.organizationLogoPath) { %><img src="<%= settings.organizationLogoPath %>" alt="Organization logo" /><% } else { %><strong>EC</strong><span>No logo uploaded</span><% } %>
+      </div>
+      <form class="settings-form" action="/admin/logo" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="returnTo" value="/admin/settings#appearance" />
+        <label class="settings-file-input"><input name="logo" type="file" accept="image/*" required /><span>Choose Logo Image</span><small>Recommended: square image with transparent background</small></label>
+        <button class="settings-primary-button" type="submit">Upload Logo</button>
+      </form>
+    </article>
+    <article class="settings-panel theme-settings-panel">
+      <div class="settings-panel__heading"><h3>Software theme</h3><p>Choose the color direction used throughout the portal.</p></div>
+      <form class="settings-form" action="/admin/theme" method="post">
+        <input type="hidden" name="returnTo" value="/admin/settings#appearance" />
+        <div class="theme-choice-grid">
+          <% themeOptions.forEach((theme, index) => { %>
+            <label class="theme-choice <%= settings.themeName === theme.value ? 'is-selected' : '' %>">
+              <input type="radio" name="themeName" value="<%= theme.value %>" <%= settings.themeName === theme.value ? 'checked' : '' %> />
+              <span class="theme-choice__swatches is-theme-<%= index + 1 %>"><i></i><i></i><i></i></span>
+              <strong><%= theme.label %></strong><small><%= theme.description %></small>
+            </label>
+          <% }) %>
+        </div>
+        <button class="settings-primary-button" type="submit">Apply Selected Theme</button>
+      </form>
+    </article>
+  </div>
+</section>
+
+<section class="settings-section" id="security">
+  <header class="settings-section__header"><div><span>03</span><div><h2>Security & OTP</h2><p>Protect voter verification and administrator access.</p></div></div><a href="/admin/otp-logs">View Full OTP Activity</a></header>
+  <div class="settings-security-grid">
+    <article class="settings-panel otp-settings-panel">
+      <div class="settings-panel__heading"><h3>Voter OTP verification</h3><p>Configure the SMS provider used before voters enter the ballot.</p></div>
+      <form class="settings-form" action="/admin/otp-settings" method="post">
+        <input type="hidden" name="returnTo" value="/admin/settings#security" />
+        <div class="settings-form-grid is-three">
+          <label class="field"><span>Provider</span><select name="provider" required><option value="disabled" <%= otpSettings.provider === 'disabled' ? 'selected' : '' %>>Disabled</option><option value="arkesel" <%= otpSettings.provider === 'arkesel' ? 'selected' : '' %>>Arkesel</option><option value="twilio" <%= otpSettings.provider === 'twilio' ? 'selected' : '' %>>Twilio</option><% if (!isProduction) { %><option value="dev" <%= otpSettings.provider === 'dev' ? 'selected' : '' %>>Development</option><% } %></select></label>
+          <label class="field"><span>OTP Expiry (minutes)</span><input name="ttlMinutes" type="number" min="1" max="30" value="<%= otpSettings.ttlMinutes %>" required /></label>
+          <label class="field"><span>Resend Delay (seconds)</span><input name="resendCooldownSeconds" type="number" min="0" max="300" value="<%= otpSettings.resendCooldownSeconds %>" required /></label>
+        </div>
+        <div class="settings-form-grid">
+          <label class="field"><span>Arkesel API Key</span><input name="arkeselApiKey" type="password" value="" autocomplete="new-password" placeholder="<%= otpSettings.arkeselConfigured ? 'Leave blank to keep the saved key' : 'Enter main Arkesel API key' %>" /></label>
+          <label class="field"><span>Sender ID</span><input name="arkeselSenderId" value="<%= otpSettings.arkeselSenderId %>" maxlength="11" placeholder="e.g. JHIMSVOTE" /></label>
+        </div>
+        <label class="field"><span>OTP Message Template</span><textarea name="arkeselOtpMessage" rows="4" required><%= otpSettings.arkeselOtpMessage %></textarea><small>Keep <code>%otp_code%</code> in the message. You may also use <code>%expiry%</code>.</small></label>
+        <button class="settings-primary-button" type="submit">Save OTP Configuration</button>
+      </form>
+      <form class="settings-test-form" action="/admin/otp-settings/test" method="post">
+        <input type="hidden" name="returnTo" value="/admin/settings#security" />
+        <label class="field"><span>Send Test OTP</span><input name="testPhoneNumber" type="tel" placeholder="0241234567" required /></label>
+        <button type="submit">Send Test</button>
+      </form>
+    </article>
+
+    <article class="settings-panel two-factor-settings-panel">
+      <div class="settings-panel__heading"><h3>Admin two-factor authentication</h3><p>Use Google Authenticator, Microsoft Authenticator, or another TOTP app.</p></div>
+      <div class="two-factor-status <%= adminTwoFactorState.enabled ? 'is-enabled' : 'is-disabled' %>"><span></span><div><strong><%= adminTwoFactorState.enabled ? '2FA is enabled' : '2FA is not enabled' %></strong><small><%= adminTwoFactorState.enabled ? 'Admin login requires a rotating security code.' : 'Add a second layer of protection to the admin account.' %></small></div></div>
+      <% if (adminTwoFactorState.enabled) { %>
+        <form class="settings-form" action="/admin/2fa/disable" method="post">
+          <label class="field"><span>Current Authenticator Code</span><input name="verificationCode" inputmode="numeric" maxlength="6" placeholder="123456" required /></label>
+          <button class="settings-danger-button" type="submit">Disable Admin 2FA</button>
+        </form>
+      <% } else if (pendingAdminTwoFactorSetup) { %>
+        <div class="two-factor-setup">
+          <% if (pendingAdminTwoFactorSetup.qrCodeDataUrl) { %><img src="<%= pendingAdminTwoFactorSetup.qrCodeDataUrl %>" alt="Authenticator setup QR code" /><% } %>
+          <div><strong>Scan this QR code</strong><p>Then enter the latest 6-digit code to finish activation.</p><code><%= pendingAdminTwoFactorSetup.formattedSecret %></code></div>
+        </div>
+        <form class="settings-form" action="/admin/2fa/enable" method="post"><label class="field"><span>Authenticator Code</span><input name="verificationCode" inputmode="numeric" maxlength="6" placeholder="123456" required /></label><button class="settings-primary-button" type="submit">Enable 2FA</button></form>
+        <form action="/admin/2fa/cancel-setup" method="post"><button class="settings-text-button" type="submit">Cancel setup</button></form>
+      <% } else { %>
+        <form action="/admin/2fa/setup" method="post"><button class="settings-primary-button" type="submit">Set Up QR Code</button></form>
+      <% } %>
+    </article>
+  </div>
+
+  <article class="settings-panel otp-activity-panel">
+    <div class="settings-panel__heading"><h3>Recent OTP activity</h3><p>The latest seven delivery, verification, and error events.</p></div>
+    <% if (otpActivity.length === 0) { %><div class="settings-empty">No OTP activity has been recorded yet.</div><% } else { %>
+      <div class="settings-activity-list">
+        <% otpActivity.forEach((log) => { %><article><span class="settings-activity-dot <%= log.badgeClass %>"></span><div><strong><%= log.statusLabel %></strong><small><%= log.providerLabel %> · <%= log.maskedPhoneNumber %></small></div><p><%= log.summary %></p><time><%= formatDateTime(log.createdAt) %></time></article><% }) %>
+      </div>
+    <% } %>
+  </article>
+</section>
+
+<section class="settings-section" id="declaration">
+  <header class="settings-section__header"><div><span>04</span><div><h2>Official Declaration</h2><p>Prepare the sign-off block used on final election reports.</p></div></div></header>
+  <article class="settings-panel declaration-settings-panel">
+    <form class="settings-form" action="/admin/declaration" method="post" enctype="multipart/form-data">
+      <input type="hidden" name="returnTo" value="/admin/settings#declaration" />
+      <div class="settings-form-grid"><label class="field"><span>Declaration Title</span><input name="declarationTitle" value="<%= settings.declarationTitle %>" required /></label><label class="field"><span>Committee Name</span><input name="committeeName" value="<%= settings.committeeName %>" required /></label></div>
+      <div class="settings-form-grid"><label class="field"><span>Chairman Name</span><input name="chairmanName" value="<%= settings.chairmanName %>" /></label><label class="field"><span>Secretary Name</span><input name="secretaryName" value="<%= settings.secretaryName %>" /></label></div>
+      <div class="settings-form-grid"><label class="settings-file-input"><input name="chairmanSignature" type="file" accept="image/*" /><span>Chairman Signature</span><small><%= settings.chairmanSignaturePath ? 'Current signature saved' : 'No signature uploaded' %></small></label><label class="settings-file-input"><input name="secretarySignature" type="file" accept="image/*" /><span>Secretary Signature</span><small><%= settings.secretarySignaturePath ? 'Current signature saved' : 'No signature uploaded' %></small></label></div>
+      <button class="settings-primary-button" type="submit">Save Declaration Details</button>
+    </form>
+    <div class="declaration-preview">
+      <span>Official Result Declaration</span><h3><%= settings.declarationTitle %></h3><p><%= settings.committeeName %></p>
+      <div class="declaration-preview__signatures">
+        <div><figure><% if (settings.chairmanSignaturePath) { %><img src="<%= settings.chairmanSignaturePath %>" alt="Chairman signature" /><% } %></figure><strong><%= settings.chairmanName || 'Chairman' %></strong><small>Chairman</small></div>
+        <div><figure><% if (settings.secretarySignaturePath) { %><img src="<%= settings.secretarySignaturePath %>" alt="Secretary signature" /><% } %></figure><strong><%= settings.secretaryName || 'Secretary' %></strong><small>Secretary</small></div>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="settings-section" id="maintenance">
+  <header class="settings-section__header"><div><span>05</span><div><h2>Backup & Maintenance</h2><p>Protect election data, review archives, or prepare a clean election workspace.</p></div></div></header>
+  <div class="settings-maintenance-grid">
+    <article class="settings-panel maintenance-card is-blue"><span class="maintenance-card__icon">B</span><h3>Create Database Backup</h3><p>Save a safety copy of the complete election database before major changes.</p><form action="/admin/backup" method="post"><input type="hidden" name="returnTo" value="/admin/settings#maintenance" /><button class="settings-secondary-button" type="submit">Create Backup Now</button></form></article>
+    <article class="settings-panel maintenance-card is-yellow"><span class="maintenance-card__icon">A</span><h3>Election Archives</h3><p><%= archives.length %> recent archive<%= archives.length === 1 ? '' : 's' %> available. Completed elections remain accessible here.</p><a class="settings-secondary-button" href="/admin/archives">Open Archive Library</a></article>
+    <article class="settings-panel maintenance-card is-red"><span class="maintenance-card__icon">R</span><h3>Reset Entire System</h3><p>Creates a backup, then clears voters, positions, candidates, nominations, ballots, archives, and audit history.</p>
+      <% if (electionState.isOpen) { %><div class="maintenance-lock">Close voting before a full reset.</div><% } else { %><form class="settings-reset-form" action="/admin/system/fresh-reset" method="post" onsubmit="return confirm('Create a backup and permanently clear the current election workspace?');"><input name="confirmationText" placeholder="Type RESET ENTIRE SYSTEM" required /><button class="settings-danger-button" type="submit">Reset System Fresh</button></form><% } %>
+    </article>
+  </div>
+</section>
+
+<%- include("partials/admin-shell-end") %>
