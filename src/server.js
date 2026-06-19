@@ -7,6 +7,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const dayjs = require("dayjs");
+const ExcelJS = require("exceljs");
 const express = require("express");
 const session = require("express-session");
 const helmet = require("helmet");
@@ -3322,6 +3323,265 @@ function getVoters() {
     FROM voters
     ORDER BY staff_id ASC
   `).all();
+}
+
+function getVoterDirectoryStatus(voter, electionState = computeElectionState(getElectionSettings())) {
+  if (voter.hasVoted) {
+    return {
+      label: "Voted",
+      toneClass: "is-voted",
+      filterValue: "voted",
+    };
+  }
+
+  if (electionState.isClosed) {
+    return {
+      label: "Not Voted",
+      toneClass: "is-not-voted",
+      filterValue: "not-voted",
+    };
+  }
+
+  return {
+    label: "Verified",
+    toneClass: "is-verified",
+    filterValue: "verified",
+  };
+}
+
+function getVoterManagementSummary(voters, electionState = computeElectionState(getElectionSettings())) {
+  const totalVoters = voters.length;
+  const votedCount = voters.filter((voter) => Boolean(voter.hasVoted)).length;
+  const verifiedCount = voters.filter((voter) => Boolean(voter.phoneNumber)).length;
+  const notVotedCount = Math.max(totalVoters - votedCount, 0);
+  const pendingCount = voters.filter(
+    (voter) => getVoterDirectoryStatus(voter, electionState).filterValue === "pending",
+  ).length;
+
+  return {
+    totalVoters,
+    verifiedCount,
+    votedCount,
+    notVotedCount,
+    pendingCount,
+    turnoutRate: totalVoters ? votedCount / totalVoters : 0,
+  };
+}
+
+function getVoterManagementActivity(limit = 7) {
+  const relevantActions = new Set([
+    "voter_added_manually",
+    "voters_imported",
+    "voter_updated",
+    "voters_cleared",
+    "vote_submitted",
+    "voter_login_success",
+    "voter_login_rejected",
+    "voter_login_failed",
+    "voter_otp_sent",
+    "voter_otp_verified",
+  ]);
+
+  return getAuditLogs(Math.max(limit * 8, 40))
+    .filter((log) => relevantActions.has(log.action))
+    .map((log) => {
+      const details = safeJsonParse(log.detailsJson, {});
+      return {
+        ...log,
+        actionLabel: formatDashboardAuditAction(log.action),
+        detailLabel: summarizeAuditDetails(details),
+        staffReference:
+          details.staffId
+          || details.voterId
+          || log.actorIdentifier
+          || (log.actorType === "admin" ? "ADMIN" : "SYSTEM"),
+        timeAgo: formatDashboardRelativeTime(log.createdAt),
+      };
+    })
+    .slice(0, limit);
+}
+
+async function buildVotersExportWorkbook(voters, settings, electionState) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Organization Vote Portal";
+  workbook.lastModifiedBy = "Organization Vote Portal";
+  workbook.created = new Date();
+  workbook.modified = new Date();
+
+  const worksheet = workbook.addWorksheet("Voters");
+  worksheet.columns = [
+    { header: "Staff ID", key: "staffId", width: 18 },
+    { header: "Phone Number", key: "phoneNumber", width: 18 },
+    { header: "Full Name", key: "fullName", width: 28 },
+    { header: "Department", key: "department", width: 22 },
+    { header: "Status", key: "status", width: 16 },
+    { header: "Voted At", key: "votedAt", width: 24 },
+    { header: "Created At", key: "createdAt", width: 24 },
+  ];
+
+  worksheet.getRow(1).font = { bold: true };
+  worksheet.views = [{ state: "frozen", ySplit: 1 }];
+
+  voters.forEach((voter) => {
+    const status = getVoterDirectoryStatus(voter, electionState);
+    worksheet.addRow({
+      staffId: voter.staffId,
+      phoneNumber: voter.phoneNumber,
+      fullName: voter.fullName || "",
+      department: voter.department || "",
+      status: status.label,
+      votedAt: voter.votedAt ? formatDateTime(voter.votedAt) : "",
+      createdAt: voter.createdAt ? formatDateTime(voter.createdAt) : "",
+    });
+  });
+
+  const summary = workbook.addWorksheet("Summary");
+  const voterSummary = getVoterManagementSummary(voters, electionState);
+  summary.columns = [
+    { header: "Metric", key: "metric", width: 28 },
+    { header: "Value", key: "value", width: 18 },
+  ];
+  summary.getRow(1).font = { bold: true };
+  summary.addRows([
+    { metric: "Election Name", value: settings.electionName },
+    { metric: "Generated At", value: formatDateTime(nowIso()) },
+    { metric: "Total Voters", value: voterSummary.totalVoters },
+    { metric: "Verified Voters", value: voterSummary.verifiedCount },
+    { metric: "Voted", value: voterSummary.votedCount },
+    { metric: "Turnout", value: formatPercent(voterSummary.turnoutRate) },
+  ]);
+
+  return workbook;
+}
+
+function renderVotersPdf(document, { settings, voters, electionState, generatedAt }) {
+  const marginX = 42;
+  const contentWidth = document.page.width - marginX * 2;
+  const pageBottom = document.page.height - 44;
+  let cursorY = 46;
+
+  const tableColumns = [
+    { label: "Staff ID", width: 92 },
+    { label: "Name", width: 164 },
+    { label: "Phone", width: 106 },
+    { label: "Department", width: 110 },
+    { label: "Status", width: 72 },
+  ];
+
+  function ensurePageSpace(requiredHeight) {
+    if (cursorY + requiredHeight <= pageBottom) {
+      return;
+    }
+
+    document.addPage();
+    cursorY = 46;
+    drawTableHeader();
+  }
+
+  function drawTableHeader() {
+    let x = marginX;
+    document
+      .font("Helvetica-Bold")
+      .fontSize(9)
+      .fillColor("#16315c");
+
+    tableColumns.forEach((column) => {
+      document.text(column.label, x, cursorY, {
+        width: column.width,
+      });
+      x += column.width;
+    });
+
+    cursorY += 18;
+    document
+      .strokeColor("#d7e4fb")
+      .lineWidth(1)
+      .moveTo(marginX, cursorY)
+      .lineTo(marginX + contentWidth, cursorY)
+      .stroke();
+    cursorY += 8;
+  }
+
+  const summary = getVoterManagementSummary(voters, electionState);
+
+  document
+    .font("Helvetica-Bold")
+    .fontSize(22)
+    .fillColor("#10254d")
+    .text(settings.electionName || "Election Portal", marginX, cursorY, {
+      width: contentWidth,
+    });
+  cursorY += 28;
+
+  document
+    .font("Helvetica-Bold")
+    .fontSize(15)
+    .fillColor("#ff3347")
+    .text("Voter Management Export", marginX, cursorY, {
+      width: contentWidth,
+    });
+  cursorY += 24;
+
+  document
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor("#5f7395")
+    .text(`Generated: ${formatDateTime(generatedAt)}`, marginX, cursorY)
+    .text(`Total Voters: ${summary.totalVoters}`, marginX + 200, cursorY)
+    .text(`Turnout: ${formatPercent(summary.turnoutRate)}`, marginX + 340, cursorY);
+  cursorY += 22;
+
+  document
+    .roundedRect(marginX, cursorY, contentWidth, 64, 18)
+    .fillAndStroke("#f7faff", "#e3edff");
+
+  document
+    .fillColor("#10254d")
+    .font("Helvetica-Bold")
+    .fontSize(11)
+    .text(`Verified Voters: ${summary.verifiedCount}`, marginX + 18, cursorY + 14)
+    .text(`Votes Cast: ${summary.votedCount}`, marginX + 18, cursorY + 34)
+    .text(`Not Voted: ${summary.notVotedCount}`, marginX + 214, cursorY + 14)
+    .text(`Election State: ${electionState.badgeLabel}`, marginX + 214, cursorY + 34);
+
+  cursorY += 86;
+  drawTableHeader();
+
+  voters.forEach((voter) => {
+    ensurePageSpace(30);
+
+    const status = getVoterDirectoryStatus(voter, electionState);
+    const values = [
+      voter.staffId,
+      voter.fullName || "—",
+      voter.phoneNumber,
+      voter.department || "—",
+      status.label,
+    ];
+
+    let x = marginX;
+    document
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor("#24385e");
+
+    values.forEach((value, index) => {
+      document.text(String(value), x, cursorY, {
+        width: tableColumns[index].width - 10,
+        ellipsis: true,
+      });
+      x += tableColumns[index].width;
+    });
+
+    cursorY += 18;
+    document
+      .strokeColor("#edf2fb")
+      .lineWidth(1)
+      .moveTo(marginX, cursorY)
+      .lineTo(marginX + contentWidth, cursorY)
+      .stroke();
+    cursorY += 9;
+  });
 }
 
 function getPublicVoterStatusByStaffId(staffId) {
@@ -6882,12 +7142,68 @@ app.post("/admin/backup", requireAdmin, async (req, res) => {
 app.get("/admin/voters", requireAdmin, (req, res) => {
   const metrics = getDashboardMetrics();
   const voters = getVoters();
+  const voterActivity = getVoterManagementActivity(7);
   res.render("admin-voters", {
     pageTitle: "Voters",
     voters,
     metrics,
+    voterActivity,
     templatePath: "/templates/staff-login-template.xlsx",
   });
+});
+
+app.get("/admin/voters/export/excel", requireAdmin, async (req, res) => {
+  const voters = getVoters();
+  const settings = getElectionSettings();
+  const electionState = computeElectionState(settings);
+  const filename = `${toSafeFilename(settings.electionName)}-voters.xlsx`;
+  const workbook = await buildVotersExportWorkbook(voters, settings, electionState);
+
+  logAudit(req, "admin", req.session.admin.username, "voters_exported_excel", {
+    totalVoters: voters.length,
+  });
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  await workbook.xlsx.write(res);
+  res.end();
+});
+
+app.get("/admin/voters/export/pdf", requireAdmin, (req, res) => {
+  const voters = getVoters();
+  const settings = getElectionSettings();
+  const electionState = computeElectionState(settings);
+  const filename = `${toSafeFilename(settings.electionName)}-voters.pdf`;
+
+  logAudit(req, "admin", req.session.admin.username, "voters_exported_pdf", {
+    totalVoters: voters.length,
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  const document = new PDFDocument({
+    size: "A4",
+    margin: 0,
+    info: {
+      Title: `${settings.electionName} Voters Export`,
+      Author: "Organization Vote Portal",
+      Subject: "Voter management export",
+    },
+  });
+
+  document.pipe(res);
+  renderVotersPdf(document, {
+    settings,
+    voters,
+    electionState,
+    generatedAt: nowIso(),
+  });
+  document.end();
 });
 
 app.post("/admin/voters", requireAdmin, (req, res) => {
@@ -7142,6 +7458,47 @@ app.post("/admin/voters/:id(\\d+)", requireAdmin, (req, res) => {
     staffId,
   });
   setFlash(req, "success", `${staffId} has been updated.`);
+  return res.redirect("/admin/voters");
+});
+
+app.post("/admin/voters/:id(\\d+)/delete", requireAdmin, (req, res) => {
+  if (!ensureSetupMode(req, res)) {
+    return;
+  }
+
+  const voterId = parseInteger(req.params.id, 0);
+  const voter = db.prepare(`
+    SELECT
+      id,
+      staff_id AS staffId
+    FROM voters
+    WHERE id = ?
+  `).get(voterId);
+
+  if (!voter) {
+    setFlash(req, "error", "Voter not found.");
+    return res.redirect("/admin/voters");
+  }
+
+  const ballotCount = db.prepare("SELECT COUNT(*) AS total FROM ballots").get().total;
+
+  if (ballotCount > 0) {
+    setFlash(
+      req,
+      "error",
+      "Voter records cannot be deleted after ballot activity exists. Start a new election cycle before removing voter records.",
+    );
+    return res.redirect("/admin/voters");
+  }
+
+  db.prepare("DELETE FROM voters WHERE id = ?").run(voterId);
+
+  logAudit(req, "admin", req.session.admin.username, "voter_deleted", {
+    voterId,
+    staffId: voter.staffId,
+  });
+
+  setFlash(req, "success", `${voter.staffId} has been removed from the voter list.`);
   return res.redirect("/admin/voters");
 });
 

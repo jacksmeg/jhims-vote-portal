@@ -1,4 +1,3 @@
-<%- include("head", { pageTitle, bodyClass: "admin-app-body" }) %>
 <%
   const isDashboardView = currentSection === "dashboard";
   const dashboardMetricCount = typeof metrics !== "undefined" ? metrics.totalVoters : null;
@@ -17,9 +16,34 @@
       : electionState.isClosed
         ? "Ballot locked and finalized"
         : "Election setup in progress";
+  const safePageBodyClass = typeof pageBodyClass === "string" ? pageBodyClass : "";
+  const safePageShellClass = typeof pageShellClass === "string" ? pageShellClass : "";
+  const safePageSidebarClass = typeof pageSidebarClass === "string" ? pageSidebarClass : "";
+  const safePageMainClass = typeof pageMainClass === "string" ? pageMainClass : "";
+  const safePageTopbarClass = typeof pageTopbarClass === "string" ? pageTopbarClass : "";
+  const resolvedBodyClass = ["admin-app-body", safePageBodyClass].filter(Boolean).join(" ");
+  const resolvedShellClass = [isDashboardView ? "admin-shell--dashboard" : "", safePageShellClass]
+    .filter(Boolean)
+    .join(" ");
+  const resolvedSidebarClass = [
+    isDashboardView ? "admin-sidebar--dashboard" : "",
+    safePageSidebarClass,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const resolvedMainClass = [isDashboardView ? "admin-main--dashboard" : "", safePageMainClass]
+    .filter(Boolean)
+    .join(" ");
+  const resolvedTopbarClass = [
+    isDashboardView ? "admin-topbar--dashboard" : "",
+    safePageTopbarClass,
+  ]
+    .filter(Boolean)
+    .join(" ");
 %>
-<div class="admin-shell <%= isDashboardView ? 'admin-shell--dashboard' : '' %>">
-  <aside class="admin-sidebar <%= isDashboardView ? 'admin-sidebar--dashboard' : '' %>">
+<%- include("head", { pageTitle, bodyClass: resolvedBodyClass }) %>
+<div class="admin-shell <%= resolvedShellClass %>">
+  <aside class="admin-sidebar <%= resolvedSidebarClass %>">
     <a class="brand-mark brand-mark--stacked" href="/admin">
       <% if (settings.organizationLogoPath) { %>
         <img class="brand-mark__logo" src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
@@ -179,8 +203,8 @@
     <% } %>
   </aside>
 
-  <div class="admin-main <%= isDashboardView ? 'admin-main--dashboard' : '' %>">
-    <header class="admin-topbar <%= isDashboardView ? 'admin-topbar--dashboard' : '' %>">
+  <div class="admin-main <%= resolvedMainClass %>">
+    <header class="admin-topbar <%= resolvedTopbarClass %>">
       <div class="admin-topbar__leading">
         <button class="admin-icon-button admin-icon-button--menu" type="button" aria-label="Dashboard menu">
           <svg viewBox="0 0 24 24" focusable="false">
