@@ -1,0 +1,86 @@
+<%- include("partials/head", { pageTitle, bodyClass: "observer-login-body" }) %>
+
+<div class="observer-login-page">
+  <header class="observer-login-header">
+    <a class="observer-login-brand" href="/">
+      <% if (settings.organizationLogoPath) { %>
+        <img src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
+      <% } else { %>
+        <span>EO</span>
+      <% } %>
+      <div><strong><%= settings.electionName %></strong><small>Election Observer Portal</small></div>
+    </a>
+    <div class="observer-login-status">
+      <span class="status-dot"></span>
+      <div><small>Election Status</small><strong><%= electionState.badgeLabel %></strong></div>
+    </div>
+  </header>
+
+  <main class="observer-login-main">
+    <%- include("partials/flash") %>
+    <section class="observer-login-panel">
+      <div class="observer-login-intro">
+        <div class="observer-login-seal" aria-hidden="true">
+          <svg viewBox="0 0 96 96"><path d="M48 7 17 20v22c0 22 13 39 31 47 18-8 31-25 31-47V20L48 7Z"/><path d="m32 48 10 10 22-25"/></svg>
+        </div>
+        <h1>Read-only election monitoring</h1>
+        <p>Accredited observers can monitor election activity while voter identity and ballot secrecy remain protected.</p>
+        <div class="observer-login-benefits">
+          <article class="is-red"><span></span><div><strong>Live turnout</strong><small>Aggregated election participation only</small></div></article>
+          <article class="is-yellow"><span></span><div><strong>Audit visibility</strong><small>Anonymized activity and integrity checks</small></div></article>
+          <article class="is-pink"><span></span><div><strong>Incident reporting</strong><small>Record observations for the committee</small></div></article>
+          <article class="is-violet"><span></span><div><strong>Protected results</strong><small>Candidate totals unlock after closing</small></div></article>
+          <article class="is-blue"><span></span><div><strong>Official reports</strong><small>Export a signed monitoring record</small></div></article>
+        </div>
+        <div class="observer-accreditation-note"><strong>Accredited observer access</strong><span>Secure. Independent. Audited.</span></div>
+      </div>
+
+      <div class="observer-login-form-panel">
+        <div class="observer-login-form-heading">
+          <span class="observer-login-form-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0"/><path d="M17 11.5 20 13v2.5c0 2-1.2 3.8-3 4.5-1.8-.7-3-2.5-3-4.5V13l3-1.5Z"/></svg>
+          </span>
+          <div><h2>Observer Sign In</h2><p>Use the individual credentials issued by the election committee.</p></div>
+        </div>
+
+        <form class="observer-login-form" action="/observer/login" method="post" data-observer-login-form>
+          <label><span>Observer ID</span><div class="observer-login-control"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0"/></svg><input name="observerId" autocomplete="username" placeholder="e.g. OBS-2026-0001" required /></div></label>
+          <label><span>Password</span><div class="observer-login-control"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><input id="observer-password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required /><button type="button" data-password-toggle aria-label="Show password">Show</button></div></label>
+          <button class="observer-login-submit" type="submit" data-observer-login-submit><span class="observer-login-spinner" aria-hidden="true"></span><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.9 8.5 7 10 4.1-1.5 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg><span data-login-label>Sign In Securely</span></button>
+        </form>
+
+        <div class="observer-login-divider"><span>or</span></div>
+        <a class="observer-login-home" href="/">Return to Election Home</a>
+        <div class="observer-login-support"><strong>Need help?</strong><span>Contact: 0592934612 · jacksmeg99@gmail.com</span></div>
+        <p class="observer-login-audit-warning">All observer access is recorded in the audit log.</p>
+      </div>
+    </section>
+  </main>
+
+  <%- include("partials/footer-brand", { variant: "observer-login" }) %>
+</div>
+
+<script>
+  (() => {
+    const toggle = document.querySelector('[data-password-toggle]');
+    const password = document.querySelector('#observer-password');
+    toggle?.addEventListener('click', () => {
+      const reveal = password.type === 'password';
+      password.type = reveal ? 'text' : 'password';
+      toggle.textContent = reveal ? 'Hide' : 'Show';
+      toggle.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
+    });
+
+    const form = document.querySelector('[data-observer-login-form]');
+    form?.addEventListener('submit', () => {
+      if (!form.checkValidity()) return;
+      const button = form.querySelector('[data-observer-login-submit]');
+      button.classList.add('is-loading');
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.querySelector('[data-login-label]').textContent = 'Signing in securely...';
+    });
+  })();
+</script>
+</body>
+</html>

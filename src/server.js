@@ -33,7 +33,12 @@ const {
   normalizeStaffId,
   toSmsPhoneNumber,
 } = require("./helpers/phone");
-const { requireAdmin, requireVoter } = require("./middleware/auth");
+const {
+  requireAdmin,
+  requireObserver,
+  requireObserverPasswordReady,
+  requireVoter,
+} = require("./middleware/auth");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -74,6 +79,8 @@ const envOtpResendCooldownSeconds = Math.min(
   300,
 );
 const devOtpCodeLength = 6;
+const observerMaxLoginAttempts = 5;
+const observerLockMinutes = 15;
 const sessionSecureCookie = String(
   process.env.SESSION_SECURE_COOKIE || (isProduction ? "true" : "false"),
 )
@@ -1543,6 +1550,10 @@ function clearAdminAccess(req) {
 
 function clearNominationSession(req) {
   req.session.nominationApplicant = null;
+}
+
+function clearObserverSession(req) {
+  req.session.observer = null;
 }
 
 function maskPhoneNumber(value) {
@@ -4467,6 +4478,419 @@ function getDashboardPositionBars(results, limit = 5) {
   }));
 }
 
+function normalizeObserverId(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+
+  return /^[A-Z0-9-]{4,32}$/.test(normalized) ? normalized : "";
+}
+
+function generateObserverId() {
+  const row = db.prepare("SELECT COALESCE(MAX(id), 0) + 1 AS nextSequence FROM observer_accounts").get();
+  return `OBS-${new Date().getFullYear()}-${String(row.nextSequence || 1).padStart(4, "0")}`;
+}
+
+function generateObserverTemporaryPassword() {
+  return `Ob!${crypto.randomBytes(8).toString("base64url")}7Z`;
+}
+
+function validateObserverPassword(password) {
+  const value = String(password || "");
+  const issues = [];
+
+  if (value.length < 10) issues.push("at least 10 characters");
+  if (!/[A-Z]/.test(value)) issues.push("one uppercase letter");
+  if (!/[a-z]/.test(value)) issues.push("one lowercase letter");
+  if (!/\d/.test(value)) issues.push("one number");
+  if (!/[^A-Za-z0-9]/.test(value)) issues.push("one symbol");
+
+  return {
+    isValid: issues.length === 0,
+    message: issues.length ? `Use ${issues.join(", ")}.` : "",
+  };
+}
+
+function mapObserverAccount(row) {
+  if (!row) return null;
+
+  const accessExpired = row.accessExpiresAt
+    ? dayjs(row.accessExpiresAt).isValid() && !dayjs().isBefore(dayjs(row.accessExpiresAt))
+    : false;
+
+  return {
+    ...row,
+    isActive: Boolean(row.isActive),
+    mustChangePassword: Boolean(row.mustChangePassword),
+    accessExpired,
+    statusLabel: !row.isActive ? "Disabled" : accessExpired ? "Expired" : "Active",
+    statusClass: !row.isActive ? "is-disabled" : accessExpired ? "is-expired" : "is-active",
+  };
+}
+
+function getObserverAccounts() {
+  return db.prepare(`
+    SELECT
+      oa.id,
+      oa.observer_id AS observerId,
+      oa.full_name AS fullName,
+      oa.organization,
+      oa.accreditation_number AS accreditationNumber,
+      oa.email,
+      oa.phone_number AS phoneNumber,
+      oa.must_change_password AS mustChangePassword,
+      oa.is_active AS isActive,
+      oa.access_expires_at AS accessExpiresAt,
+      oa.failed_login_attempts AS failedLoginAttempts,
+      oa.locked_until AS lockedUntil,
+      oa.last_login_at AS lastLoginAt,
+      oa.password_changed_at AS passwordChangedAt,
+      oa.created_by AS createdBy,
+      oa.created_at AS createdAt,
+      oa.updated_at AS updatedAt,
+      COUNT(oi.id) AS incidentCount
+    FROM observer_accounts oa
+    LEFT JOIN observer_incidents oi ON oi.observer_account_id = oa.id
+    GROUP BY oa.id
+    ORDER BY oa.created_at DESC, oa.id DESC
+  `).all().map(mapObserverAccount);
+}
+
+function getObserverAccountById(accountId) {
+  const row = db.prepare(`
+    SELECT
+      id,
+      observer_id AS observerId,
+      full_name AS fullName,
+      organization,
+      accreditation_number AS accreditationNumber,
+      email,
+      phone_number AS phoneNumber,
+      must_change_password AS mustChangePassword,
+      is_active AS isActive,
+      access_expires_at AS accessExpiresAt,
+      failed_login_attempts AS failedLoginAttempts,
+      locked_until AS lockedUntil,
+      last_login_at AS lastLoginAt,
+      password_changed_at AS passwordChangedAt,
+      created_by AS createdBy,
+      created_at AS createdAt,
+      updated_at AS updatedAt
+    FROM observer_accounts
+    WHERE id = ?
+  `).get(accountId);
+
+  return mapObserverAccount(row);
+}
+
+function getObserverManagementSummary(accounts, incidents) {
+  const todayStart = dayjs().startOf("day");
+  return {
+    total: accounts.length,
+    active: accounts.filter((account) => account.isActive && !account.accessExpired).length,
+    loggedInToday: accounts.filter(
+      (account) => account.lastLoginAt && dayjs(account.lastLoginAt).isAfter(todayStart),
+    ).length,
+    reportsSubmitted: incidents.length,
+  };
+}
+
+function getObserverIncidents({ accountId = null, limit = 100 } = {}) {
+  const whereClause = accountId ? "WHERE oi.observer_account_id = ?" : "";
+  const statement = db.prepare(`
+    SELECT
+      oi.id,
+      oi.observer_account_id AS observerAccountId,
+      oi.category,
+      oi.title,
+      oi.details,
+      oi.status,
+      oi.admin_notes AS adminNotes,
+      oi.submitted_at AS submittedAt,
+      oi.reviewed_at AS reviewedAt,
+      oi.reviewed_by AS reviewedBy,
+      oa.observer_id AS observerId,
+      oa.full_name AS observerName,
+      oa.organization
+    FROM observer_incidents oi
+    INNER JOIN observer_accounts oa ON oa.id = oi.observer_account_id
+    ${whereClause}
+    ORDER BY oi.submitted_at DESC, oi.id DESC
+    LIMIT ?
+  `);
+
+  const rows = accountId ? statement.all(accountId, limit) : statement.all(limit);
+  return rows.map((incident) => ({
+    ...incident,
+    statusLabel: humanizeToken(incident.status),
+    statusClass: `is-${String(incident.status || "submitted").replace(/[^a-z0-9-]/gi, "-")}`,
+  }));
+}
+
+function getObserverAccessLogs(limit = 20) {
+  return db.prepare(`
+    SELECT
+      id,
+      actor_identifier AS observerId,
+      action,
+      ip_address AS ipAddress,
+      user_agent AS userAgent,
+      created_at AS createdAt
+    FROM audit_logs
+    WHERE actor_type = 'observer'
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(limit).map((entry) => ({
+    ...entry,
+    actionLabel: formatDashboardAuditAction(entry.action),
+    timeAgo: formatDashboardRelativeTime(entry.createdAt),
+  }));
+}
+
+function getAnonymizedObserverActivity(limit = 7) {
+  const activityLabels = {
+    vote_submitted: ["Ballot recorded", "A verified ballot was securely added to the count."],
+    voter_login_success: ["Voter verified", "A registered voter passed the access checks."],
+    voter_otp_verified: ["OTP verified", "A voter completed phone verification."],
+    election_opened: ["Election opened", "The election committee opened the voting window."],
+    election_auto_opened: ["Election opened", "The scheduled voting window opened automatically."],
+    election_closed: ["Election closed", "The ballot was locked by the election committee."],
+    election_auto_closed: ["Election closed", "The scheduled voting window closed automatically."],
+    database_backup_created: ["Backup completed", "A protected election database backup was created."],
+  };
+
+  return getAuditLogs(Math.max(limit * 12, 80))
+    .filter((entry) => activityLabels[entry.action])
+    .slice(0, limit)
+    .map((entry, index) => ({
+      id: entry.id,
+      title: activityLabels[entry.action][0],
+      description: activityLabels[entry.action][1],
+      createdAt: entry.createdAt,
+      timeAgo: formatDashboardRelativeTime(entry.createdAt),
+      toneClass: `is-tone-${(index % 5) + 1}`,
+    }));
+}
+
+function getObserverIntegrityChecks() {
+  return [
+    { label: "Voting application", status: "Operational" },
+    { label: "Ballot storage", status: "Protected" },
+    { label: "Audit logging", status: "Active" },
+    { label: "Access control", status: "Enforced" },
+    { label: "Results protection", status: "Locked while voting" },
+  ];
+}
+
+function streamObserverReportPdf(res, reportData) {
+  const {
+    account,
+    activity,
+    electionState,
+    incidents,
+    metrics,
+    results,
+    settings,
+  } = reportData;
+  const filename = `${toSafeFilename(settings.electionName)}-observer-report-${toSafeFilename(account.observerId)}.pdf`;
+  const document = new PDFDocument({ size: "A4", margin: 48, info: { Title: filename } });
+  const pageWidth = document.page.width;
+  const contentWidth = pageWidth - 96;
+  const turnoutRate = metrics.totalVoters ? metrics.votedCount / metrics.totalVoters : 0;
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  document.pipe(res);
+
+  document
+    .roundedRect(48, 42, contentWidth, 94, 12)
+    .fill("#082957")
+    .fillColor("#ffffff")
+    .font("Helvetica-Bold")
+    .fontSize(18)
+    .text("ELECTION OBSERVER REPORT", 68, 64)
+    .font("Helvetica")
+    .fontSize(11)
+    .text(settings.electionName, 68, 91)
+    .text(`Generated ${formatDateTime(nowIso())}`, 68, 108);
+
+  let cursorY = 158;
+  document
+    .fillColor("#102b4f")
+    .font("Helvetica-Bold")
+    .fontSize(13)
+    .text("Observer Accreditation", 48, cursorY);
+  cursorY += 22;
+  document.font("Helvetica").fontSize(10).fillColor("#40556f");
+  [
+    `Observer: ${account.fullName} (${account.observerId})`,
+    `Organization: ${account.organization}`,
+    `Accreditation: ${account.accreditationNumber || "Not provided"}`,
+    `Election status: ${electionState.badgeLabel}`,
+  ].forEach((line) => {
+    document.text(line, 56, cursorY);
+    cursorY += 17;
+  });
+
+  cursorY += 10;
+  document.font("Helvetica-Bold").fontSize(13).fillColor("#102b4f").text("Turnout Summary", 48, cursorY);
+  cursorY += 24;
+  const metricItems = [
+    ["Registered voters", metrics.totalVoters],
+    ["Votes cast", metrics.votedCount],
+    ["Remaining voters", Math.max(metrics.totalVoters - metrics.votedCount, 0)],
+    ["Turnout", formatPercent(turnoutRate)],
+    ["Active positions", metrics.totalPositions],
+  ];
+  metricItems.forEach(([label, value], index) => {
+    const columnWidth = contentWidth / metricItems.length;
+    const x = 48 + columnWidth * index;
+    document.roundedRect(x + 2, cursorY, columnWidth - 6, 54, 7).fill(index % 2 ? "#edf4ff" : "#f5f8fb");
+    document.font("Helvetica-Bold").fontSize(12).fillColor("#0d2850").text(String(value), x + 10, cursorY + 12, { width: columnWidth - 20, align: "center" });
+    document.font("Helvetica").fontSize(7.5).fillColor("#62758c").text(label, x + 7, cursorY + 32, { width: columnWidth - 14, align: "center" });
+  });
+  cursorY += 75;
+
+  document.font("Helvetica-Bold").fontSize(13).fillColor("#102b4f").text("Observer Incident Register", 48, cursorY);
+  cursorY += 22;
+  if (!incidents.length) {
+    document.font("Helvetica").fontSize(10).fillColor("#62758c").text("No incidents have been submitted by this observer.", 56, cursorY);
+    cursorY += 22;
+  } else {
+    incidents.slice(0, 8).forEach((incident) => {
+      document.font("Helvetica-Bold").fontSize(9).fillColor("#173250").text(`${incident.title} - ${incident.statusLabel}`, 56, cursorY, { width: contentWidth - 16 });
+      cursorY += 13;
+      document.font("Helvetica").fontSize(8).fillColor("#62758c").text(`${formatDateTime(incident.submittedAt)} | ${humanizeToken(incident.category)}`, 56, cursorY);
+      cursorY += 17;
+    });
+  }
+
+  document.font("Helvetica-Bold").fontSize(13).fillColor("#102b4f").text("Anonymized Election Activity", 48, cursorY);
+  cursorY += 22;
+  activity.slice(0, 8).forEach((item) => {
+    document.font("Helvetica-Bold").fontSize(9).fillColor("#173250").text(item.title, 56, cursorY);
+    document.font("Helvetica").fillColor("#62758c").text(formatDateTime(item.createdAt), 360, cursorY, { width: 150, align: "right" });
+    cursorY += 15;
+  });
+
+  if (cursorY > 660) {
+    document.addPage();
+    cursorY = 52;
+  } else {
+    cursorY += 14;
+  }
+
+  document.font("Helvetica-Bold").fontSize(13).fillColor("#102b4f").text("Election Results", 48, cursorY);
+  cursorY += 22;
+  if (!electionState.isClosed) {
+    document.font("Helvetica-Bold").fontSize(11).fillColor("#d6354d").text("Results locked until polls close.", 56, cursorY);
+  } else if (!results.length) {
+    document.font("Helvetica").fontSize(10).fillColor("#62758c").text("No result data is available.", 56, cursorY);
+  } else {
+    results.forEach((position) => {
+      if (cursorY > 735) {
+        document.addPage();
+        cursorY = 52;
+      }
+      document.font("Helvetica-Bold").fontSize(10).fillColor("#102b4f").text(position.name, 56, cursorY);
+      cursorY += 15;
+      position.candidates.forEach((candidate) => {
+        document.font("Helvetica").fontSize(9).fillColor("#40556f").text(candidate.name, 68, cursorY);
+        document.text(`${candidate.voteCount} votes (${formatPercent(candidate.shareRatio)})`, 360, cursorY, { width: 140, align: "right" });
+        cursorY += 13;
+      });
+      cursorY += 8;
+    });
+  }
+
+  document
+    .font("Helvetica")
+    .fontSize(8)
+    .fillColor("#718096")
+    .text("This report contains aggregated election information only. No individual voting choices are disclosed.", 48, document.page.height - 48, { width: contentWidth, align: "center" });
+  document.end();
+}
+
+function streamObserverManagementPdf(res, { accounts, incidents, settings }) {
+  const filename = `${toSafeFilename(settings.electionName)}-observer-register.pdf`;
+  const document = new PDFDocument({ size: "A4", layout: "landscape", margin: 42 });
+  const pageWidth = document.page.width;
+  const contentWidth = pageWidth - 84;
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  document.pipe(res);
+
+  document
+    .roundedRect(42, 36, contentWidth, 72, 10)
+    .fill("#082957")
+    .fillColor("#ffffff")
+    .font("Helvetica-Bold")
+    .fontSize(18)
+    .text("OBSERVER ACCESS REGISTER", 60, 54)
+    .font("Helvetica")
+    .fontSize(10)
+    .text(`${settings.electionName} | Generated ${formatDateTime(nowIso())}`, 60, 80);
+
+  let cursorY = 128;
+  const headers = ["Observer ID", "Name", "Organization", "Accreditation", "Status", "Last Login", "Incidents"];
+  const widths = [92, 126, 142, 104, 72, 126, 58];
+  let cursorX = 42;
+  document.rect(42, cursorY, contentWidth, 24).fill("#eaf1fb");
+  headers.forEach((header, index) => {
+    document.font("Helvetica-Bold").fontSize(8).fillColor("#123052").text(header, cursorX + 5, cursorY + 8, { width: widths[index] - 10 });
+    cursorX += widths[index];
+  });
+  cursorY += 24;
+
+  accounts.forEach((account, rowIndex) => {
+    if (cursorY > document.page.height - 72) {
+      document.addPage();
+      cursorY = 48;
+    }
+    if (rowIndex % 2 === 0) document.rect(42, cursorY, contentWidth, 28).fill("#f8fafc");
+    const values = [
+      account.observerId,
+      account.fullName,
+      account.organization,
+      account.accreditationNumber || "-",
+      account.statusLabel,
+      account.lastLoginAt ? formatDateTime(account.lastLoginAt) : "Never",
+      String(account.incidentCount || 0),
+    ];
+    cursorX = 42;
+    values.forEach((value, index) => {
+      document.font("Helvetica").fontSize(7.5).fillColor("#40556f").text(String(value), cursorX + 5, cursorY + 8, { width: widths[index] - 10, ellipsis: true });
+      cursorX += widths[index];
+    });
+    cursorY += 28;
+  });
+
+  cursorY += 20;
+  if (cursorY > document.page.height - 170) {
+    document.addPage();
+    cursorY = 48;
+  }
+  document.font("Helvetica-Bold").fontSize(13).fillColor("#102b4f").text("Incident Summary", 42, cursorY);
+  cursorY += 22;
+  if (!incidents.length) {
+    document.font("Helvetica").fontSize(9).fillColor("#62758c").text("No observer incidents have been submitted.", 50, cursorY);
+  } else {
+    incidents.slice(0, 20).forEach((incident) => {
+      if (cursorY > document.page.height - 54) {
+        document.addPage();
+        cursorY = 48;
+      }
+      document.font("Helvetica-Bold").fontSize(8.5).fillColor("#173250").text(`${incident.observerId} | ${incident.title}`, 50, cursorY, { width: 460 });
+      document.font("Helvetica").fontSize(8).fillColor("#62758c").text(`${incident.statusLabel} | ${formatDateTime(incident.submittedAt)}`, 520, cursorY, { width: 230, align: "right" });
+      cursorY += 16;
+    });
+  }
+
+  document.end();
+}
+
 function ensureSetupMode(req, res) {
   const settings = getElectionSettings();
 
@@ -4588,6 +5012,7 @@ app.use((req, res, next) => {
   res.locals.nominationState = nominationState;
   res.locals.currentPath = req.path;
   res.locals.admin = req.session.admin || null;
+  res.locals.observer = req.session.observer || null;
   res.locals.voter = req.session.voter || null;
   res.locals.nominationApplicant = req.session.nominationApplicant || null;
   res.locals.currentYear = new Date().getFullYear();
@@ -5944,6 +6369,222 @@ app.post("/vote/logout", (req, res) => {
   res.redirect("/vote/login");
 });
 
+app.get("/observer/login", (req, res) => {
+  if (req.session.observer) {
+    return res.redirect("/observer");
+  }
+
+  return res.render("observer-login", {
+    pageTitle: "Observer Sign In",
+  });
+});
+
+app.post("/observer/login", (req, res) => {
+  const observerId = normalizeObserverId(req.body.observerId);
+  const password = String(req.body.password || "");
+  const row = observerId
+    ? db.prepare(`
+        SELECT
+          id,
+          observer_id AS observerId,
+          full_name AS fullName,
+          organization,
+          accreditation_number AS accreditationNumber,
+          password_hash AS passwordHash,
+          must_change_password AS mustChangePassword,
+          is_active AS isActive,
+          access_expires_at AS accessExpiresAt,
+          failed_login_attempts AS failedLoginAttempts,
+          locked_until AS lockedUntil
+        FROM observer_accounts
+        WHERE observer_id = ?
+      `).get(observerId)
+    : null;
+  const lockedUntil = row?.lockedUntil ? dayjs(row.lockedUntil) : null;
+  const isLocked = lockedUntil?.isValid() && dayjs().isBefore(lockedUntil);
+  const accessExpired = row?.accessExpiresAt
+    ? dayjs(row.accessExpiresAt).isValid() && !dayjs().isBefore(dayjs(row.accessExpiresAt))
+    : false;
+  const passwordAccepted = row ? bcrypt.compareSync(password, row.passwordHash) : false;
+
+  if (!row || !row.isActive || accessExpired || isLocked || !passwordAccepted) {
+    if (row && !isLocked && row.isActive && !accessExpired && !passwordAccepted) {
+      const attempts = Number(row.failedLoginAttempts || 0) + 1;
+      const shouldLock = attempts >= observerMaxLoginAttempts;
+      db.prepare(`
+        UPDATE observer_accounts
+        SET failed_login_attempts = ?, locked_until = ?, updated_at = ?
+        WHERE id = ?
+      `).run(
+        attempts,
+        shouldLock ? dayjs().add(observerLockMinutes, "minute").toISOString() : "",
+        nowIso(),
+        row.id,
+      );
+    }
+
+    logAudit(req, "observer", observerId || "unknown", "observer_login_failed", {
+      reason: isLocked
+        ? "account_locked"
+        : accessExpired
+          ? "access_expired"
+          : row && !row.isActive
+            ? "account_disabled"
+            : "invalid_credentials",
+    });
+    setFlash(
+      req,
+      "error",
+      isLocked
+        ? `Too many unsuccessful attempts. Try again after ${formatDateTime(lockedUntil.toISOString())}.`
+        : "Invalid observer ID or password. Check the credentials issued by the election committee.",
+    );
+    return res.redirect("/observer/login");
+  }
+
+  const timestamp = nowIso();
+  db.prepare(`
+    UPDATE observer_accounts
+    SET failed_login_attempts = 0, locked_until = '', last_login_at = ?, updated_at = ?
+    WHERE id = ?
+  `).run(timestamp, timestamp, row.id);
+
+  clearVoterSession(req);
+  clearNominationSession(req);
+  req.session.observer = {
+    accountId: row.id,
+    observerId: row.observerId,
+    fullName: row.fullName,
+  };
+  logAudit(req, "observer", row.observerId, "observer_login_success", {
+    organization: row.organization,
+  });
+
+  if (row.mustChangePassword) {
+    setFlash(req, "info", "Create a private password before opening the observer dashboard.");
+    return res.redirect("/observer/change-password");
+  }
+
+  return res.redirect("/observer");
+});
+
+app.get("/observer/change-password", requireObserver, (req, res) => {
+  return res.render("observer-change-password", {
+    pageTitle: "Create Observer Password",
+    account: req.observerAccount,
+  });
+});
+
+app.post("/observer/change-password", requireObserver, (req, res) => {
+  const password = String(req.body.password || "");
+  const passwordConfirmation = String(req.body.passwordConfirmation || "");
+  const validation = validateObserverPassword(password);
+
+  if (!validation.isValid) {
+    setFlash(req, "error", validation.message);
+    return res.redirect("/observer/change-password");
+  }
+
+  if (password !== passwordConfirmation) {
+    setFlash(req, "error", "The password confirmation does not match.");
+    return res.redirect("/observer/change-password");
+  }
+
+  const timestamp = nowIso();
+  db.prepare(`
+    UPDATE observer_accounts
+    SET password_hash = ?, must_change_password = 0, password_changed_at = ?, updated_at = ?
+    WHERE id = ?
+  `).run(bcrypt.hashSync(password, 12), timestamp, timestamp, req.observerAccount.id);
+  logAudit(req, "observer", req.observerAccount.observerId, "observer_password_changed");
+  setFlash(req, "success", "Your private observer password has been saved.");
+  return res.redirect("/observer");
+});
+
+app.get("/observer", requireObserverPasswordReady, (req, res) => {
+  const metrics = getDashboardMetrics();
+  const settings = getElectionSettings();
+  const electionState = computeElectionState(settings);
+  const turnoutRate = metrics.totalVoters ? metrics.votedCount / metrics.totalVoters : 0;
+  const remainingVoters = Math.max(metrics.totalVoters - metrics.votedCount, 0);
+  const timelineSeries = getDashboardTimeline(settings, 8);
+  const timelineChart = buildLineChartShape(timelineSeries, 680, 238);
+  const resultsUnlocked = electionState.isClosed;
+
+  return res.render("observer-dashboard", {
+    pageTitle: "Observer Dashboard",
+    account: req.observerAccount,
+    activity: getAnonymizedObserverActivity(7),
+    candidates: getBallotData(),
+    incidents: getObserverIncidents({ accountId: req.observerAccount.id, limit: 8 }),
+    integrityChecks: getObserverIntegrityChecks(),
+    metrics,
+    remainingVoters,
+    results: resultsUnlocked ? getResultsSummary() : [],
+    resultsUnlocked,
+    settings,
+    timelineChart,
+    timelineSeries,
+    turnoutRate,
+  });
+});
+
+app.post("/observer/incidents", requireObserverPasswordReady, (req, res) => {
+  const category = String(req.body.category || "general").trim().toLowerCase();
+  const title = String(req.body.title || "").trim();
+  const details = String(req.body.details || "").trim();
+  const allowedCategories = new Set(["general", "access", "process", "technical", "security"]);
+
+  if (!title || title.length > 120 || details.length < 10 || details.length > 2000) {
+    setFlash(req, "error", "Enter a short title and incident details between 10 and 2,000 characters.");
+    return res.redirect("/observer#report-incident");
+  }
+
+  const timestamp = nowIso();
+  const result = db.prepare(`
+    INSERT INTO observer_incidents (
+      observer_account_id, category, title, details, status,
+      submitted_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, 'submitted', ?, ?, ?)
+  `).run(
+    req.observerAccount.id,
+    allowedCategories.has(category) ? category : "general",
+    title,
+    details,
+    timestamp,
+    timestamp,
+    timestamp,
+  );
+  logAudit(req, "observer", req.observerAccount.observerId, "observer_incident_submitted", {
+    incidentId: Number(result.lastInsertRowid),
+    category: allowedCategories.has(category) ? category : "general",
+  });
+  setFlash(req, "success", "Your incident report has been recorded for the election committee.");
+  return res.redirect("/observer#my-incidents");
+});
+
+app.get("/observer/report.pdf", requireObserverPasswordReady, (req, res) => {
+  const metrics = getDashboardMetrics();
+  const settings = getElectionSettings();
+  const electionState = computeElectionState(settings);
+  logAudit(req, "observer", req.observerAccount.observerId, "observer_report_exported");
+  return streamObserverReportPdf(res, {
+    account: req.observerAccount,
+    activity: getAnonymizedObserverActivity(12),
+    electionState,
+    incidents: getObserverIncidents({ accountId: req.observerAccount.id, limit: 50 }),
+    metrics,
+    results: electionState.isClosed ? getResultsSummary() : [],
+    settings,
+  });
+});
+
+app.post("/observer/logout", requireObserver, (req, res) => {
+  logAudit(req, "observer", req.observerAccount.observerId, "observer_logout");
+  clearObserverSession(req);
+  return res.redirect("/observer/login");
+});
+
 app.get("/admin/login", (req, res) => {
   if (req.session.admin) {
     return res.redirect("/admin");
@@ -6136,6 +6777,230 @@ app.get("/admin/settings", requireAdmin, async (req, res) => {
     pendingAdminTwoFactorSetup,
     archives: getElectionArchives().slice(0, 3),
     isProduction,
+  });
+});
+
+app.get("/admin/observers", requireAdmin, (req, res) => {
+  const accounts = getObserverAccounts();
+  const incidents = getObserverIncidents({ limit: 100 });
+  const createdCredential = req.session.observerCredential || null;
+  delete req.session.observerCredential;
+
+  return res.render("admin-observers", {
+    pageTitle: "Observer Management",
+    accounts,
+    accessLogs: getObserverAccessLogs(12),
+    createdCredential,
+    incidents,
+    observerSummary: getObserverManagementSummary(accounts, incidents),
+  });
+});
+
+app.post("/admin/observers", requireAdmin, (req, res) => {
+  const fullName = String(req.body.fullName || "").trim();
+  const organization = String(req.body.organization || "").trim();
+  const accreditationNumber = String(req.body.accreditationNumber || "").trim();
+  const email = String(req.body.email || "").trim();
+  const phoneNumber = String(req.body.phoneNumber || "").trim();
+  const accessExpiresAtValue = String(req.body.accessExpiresAt || "").trim();
+  const accessExpiresAt = dayjs(accessExpiresAtValue);
+
+  if (!fullName || !organization || !accreditationNumber) {
+    setFlash(req, "error", "Full name, organization and accreditation number are required.");
+    return res.redirect("/admin/observers#create-observer");
+  }
+
+  if (!accessExpiresAt.isValid() || !dayjs().isBefore(accessExpiresAt)) {
+    setFlash(req, "error", "Choose a valid observer access expiry date in the future.");
+    return res.redirect("/admin/observers#create-observer");
+  }
+
+  const observerId = generateObserverId();
+  const temporaryPassword = generateObserverTemporaryPassword();
+  const timestamp = nowIso();
+
+  db.prepare(`
+    INSERT INTO observer_accounts (
+      observer_id, full_name, organization, accreditation_number, email,
+      phone_number, password_hash, must_change_password, is_active,
+      access_expires_at, created_by, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?, ?)
+  `).run(
+    observerId,
+    fullName,
+    organization,
+    accreditationNumber,
+    email,
+    phoneNumber,
+    bcrypt.hashSync(temporaryPassword, 12),
+    accessExpiresAt.toISOString(),
+    req.session.admin.username,
+    timestamp,
+    timestamp,
+  );
+
+  req.session.observerCredential = {
+    observerId,
+    temporaryPassword,
+    fullName,
+    action: "created",
+  };
+  logAudit(req, "admin", req.session.admin.username, "observer_account_created", {
+    observerId,
+    organization,
+  });
+  setFlash(req, "success", "Observer account created. Copy the temporary credentials from the secure window.");
+  return res.redirect("/admin/observers");
+});
+
+app.post("/admin/observers/:id(\\d+)", requireAdmin, (req, res) => {
+  const accountId = Number.parseInt(req.params.id, 10);
+  const account = getObserverAccountById(accountId);
+  const fullName = String(req.body.fullName || "").trim();
+  const organization = String(req.body.organization || "").trim();
+  const accreditationNumber = String(req.body.accreditationNumber || "").trim();
+  const email = String(req.body.email || "").trim();
+  const phoneNumber = String(req.body.phoneNumber || "").trim();
+  const accessExpiresAt = dayjs(String(req.body.accessExpiresAt || "").trim());
+
+  if (!account) {
+    setFlash(req, "error", "Observer account not found.");
+    return res.redirect("/admin/observers");
+  }
+
+  if (!fullName || !organization || !accreditationNumber || !accessExpiresAt.isValid()) {
+    setFlash(req, "error", "Complete all required observer account fields.");
+    return res.redirect(`/admin/observers#observer-${accountId}`);
+  }
+
+  db.prepare(`
+    UPDATE observer_accounts
+    SET full_name = ?, organization = ?, accreditation_number = ?, email = ?,
+        phone_number = ?, access_expires_at = ?, updated_at = ?
+    WHERE id = ?
+  `).run(
+    fullName,
+    organization,
+    accreditationNumber,
+    email,
+    phoneNumber,
+    accessExpiresAt.toISOString(),
+    nowIso(),
+    accountId,
+  );
+  logAudit(req, "admin", req.session.admin.username, "observer_account_updated", {
+    observerId: account.observerId,
+  });
+  setFlash(req, "success", `${account.observerId} was updated.`);
+  return res.redirect(`/admin/observers#observer-${accountId}`);
+});
+
+app.post("/admin/observers/:id(\\d+)/status", requireAdmin, (req, res) => {
+  const accountId = Number.parseInt(req.params.id, 10);
+  const account = getObserverAccountById(accountId);
+  const makeActive = String(req.body.action || "") === "enable";
+
+  if (!account) {
+    setFlash(req, "error", "Observer account not found.");
+    return res.redirect("/admin/observers");
+  }
+
+  db.prepare(`
+    UPDATE observer_accounts
+    SET is_active = ?, failed_login_attempts = 0, locked_until = '', updated_at = ?
+    WHERE id = ?
+  `).run(makeActive ? 1 : 0, nowIso(), accountId);
+  logAudit(req, "admin", req.session.admin.username, makeActive ? "observer_account_enabled" : "observer_account_disabled", {
+    observerId: account.observerId,
+  });
+  setFlash(req, "success", `${account.observerId} is now ${makeActive ? "active" : "disabled"}.`);
+  return res.redirect("/admin/observers");
+});
+
+app.post("/admin/observers/:id(\\d+)/reset-password", requireAdmin, (req, res) => {
+  const accountId = Number.parseInt(req.params.id, 10);
+  const account = getObserverAccountById(accountId);
+
+  if (!account) {
+    setFlash(req, "error", "Observer account not found.");
+    return res.redirect("/admin/observers");
+  }
+
+  const temporaryPassword = generateObserverTemporaryPassword();
+  db.prepare(`
+    UPDATE observer_accounts
+    SET password_hash = ?, must_change_password = 1, failed_login_attempts = 0,
+        locked_until = '', password_changed_at = NULL, updated_at = ?
+    WHERE id = ?
+  `).run(bcrypt.hashSync(temporaryPassword, 12), nowIso(), accountId);
+  req.session.observerCredential = {
+    observerId: account.observerId,
+    temporaryPassword,
+    fullName: account.fullName,
+    action: "reset",
+  };
+  logAudit(req, "admin", req.session.admin.username, "observer_password_reset", {
+    observerId: account.observerId,
+  });
+  setFlash(req, "success", "A new temporary observer password was generated.");
+  return res.redirect("/admin/observers");
+});
+
+app.post("/admin/observers/:id(\\d+)/delete", requireAdmin, (req, res) => {
+  const accountId = Number.parseInt(req.params.id, 10);
+  const account = getObserverAccountById(accountId);
+
+  if (!account) {
+    setFlash(req, "error", "Observer account not found.");
+    return res.redirect("/admin/observers");
+  }
+
+  db.prepare("DELETE FROM observer_accounts WHERE id = ?").run(accountId);
+  logAudit(req, "admin", req.session.admin.username, "observer_account_deleted", {
+    observerId: account.observerId,
+    organization: account.organization,
+  });
+  setFlash(req, "success", `${account.observerId} was deleted.`);
+  return res.redirect("/admin/observers");
+});
+
+app.post("/admin/observer-incidents/:id(\\d+)", requireAdmin, (req, res) => {
+  const incidentId = Number.parseInt(req.params.id, 10);
+  const status = String(req.body.status || "reviewing").trim().toLowerCase();
+  const adminNotes = String(req.body.adminNotes || "").trim().slice(0, 2000);
+  const allowedStatuses = new Set(["submitted", "reviewing", "resolved", "dismissed"]);
+  const incident = db.prepare("SELECT id FROM observer_incidents WHERE id = ?").get(incidentId);
+
+  if (!incident || !allowedStatuses.has(status)) {
+    setFlash(req, "error", "Observer incident could not be updated.");
+    return res.redirect("/admin/observers#observer-incidents");
+  }
+
+  const timestamp = nowIso();
+  db.prepare(`
+    UPDATE observer_incidents
+    SET status = ?, admin_notes = ?, reviewed_at = ?, reviewed_by = ?, updated_at = ?
+    WHERE id = ?
+  `).run(status, adminNotes, timestamp, req.session.admin.username, timestamp, incidentId);
+  logAudit(req, "admin", req.session.admin.username, "observer_incident_reviewed", {
+    incidentId,
+    status,
+  });
+  setFlash(req, "success", "Observer incident status updated.");
+  return res.redirect("/admin/observers#observer-incidents");
+});
+
+app.get("/admin/observers/report.pdf", requireAdmin, (req, res) => {
+  const accounts = getObserverAccounts();
+  const incidents = getObserverIncidents({ limit: 250 });
+  logAudit(req, "admin", req.session.admin.username, "observer_register_exported", {
+    observerCount: accounts.length,
+    incidentCount: incidents.length,
+  });
+  return streamObserverManagementPdf(res, {
+    accounts,
+    incidents,
+    settings: getElectionSettings(),
   });
 });
 
@@ -7104,6 +7969,8 @@ app.post("/admin/election/archive-reset", requireAdmin, async (req, res) => {
     db.prepare("DELETE FROM ballots").run();
     db.prepare("DELETE FROM nominations").run();
     db.prepare("DELETE FROM nomination_access_codes").run();
+    db.prepare("DELETE FROM observer_incidents").run();
+    db.prepare("DELETE FROM observer_accounts").run();
     db.prepare("DELETE FROM candidates").run();
     db.prepare("DELETE FROM positions").run();
     db.prepare("DELETE FROM voters").run();
@@ -7178,6 +8045,8 @@ app.post("/admin/system/fresh-reset", requireAdmin, async (req, res) => {
     db.prepare("DELETE FROM ballots").run();
     db.prepare("DELETE FROM nominations").run();
     db.prepare("DELETE FROM nomination_access_codes").run();
+    db.prepare("DELETE FROM observer_incidents").run();
+    db.prepare("DELETE FROM observer_accounts").run();
     db.prepare("DELETE FROM candidates").run();
     db.prepare("DELETE FROM positions").run();
     db.prepare("DELETE FROM voters").run();
@@ -7202,6 +8071,7 @@ app.post("/admin/system/fresh-reset", requireAdmin, async (req, res) => {
 
   clearVoterSession(req);
   clearNominationSession(req);
+  clearObserverSession(req);
   req.session.pendingVoterVerification = null;
   req.session.pendingAdminTwoFactor = null;
 

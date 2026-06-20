@@ -1,0 +1,182 @@
+<%- include("partials/admin-shell-start", {
+  pageTitle,
+  pageHeading: "Observer Management",
+  pageIntro: "Create accredited read-only accounts, monitor access, and review observer incidents.",
+  currentSection: "observers",
+  pageBodyClass: "observer-management-body",
+  pageMainClass: "observer-management-main"
+}) %>
+
+<main class="observer-management-page">
+  <section class="observer-admin-summary-grid">
+    <article class="is-red"><span>O</span><div><small>Total Observers</small><strong><%= observerSummary.total %></strong><p>All accredited accounts</p></div></article>
+    <article class="is-yellow"><span>A</span><div><small>Active Accounts</small><strong><%= observerSummary.active %></strong><p>Currently authorized</p></div></article>
+    <article class="is-pink"><span>L</span><div><small>Logged In Today</small><strong><%= observerSummary.loggedInToday %></strong><p>Since midnight</p></div></article>
+    <article class="is-violet"><span>R</span><div><small>Reports Submitted</small><strong><%= observerSummary.reportsSubmitted %></strong><p>This election cycle</p></div></article>
+    <a class="is-blue" href="/admin/observers/report.pdf"><span>↓</span><div><small>Observer Register</small><strong>PDF</strong><p>Export official report</p></div></a>
+  </section>
+
+  <section class="observer-admin-workspace">
+    <article class="observer-admin-directory">
+      <header><div><h2>Observer Directory</h2><p>Passwords are never displayed after their one-time credential window closes.</p></div><label><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input type="search" placeholder="Search name, organization or observer ID" data-observer-search /></label></header>
+      <div class="observer-admin-filter-row"><button class="active" type="button" data-observer-filter="all">All</button><button type="button" data-observer-filter="active">Active</button><button type="button" data-observer-filter="disabled">Disabled</button><button type="button" data-observer-filter="expired">Expired</button></div>
+      <div class="observer-admin-table-wrap">
+        <table class="observer-admin-table">
+          <thead><tr><th>Observer</th><th>Organization</th><th>Accreditation</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
+          <tbody>
+            <% if (!accounts.length) { %><tr><td colspan="6"><div class="observer-admin-empty">No observer accounts have been created yet.</div></td></tr><% } %>
+            <% accounts.forEach((account) => { %>
+              <tr id="observer-<%= account.id %>" data-observer-row data-search="<%= [account.observerId, account.fullName, account.organization, account.accreditationNumber].join(' ').toLowerCase() %>" data-status="<%= account.statusLabel.toLowerCase() %>">
+                <td><div class="observer-admin-person"><span><%= getInitials(account.fullName) %></span><div><strong><%= account.fullName %></strong><small><%= account.observerId %></small></div></div></td>
+                <td><strong><%= account.organization %></strong><small><%= account.email || account.phoneNumber || 'No contact added' %></small></td>
+                <td><%= account.accreditationNumber || 'Not provided' %></td>
+                <td><span class="observer-account-status <%= account.statusClass %>"><%= account.statusLabel %></span><% if (account.mustChangePassword) { %><small>Temporary password active</small><% } %></td>
+                <td><%= account.lastLoginAt ? formatDateTime(account.lastLoginAt) : 'Never' %></td>
+                <td>
+                  <div class="observer-admin-actions">
+                    <button type="button" data-observer-edit-open="<%= account.id %>">Edit</button>
+                    <form action="/admin/observers/<%= account.id %>/status" method="post"><input type="hidden" name="action" value="<%= account.isActive ? 'disable' : 'enable' %>"/><button class="<%= account.isActive ? 'is-warning' : 'is-enable' %>" type="submit"><%= account.isActive ? 'Disable' : 'Enable' %></button></form>
+                    <form action="/admin/observers/<%= account.id %>/reset-password" method="post"><button class="is-reset" type="submit">Reset Password</button></form>
+                    <form action="/admin/observers/<%= account.id %>/delete" method="post" onsubmit="return confirm('Delete <%= account.observerId %> and all linked incident reports?');"><button class="is-delete" type="submit">Delete</button></form>
+                    <div class="observer-edit-dialog" data-observer-edit-dialog="<%= account.id %>" hidden>
+                      <button class="observer-edit-dialog__backdrop" type="button" data-observer-edit-close aria-label="Close edit observer form"></button>
+                      <section role="dialog" aria-modal="true" aria-labelledby="observer-edit-title-<%= account.id %>">
+                        <header>
+                          <div>
+                            <span>Edit Observer</span>
+                            <h2 id="observer-edit-title-<%= account.id %>"><%= account.fullName %></h2>
+                            <p><%= account.observerId %> · Update accreditation, contact details and expiry.</p>
+                          </div>
+                          <button type="button" data-observer-edit-close aria-label="Close edit observer form">&times;</button>
+                        </header>
+                        <form action="/admin/observers/<%= account.id %>" method="post">
+                          <label><span>Full Name</span><input name="fullName" value="<%= account.fullName %>" required /></label>
+                          <label><span>Organization</span><input name="organization" value="<%= account.organization %>" required /></label>
+                          <label><span>Accreditation Number</span><input name="accreditationNumber" value="<%= account.accreditationNumber %>" required /></label>
+                          <label><span>Email</span><input name="email" type="email" value="<%= account.email %>" /></label>
+                          <label><span>Phone Number</span><input name="phoneNumber" value="<%= account.phoneNumber %>" /></label>
+                          <label><span>Access Expires</span><input name="accessExpiresAt" type="datetime-local" value="<%= account.accessExpiresAt ? new Date(account.accessExpiresAt).toISOString().slice(0, 16) : '' %>" required /></label>
+                          <div class="observer-edit-dialog__note"><strong>Read-only account</strong><span>This observer can monitor activity but cannot change election data.</span></div>
+                          <div class="observer-edit-dialog__actions">
+                            <button class="observer-edit-dialog__cancel" type="button" data-observer-edit-close>Cancel</button>
+                            <button class="observer-edit-dialog__save" type="submit">Save Observer Changes</button>
+                          </div>
+                        </form>
+                      </section>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <aside class="observer-admin-create" id="create-observer">
+      <header><span>+</span><div><h2>Create Observer Account</h2><p>A temporary password will be shown once after saving.</p></div></header>
+      <form action="/admin/observers" method="post">
+        <label><span>Full Name *</span><input name="fullName" required /></label>
+        <label><span>Organization *</span><input name="organization" required /></label>
+        <label><span>Accreditation Number *</span><input name="accreditationNumber" required /></label>
+        <div><label><span>Email</span><input name="email" type="email" /></label><label><span>Phone</span><input name="phoneNumber" /></label></div>
+        <label><span>Access Expiry Date *</span><input name="accessExpiresAt" type="datetime-local" required /></label>
+        <div class="observer-create-readonly"><strong>Read-only access</strong><p>Observers cannot edit election settings, voter records, candidates, ballots, or results.</p></div>
+        <button type="submit">Create Observer Account</button>
+      </form>
+    </aside>
+  </section>
+
+  <section class="observer-admin-lower-grid">
+    <article class="observer-admin-incidents" id="observer-incidents">
+      <header><div><h2>Observer Incident Reports</h2><p>Review concerns submitted through the observer portal.</p></div><span><%= incidents.length %> total</span></header>
+      <% if (!incidents.length) { %><div class="observer-admin-empty">No observer incidents have been submitted.</div><% } %>
+      <div class="observer-incident-admin-list"><% incidents.slice(0, 20).forEach((incident) => { %><article><div class="observer-incident-admin-head"><span class="<%= incident.statusClass %>"><%= incident.statusLabel %></span><div><strong><%= incident.title %></strong><small><%= incident.observerName %> · <%= incident.observerId %> · <%= formatDateTime(incident.submittedAt) %></small></div></div><p><%= incident.details %></p><form action="/admin/observer-incidents/<%= incident.id %>" method="post"><select name="status"><% ['submitted','reviewing','resolved','dismissed'].forEach((status) => { %><option value="<%= status %>" <%= incident.status === status ? 'selected' : '' %>><%= status.charAt(0).toUpperCase() + status.slice(1) %></option><% }) %></select><input name="adminNotes" value="<%= incident.adminNotes %>" placeholder="Committee note" maxlength="2000"/><button type="submit">Update</button></form></article><% }) %></div>
+    </article>
+
+    <article class="observer-admin-access-log">
+      <header><div><h2>Recent Observer Access</h2><p>Latest observer security activity.</p></div></header>
+      <% if (!accessLogs.length) { %><div class="observer-admin-empty">No observer access has been recorded.</div><% } %>
+      <div><% accessLogs.forEach((entry) => { %><article><span></span><div><strong><%= entry.actionLabel %></strong><small><%= entry.observerId %> · <%= entry.ipAddress || 'IP not recorded' %></small></div><time><%= entry.timeAgo %></time></article><% }) %></div>
+    </article>
+  </section>
+</main>
+
+<% if (createdCredential) { %>
+  <div class="observer-credential-modal is-open" data-observer-credential-modal>
+    <div class="observer-credential-modal__backdrop"></div>
+    <section role="dialog" aria-modal="true" aria-labelledby="observer-credential-title">
+      <span class="observer-credential-modal__success">✓</span>
+      <h2 id="observer-credential-title">Observer Account <%= createdCredential.action === 'reset' ? 'Password Reset' : 'Created' %></h2>
+      <p>Provide these temporary credentials to <strong><%= createdCredential.fullName %></strong>. The password will not be displayed again.</p>
+      <label><span>Observer ID</span><div><code data-copy-observer-id><%= createdCredential.observerId %></code><button type="button" data-copy-target="[data-copy-observer-id]">Copy</button></div></label>
+      <label><span>Temporary Password</span><div><code data-copy-observer-password><%= createdCredential.temporaryPassword %></code><button type="button" data-copy-target="[data-copy-observer-password]">Copy</button></div></label>
+      <p class="observer-credential-modal__warning">This is the only time the temporary password will be shown.</p>
+      <button class="observer-credential-modal__close" type="button" data-credential-close>I have saved the credentials</button>
+    </section>
+  </div>
+<% } %>
+
+<script>
+  (() => {
+    const search = document.querySelector('[data-observer-search]');
+    const rows = Array.from(document.querySelectorAll('[data-observer-row]'));
+    const filters = Array.from(document.querySelectorAll('[data-observer-filter]'));
+    let activeFilter = 'all';
+    const applyFilters = () => {
+      const query = String(search?.value || '').trim().toLowerCase();
+      rows.forEach((row) => {
+        const matchesSearch = !query || row.dataset.search.includes(query);
+        const matchesFilter = activeFilter === 'all' || row.dataset.status === activeFilter;
+        row.hidden = !(matchesSearch && matchesFilter);
+      });
+    };
+    search?.addEventListener('input', applyFilters);
+    filters.forEach((button) => button.addEventListener('click', () => {
+      activeFilter = button.dataset.observerFilter;
+      filters.forEach((item) => item.classList.toggle('active', item === button));
+      applyFilters();
+    }));
+
+    const editDialogs = Array.from(document.querySelectorAll('[data-observer-edit-dialog]'));
+    const closeAllEditDialogs = () => {
+      editDialogs.forEach((dialog) => {
+        dialog.hidden = true;
+      });
+      document.body.classList.remove('observer-edit-dialog-open');
+    };
+
+    document.querySelectorAll('[data-observer-edit-open]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const dialog = document.querySelector(`[data-observer-edit-dialog="${button.dataset.observerEditOpen}"]`);
+        if (!dialog) return;
+        closeAllEditDialogs();
+        dialog.hidden = false;
+        document.body.classList.add('observer-edit-dialog-open');
+        window.setTimeout(() => dialog.querySelector('input')?.focus(), 40);
+      });
+    });
+
+    document.querySelectorAll('[data-observer-edit-close]').forEach((button) => {
+      button.addEventListener('click', closeAllEditDialogs);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        closeAllEditDialogs();
+      }
+    });
+
+    document.querySelectorAll('[data-copy-target]').forEach((button) => button.addEventListener('click', async () => {
+      const target = document.querySelector(button.dataset.copyTarget);
+      if (!target) return;
+      await navigator.clipboard.writeText(target.textContent.trim());
+      button.textContent = 'Copied';
+    }));
+    document.querySelector('[data-credential-close]')?.addEventListener('click', () => {
+      document.querySelector('[data-observer-credential-modal]')?.classList.remove('is-open');
+    });
+  })();
+</script>
+
+<%- include("partials/admin-shell-end") %>

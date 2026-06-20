@@ -1,0 +1,29 @@
+<%- include("head", { pageTitle, bodyClass: "observer-app-body" }) %>
+<div class="observer-app-shell">
+  <aside class="observer-sidebar" id="observer-sidebar">
+    <a class="observer-sidebar__brand" href="/observer">
+      <% if (settings.organizationLogoPath) { %><img src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" /><% } else { %><span>EO</span><% } %>
+      <div><strong>Observer Portal</strong><small><%= settings.electionName %></small></div>
+    </a>
+    <div class="observer-readonly-badge"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span><strong>READ ONLY</strong><small>Observer mode</small></span></div>
+    <nav class="observer-nav">
+      <a class="active" href="#overview"><span class="is-blue">01</span>Dashboard</a>
+      <a href="#turnout"><span class="is-pink">02</span>Turnout</a>
+      <a href="#timeline"><span class="is-yellow">03</span>Election Timeline</a>
+      <a href="#candidates"><span class="is-violet">04</span>Candidates</a>
+      <a href="#activity"><span class="is-blue">05</span>Audit Activity</a>
+      <a href="#report-incident"><span class="is-red">06</span>Incidents</a>
+      <a href="#observer-results"><span class="is-pink">07</span>Results</a>
+    </nav>
+    <div class="observer-privacy-card"><strong>Preserving voter privacy</strong><p>All information is aggregated and anonymized. No individual vote choices are shown.</p></div>
+    <form action="/observer/logout" method="post"><button class="observer-sidebar__logout" type="submit">Sign Out</button></form>
+  </aside>
+  <button class="observer-sidebar-backdrop" type="button" data-observer-menu-close aria-label="Close observer navigation"></button>
+  <div class="observer-main">
+    <header class="observer-topbar">
+      <button class="observer-menu-button" type="button" data-observer-menu aria-controls="observer-sidebar" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <div class="observer-topbar__title"><h1>Election Observer Portal</h1><p>Independent, secure and transparent monitoring</p></div>
+      <div class="observer-topbar__status"><span class="status-dot"></span><div><small>Election Status</small><strong><%= electionState.badgeLabel %></strong></div></div>
+      <div class="observer-topbar__identity"><span><%= getInitials(account.fullName) %></span><div><strong><%= account.fullName %></strong><small>Accredited Observer</small></div></div>
+    </header>
+    <%- include("flash") %>

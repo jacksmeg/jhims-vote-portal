@@ -79,6 +79,15 @@
       iconClass: 'is-cyan',
       icon: 'voter',
       opensVoterStatusModal: true,
+    },
+    {
+      title: 'Observer Portal',
+      description: 'Accredited read-only election monitoring and reporting.',
+      href: '/observer/login',
+      buttonLabel: 'Observer Sign In',
+      buttonClass: 'is-violet',
+      iconClass: 'is-violet',
+      icon: 'observer',
     }
   ];
   const trustPoints = [
@@ -267,6 +276,10 @@
         <% } else if (card.icon === 'status') { %>
           <svg viewBox="0 0 24 24" focusable="false">
             <path d="M12 3a9 9 0 1 0 9 9 9 9 0 0 0-9-9Zm1 5v4.59l3.3 3.3-1.41 1.41L11 13V8h2Z" fill="currentColor"/>
+          </svg>
+        <% } else if (card.icon === 'observer') { %>
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M12 4.5C6.5 4.5 2.1 8 1 12c1.1 4 5.5 7.5 11 7.5S21.9 16 23 12c-1.1-4-5.5-7.5-11-7.5Zm0 12a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Zm0-2.3a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" fill="currentColor"/>
           </svg>
         <% } else { %>
           <svg viewBox="0 0 24 24" focusable="false">

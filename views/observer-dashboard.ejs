@@ -1,0 +1,100 @@
+<%- include("partials/observer-shell-start", { pageTitle, account }) %>
+
+<main class="observer-dashboard" id="overview">
+  <section class="observer-welcome-band">
+    <div><h2>Welcome, <%= account.fullName.split(' ')[0] %>.</h2><p>You are viewing live, aggregated election information in protected observer mode.</p></div>
+    <div class="observer-live-chip"><span></span><strong><%= electionState.isOpen ? 'Live monitoring' : electionState.badgeLabel %></strong><small>Updated when this page refreshes</small></div>
+  </section>
+
+  <section class="observer-metric-grid" aria-label="Election observer summary">
+    <article class="observer-metric-card is-red"><span class="observer-metric-card__icon"><svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4ZM8 13a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm8 2c-3 0-8 1.5-8 4v1h16v-1c0-2.5-5-4-8-4ZM8 15c-3 0-7 1.4-7 3.5V20h6v-1c0-1.2.5-2.2 1.4-3A5 5 0 0 0 8 15Z"/></svg></span><div><small>Registered Voters</small><strong><%= metrics.totalVoters.toLocaleString() %></strong><p>Total eligible voters</p></div><i></i></article>
+    <article class="observer-metric-card is-yellow"><span class="observer-metric-card__icon"><svg viewBox="0 0 24 24"><path d="M4 9h16v11H4V9Zm3-4 3 3 7-7 2 2-9 9-5-5 2-2Z"/></svg></span><div><small>Votes Cast</small><strong><%= metrics.votedCount.toLocaleString() %></strong><p>Verified ballots recorded</p></div><i></i></article>
+    <article class="observer-metric-card is-pink"><span class="observer-metric-card__icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 16 16 8M9 8h.01M15 16h.01"/></svg></span><div><small>Turnout</small><strong><%= formatPercent(turnoutRate) %></strong><p>Of registered voters</p></div><i></i></article>
+    <article class="observer-metric-card is-violet"><span class="observer-metric-card__icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg></span><div><small>Remaining Voters</small><strong><%= remainingVoters.toLocaleString() %></strong><p>Yet to participate</p></div><i></i></article>
+    <article class="observer-metric-card is-blue"><span class="observer-metric-card__icon"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg></span><div><small>Active Positions</small><strong><%= metrics.totalPositions.toLocaleString() %></strong><p>Election categories</p></div><i></i></article>
+  </section>
+
+  <section class="observer-primary-grid" id="turnout">
+    <article class="observer-panel observer-chart-panel">
+      <header><div><h3>Votes Over Time</h3><p>Cumulative verified ballots recorded during this election.</p></div><span class="observer-panel-live"><i></i>LIVE</span></header>
+      <div class="observer-line-chart">
+        <svg viewBox="0 0 <%= timelineChart.width %> <%= timelineChart.height %>" preserveAspectRatio="none" role="img" aria-label="Cumulative votes over time chart">
+          <defs><linearGradient id="observer-chart-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2477f4" stop-opacity=".3"/><stop offset="1" stop-color="#2477f4" stop-opacity="0"/></linearGradient></defs>
+          <g class="observer-chart-grid"><line x1="14" y1="30" x2="666" y2="30"/><line x1="14" y1="88" x2="666" y2="88"/><line x1="14" y1="146" x2="666" y2="146"/><line x1="14" y1="204" x2="666" y2="204"/></g>
+          <polygon class="observer-chart-area" points="<%= timelineChart.areaPoints %>"/>
+          <polyline class="observer-chart-line" points="<%= timelineChart.points %>"/>
+        </svg>
+        <div class="observer-chart-labels"><% timelineSeries.forEach((point) => { %><span><%= point.label %></span><% }) %></div>
+      </div>
+      <footer><span>Aggregated ballot count only</span><strong>Last refreshed <%= formatDateTime(new Date().toISOString()) %></strong></footer>
+    </article>
+
+    <article class="observer-panel observer-turnout-panel">
+      <header><div><h3>Turnout Overview</h3><p>Participation at a glance.</p></div></header>
+      <div class="observer-turnout-ring" style="--turnout-angle: <%= Math.min(turnoutRate * 360, 360) %>deg"><div><strong><%= formatPercent(turnoutRate) %></strong><span>Turnout</span></div></div>
+      <div class="observer-turnout-legend"><div><i class="is-pink"></i><span>Votes Cast</span><strong><%= metrics.votedCount.toLocaleString() %></strong></div><div><i></i><span>Remaining</span><strong><%= remainingVoters.toLocaleString() %></strong></div></div>
+    </article>
+
+    <article class="observer-panel observer-schedule-panel" id="timeline">
+      <header><div><h3>Election Schedule</h3><p>Official election milestones.</p></div></header>
+      <ol>
+        <li class="is-complete"><span></span><div><strong>Voting Opens</strong><small><%= settings.opensAt ? formatDateTime(settings.opensAt) : 'To be announced' %></small></div></li>
+        <li class="<%= electionState.isOpen || electionState.isClosed ? 'is-complete' : 'is-current' %>"><span></span><div><strong>Live Voting Window</strong><small><%= electionState.message %></small></div></li>
+        <li class="<%= electionState.isClosed ? 'is-complete' : 'is-current' %>"><span></span><div><strong>Voting Closes</strong><small><%= settings.closesAt ? formatDateTime(settings.closesAt) : 'To be announced' %></small></div></li>
+        <li><span></span><div><strong>Results Certification</strong><small>Available after the polls close</small></div></li>
+      </ol>
+    </article>
+  </section>
+
+  <section class="observer-secondary-grid">
+    <article class="observer-panel observer-activity-panel" id="activity">
+      <header><div><h3>Recent Election Activity</h3><p>Anonymized events with no voter identity or choices.</p></div></header>
+      <div class="observer-activity-list">
+        <% if (!activity.length) { %><p class="observer-empty">No observer-safe election activity has been recorded yet.</p><% } %>
+        <% activity.forEach((item) => { %><article><span class="<%= item.toneClass %>"></span><div><strong><%= item.title %></strong><small><%= item.description %></small></div><time><%= item.timeAgo %></time></article><% }) %>
+      </div>
+    </article>
+
+    <article class="observer-panel observer-integrity-panel">
+      <header><div><h3>System Integrity</h3><p>Security controls visible to observers.</p></div><span class="observer-secure-label">All systems secure</span></header>
+      <div class="observer-integrity-list"><% integrityChecks.forEach((check) => { %><div><span>✓</span><strong><%= check.label %></strong><small><%= check.status %></small></div><% }) %></div>
+      <p><strong>No integrity issues detected.</strong> Election controls are operating normally.</p>
+    </article>
+
+    <article class="observer-results-lock <%= resultsUnlocked ? 'is-unlocked' : '' %>" id="observer-results">
+      <% if (!resultsUnlocked) { %><span><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><h3>Results locked until polls close</h3><p>Candidate totals, rankings and winner information remain unavailable while voting is open.</p><small>This protects a fair and independent election.</small><% } else { %><span class="is-open"><svg viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 9-3"/><rect x="5" y="10" width="14" height="10" rx="2"/><path d="m9 15 2 2 4-4"/></svg></span><h3>Final results unlocked</h3><p>The voting window has closed. Official aggregate results are available below.</p><a href="#final-results">View Final Results</a><% } %>
+    </article>
+
+    <article class="observer-panel observer-accreditation-card">
+      <header><div><h3>Observer Accreditation</h3><p>Your current monitoring authority.</p></div></header>
+      <dl><div><dt>Observer</dt><dd><%= account.fullName %></dd></div><div><dt>Observer ID</dt><dd><%= account.observerId %></dd></div><div><dt>Organization</dt><dd><%= account.organization %></dd></div><div><dt>Accreditation</dt><dd><%= account.accreditationNumber || 'Not provided' %></dd></div><div><dt>Access expires</dt><dd><%= account.accessExpiresAt ? formatDateTime(account.accessExpiresAt) : 'No expiry set' %></dd></div></dl>
+    </article>
+  </section>
+
+  <section class="observer-panel observer-candidate-panel" id="candidates">
+    <header><div><h3>Approved Candidate Directory</h3><p>Candidate names and positions only. Live candidate totals remain protected.</p></div><span><%= candidates.reduce((total, position) => total + position.candidates.length, 0) %> candidates</span></header>
+    <div class="observer-position-list"><% candidates.forEach((position, positionIndex) => { %><article class="is-tone-<%= (positionIndex % 5) + 1 %>"><h4><%= position.name %></h4><div><% position.candidates.forEach((candidate) => { %><span><% if (candidate.photoPath) { %><img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" data-image-fallback /><% } else { %><i><%= getInitials(candidate.name) %></i><% } %><strong><%= candidate.name %></strong></span><% }) %></div></article><% }) %></div>
+  </section>
+
+  <% if (resultsUnlocked) { %>
+    <section class="observer-panel observer-final-results" id="final-results">
+      <header><div><h3>Final Position Results</h3><p>Official aggregate vote totals after election closing.</p></div></header>
+      <div class="observer-final-results__grid"><% results.forEach((position, index) => { %><article class="is-tone-<%= (index % 5) + 1 %>"><h4><%= position.name %></h4><p>Winner: <strong><%= position.winnerLabel %></strong></p><% position.candidates.forEach((candidate) => { %><div><span><%= candidate.name %></span><b><%= candidate.voteCount %> · <%= formatPercent(candidate.shareRatio) %></b></div><% }) %></article><% }) %></div>
+    </section>
+  <% } %>
+
+  <section class="observer-report-grid">
+    <article class="observer-panel observer-incident-form" id="report-incident">
+      <header><div><h3>Report an Incident</h3><p>Record an observation or concern for election committee review.</p></div><span>Read-only reporting</span></header>
+      <form action="/observer/incidents" method="post"><label><span>Category</span><select name="category"><option value="general">General observation</option><option value="access">Access concern</option><option value="process">Election process</option><option value="technical">Technical issue</option><option value="security">Security concern</option></select></label><label><span>Short title</span><input name="title" maxlength="120" required /></label><label class="is-wide"><span>Details</span><textarea name="details" rows="5" minlength="10" maxlength="2000" required></textarea></label><button type="submit">Submit Incident Report</button></form>
+    </article>
+
+    <article class="observer-panel observer-my-incidents" id="my-incidents">
+      <header><div><h3>My Incident Reports</h3><p>Track reports submitted during this election.</p></div><a href="/observer/report.pdf">Export Observer Report</a></header>
+      <% if (!incidents.length) { %><p class="observer-empty">You have not submitted any incidents.</p><% } %>
+      <div><% incidents.forEach((incident) => { %><article><span class="<%= incident.statusClass %>"><%= incident.statusLabel %></span><div><strong><%= incident.title %></strong><small><%= formatDateTime(incident.submittedAt) %> · <%= incident.category %></small><% if (incident.adminNotes) { %><p>Committee note: <%= incident.adminNotes %></p><% } %></div></article><% }) %></div>
+    </article>
+  </section>
+</main>
+
+<%- include("partials/observer-shell-end") %>

@@ -268,6 +268,43 @@ function initDatabase(defaultElectionName) {
       results_json TEXT NOT NULL DEFAULT '[]'
     );
 
+    CREATE TABLE IF NOT EXISTS observer_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      observer_id TEXT NOT NULL UNIQUE,
+      full_name TEXT NOT NULL,
+      organization TEXT NOT NULL,
+      accreditation_number TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      phone_number TEXT NOT NULL DEFAULT '',
+      password_hash TEXT NOT NULL,
+      must_change_password INTEGER NOT NULL DEFAULT 1 CHECK (must_change_password IN (0, 1)),
+      is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+      access_expires_at TEXT NOT NULL DEFAULT '',
+      failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+      locked_until TEXT NOT NULL DEFAULT '',
+      last_login_at TEXT,
+      password_changed_at TEXT,
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS observer_incidents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      observer_account_id INTEGER NOT NULL,
+      category TEXT NOT NULL DEFAULT 'general',
+      title TEXT NOT NULL,
+      details TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'submitted',
+      admin_notes TEXT NOT NULL DEFAULT '',
+      submitted_at TEXT NOT NULL,
+      reviewed_at TEXT,
+      reviewed_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (observer_account_id) REFERENCES observer_accounts (id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_voters_has_voted ON voters (has_voted);
     CREATE INDEX IF NOT EXISTS idx_candidates_position_id ON candidates (position_id);
     CREATE INDEX IF NOT EXISTS idx_ballot_entries_candidate_id ON ballot_entries (candidate_id);
@@ -275,6 +312,14 @@ function initDatabase(defaultElectionName) {
     CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_election_archives_archived_at
       ON election_archives (archived_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_observer_accounts_active
+      ON observer_accounts (is_active, access_expires_at);
+    CREATE INDEX IF NOT EXISTS idx_observer_accounts_last_login
+      ON observer_accounts (last_login_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_observer_incidents_status
+      ON observer_incidents (status, submitted_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_observer_incidents_account
+      ON observer_incidents (observer_account_id, submitted_at DESC);
   `);
 
   db.exec(`
