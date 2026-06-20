@@ -9457,6 +9457,10 @@ body.admin-app-body {
   box-shadow: 0 30px 70px rgba(15, 35, 68, 0.22);
 }
 
+.admin-notification-drawer[hidden] {
+  display: none !important;
+}
+
 .admin-notification-drawer::before {
   content: "";
   position: absolute;
