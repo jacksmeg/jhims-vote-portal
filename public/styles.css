@@ -9429,6 +9429,253 @@ body.admin-app-body {
   text-align: center;
 }
 
+.admin-app-body .admin-icon-button__count.is-hidden,
+.admin-app-body .admin-icon-button__dot.is-hidden {
+  display: none;
+}
+
+.admin-notification-center {
+  position: relative;
+}
+
+.admin-notification-drawer {
+  position: absolute;
+  top: calc(100% + 14px);
+  right: 0;
+  z-index: 80;
+  width: min(430px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 110px));
+  display: grid;
+  grid-template-rows: auto auto minmax(160px, 1fr) auto auto;
+  overflow: hidden;
+  border: 1px solid rgba(17, 53, 94, 0.12);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 0 0, rgba(239, 61, 69, 0.11), transparent 12rem),
+    radial-gradient(circle at 100% 0, rgba(37, 99, 235, 0.12), transparent 13rem),
+    #ffffff;
+  box-shadow: 0 30px 70px rgba(15, 35, 68, 0.22);
+}
+
+.admin-notification-drawer::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  right: 18px;
+  width: 18px;
+  height: 18px;
+  transform: rotate(45deg);
+  background: #ffffff;
+  border-left: 1px solid rgba(17, 53, 94, 0.1);
+  border-top: 1px solid rgba(17, 53, 94, 0.1);
+}
+
+.admin-notification-drawer__header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 20px 14px;
+}
+
+.admin-notification-drawer__header span {
+  display: block;
+  color: #ef3d45;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.admin-notification-drawer__header h2 {
+  margin: 4px 0 0;
+  color: #132b4e;
+  font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+  font-size: 1.2rem;
+  letter-spacing: -0.04em;
+}
+
+.admin-notification-drawer__header button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 12px;
+  background: #f2f5fa;
+  color: #5f7189;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.admin-notification-drawer__status {
+  margin: 0 20px 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #edf7ff;
+  color: #2362b7;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.admin-notification-drawer__status[data-tone="success"] {
+  background: #e5f9f0;
+  color: #087a54;
+}
+
+.admin-notification-drawer__status[data-tone="warning"] {
+  background: #fff5db;
+  color: #a76600;
+}
+
+.admin-notification-drawer__status[data-tone="error"] {
+  background: #ffe8ed;
+  color: #d32646;
+}
+
+.admin-notification-list {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 16px;
+  overflow: auto;
+}
+
+.admin-notification-empty,
+.admin-notification-item {
+  border: 1px solid rgba(17, 53, 94, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.admin-notification-empty {
+  padding: 18px;
+  color: #6f7f96;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.admin-notification-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 13px;
+  box-shadow: 0 12px 30px rgba(18, 45, 84, 0.06);
+}
+
+.admin-notification-item.is-unread {
+  border-color: rgba(239, 61, 69, 0.28);
+  background: linear-gradient(135deg, #fff, #fff7f9);
+}
+
+.admin-notification-item__icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #eef4ff;
+  color: #1d64d8;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.admin-notification-item__icon.is-vote { background: #e5f9f0; color: #078a5c; }
+.admin-notification-item__icon.is-nomination { background: #fff2d6; color: #a76700; }
+.admin-notification-item__icon.is-observer { background: #efe8ff; color: #6d28d9; }
+.admin-notification-item__icon.is-security { background: #ffe7ed; color: #df2448; }
+.admin-notification-item__icon.is-message { background: #e8f0ff; color: #245ddb; }
+
+.admin-notification-item__content {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.admin-notification-item__content strong {
+  color: #132d51;
+  font-size: 0.86rem;
+}
+
+.admin-notification-item__content p {
+  margin: 0;
+  color: #63758d;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.admin-notification-item__content small {
+  color: #95a1b3;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.admin-notification-item__actions {
+  display: grid;
+  gap: 7px;
+}
+
+.admin-notification-item__actions a,
+.admin-notification-item__actions button,
+.admin-notification-actions button,
+.admin-notification-actions a,
+.admin-notification-compose button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid #dce4ef;
+  background: #ffffff;
+  color: #1c5bc3;
+  font-size: 0.66rem;
+  font-weight: 900;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.admin-notification-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 16px;
+  border-top: 1px solid #edf1f6;
+  border-bottom: 1px solid #edf1f6;
+  background: rgba(248, 251, 255, 0.78);
+}
+
+.admin-notification-compose {
+  display: grid;
+  gap: 9px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(239, 61, 69, 0.06));
+}
+
+.admin-notification-compose strong {
+  color: #132d51;
+  font-size: 0.8rem;
+}
+
+.admin-notification-compose input,
+.admin-notification-compose textarea {
+  width: 100%;
+  border: 1px solid #dfe6f0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #182f51;
+  font: inherit;
+  font-size: 0.74rem;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.admin-notification-compose button {
+  min-height: 38px;
+  border: 0;
+  background: linear-gradient(135deg, #1768f2, #00a779);
+  color: #ffffff;
+}
+
 .admin-app-body .admin-identity-chip {
   display: flex;
   align-items: center;

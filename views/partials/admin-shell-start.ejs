@@ -1,7 +1,7 @@
 <%
   const isDashboardView = currentSection === "dashboard";
   const dashboardMetricCount = typeof metrics !== "undefined" ? metrics.totalVoters : null;
-  const dashboardNotificationCount = typeof activityFeed !== "undefined" ? activityFeed.length : 0;
+  const dashboardNotificationCount = typeof adminNotificationUnreadCount !== "undefined" ? adminNotificationUnreadCount : 0;
   const shellStatusLabel = electionState.isOpen
     ? "OPEN"
     : electionState.isScheduled
@@ -241,16 +241,46 @@
       </div>
 
       <div class="admin-topbar__actions">
-        <button class="admin-icon-button" type="button" aria-label="Notifications">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-4H5l1.5-2v-5a5.5 5.5 0 1 1 11 0v5L19 18Z" fill="currentColor"/>
-          </svg>
-          <% if (dashboardNotificationCount > 0) { %>
-            <span class="admin-icon-button__count"><%= dashboardNotificationCount %></span>
-          <% } else { %>
-            <span class="admin-icon-button__dot"></span>
-          <% } %>
-        </button>
+        <div class="admin-notification-center" data-admin-notification-center>
+          <button
+            class="admin-icon-button admin-icon-button--notifications"
+            type="button"
+            aria-label="Notifications"
+            aria-expanded="false"
+            data-notification-toggle
+          >
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-4H5l1.5-2v-5a5.5 5.5 0 1 1 11 0v5L19 18Z" fill="currentColor"/>
+            </svg>
+            <span class="admin-icon-button__count <%= dashboardNotificationCount > 0 ? '' : 'is-hidden' %>" data-notification-count><%= dashboardNotificationCount %></span>
+            <span class="admin-icon-button__dot <%= dashboardNotificationCount > 0 ? 'is-hidden' : '' %>" data-notification-dot></span>
+          </button>
+
+          <section class="admin-notification-drawer" data-notification-drawer hidden>
+            <header class="admin-notification-drawer__header">
+              <div>
+                <span>Live Messenger</span>
+                <h2>Admin Notifications</h2>
+              </div>
+              <button type="button" data-notification-close aria-label="Close notifications">&times;</button>
+            </header>
+            <div class="admin-notification-drawer__status" data-notification-status>Connecting to live updates...</div>
+            <div class="admin-notification-list" data-notification-list>
+              <article class="admin-notification-empty">Loading notifications...</article>
+            </div>
+            <div class="admin-notification-actions">
+              <button type="button" data-notification-read-all>Mark all read</button>
+              <a href="/admin/audit">Open audit log</a>
+            </div>
+            <form class="admin-notification-compose" data-notification-compose>
+              <strong>Send quick admin message</strong>
+              <input name="title" maxlength="120" placeholder="Message title" required />
+              <textarea name="body" maxlength="500" rows="3" placeholder="Write a short internal message..." required></textarea>
+              <input name="linkUrl" placeholder="/admin/results (optional)" />
+              <button type="submit">Send Message</button>
+            </form>
+          </section>
+        </div>
 
         <div class="admin-identity-chip">
           <div class="admin-avatar"><%= getInitials(admin.username) %></div>

@@ -253,6 +253,21 @@ function initDatabase(defaultElectionName) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS admin_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL DEFAULT 'system',
+      priority TEXT NOT NULL DEFAULT 'normal',
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      link_url TEXT NOT NULL DEFAULT '',
+      source_type TEXT NOT NULL DEFAULT '',
+      source_id TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      read_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS election_archives (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       election_name TEXT NOT NULL,
@@ -310,6 +325,10 @@ function initDatabase(defaultElectionName) {
     CREATE INDEX IF NOT EXISTS idx_ballot_entries_candidate_id ON ballot_entries (candidate_id);
     CREATE INDEX IF NOT EXISTS idx_ballot_entries_position_id ON ballot_entries (position_id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_admin_notifications_unread
+      ON admin_notifications (read_at, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_admin_notifications_created
+      ON admin_notifications (created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_election_archives_archived_at
       ON election_archives (archived_at DESC);
     CREATE INDEX IF NOT EXISTS idx_observer_accounts_active

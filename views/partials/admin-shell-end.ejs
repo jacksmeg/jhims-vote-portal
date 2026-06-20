@@ -43,5 +43,212 @@
     });
   })();
 </script>
+<script>
+  (() => {
+    const center = document.querySelector('[data-admin-notification-center]');
+    if (!center) return;
+
+    const toggle = center.querySelector('[data-notification-toggle]');
+    const drawer = center.querySelector('[data-notification-drawer]');
+    const closeButton = center.querySelector('[data-notification-close]');
+    const list = center.querySelector('[data-notification-list]');
+    const countBadge = center.querySelector('[data-notification-count]');
+    const dot = center.querySelector('[data-notification-dot]');
+    const status = center.querySelector('[data-notification-status]');
+    const readAllButton = center.querySelector('[data-notification-read-all]');
+    const composeForm = center.querySelector('[data-notification-compose]');
+
+    const setStatus = (message, tone = '') => {
+      if (!status) return;
+      status.textContent = message;
+      status.dataset.tone = tone;
+    };
+
+    const setCount = (count) => {
+      const safeCount = Number(count || 0);
+      if (countBadge) {
+        countBadge.textContent = safeCount > 99 ? '99+' : String(safeCount);
+        countBadge.classList.toggle('is-hidden', safeCount <= 0);
+      }
+      if (dot) {
+        dot.classList.toggle('is-hidden', safeCount > 0);
+      }
+    };
+
+    const createIcon = (category) => {
+      const icon = document.createElement('span');
+      icon.className = `admin-notification-item__icon is-${category || 'system'}`;
+      icon.textContent = (category || 'system').slice(0, 1).toUpperCase();
+      return icon;
+    };
+
+    const createNotificationItem = (notification) => {
+      const article = document.createElement('article');
+      article.className = `admin-notification-item ${notification.isUnread ? 'is-unread' : ''}`;
+      article.dataset.notificationId = notification.id;
+
+      article.appendChild(createIcon(notification.category));
+
+      const content = document.createElement('div');
+      content.className = 'admin-notification-item__content';
+
+      const title = document.createElement('strong');
+      title.textContent = notification.title || 'Notification';
+      content.appendChild(title);
+
+      const body = document.createElement('p');
+      body.textContent = notification.body || '';
+      content.appendChild(body);
+
+      const meta = document.createElement('small');
+      meta.textContent = notification.timeLabel || '';
+      content.appendChild(meta);
+
+      article.appendChild(content);
+
+      const actions = document.createElement('div');
+      actions.className = 'admin-notification-item__actions';
+
+      if (notification.linkUrl) {
+        const link = document.createElement('a');
+        link.href = notification.linkUrl;
+        link.textContent = 'Open';
+        actions.appendChild(link);
+      }
+
+      if (notification.isUnread) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = 'Read';
+        button.addEventListener('click', async () => {
+          await markRead(notification.id);
+        });
+        actions.appendChild(button);
+      }
+
+      article.appendChild(actions);
+      return article;
+    };
+
+    const renderNotifications = (payload) => {
+      setCount(payload?.unreadCount || 0);
+      if (!list) return;
+      list.replaceChildren();
+
+      const notifications = Array.isArray(payload?.notifications) ? payload.notifications : [];
+      if (notifications.length === 0) {
+        const empty = document.createElement('article');
+        empty.className = 'admin-notification-empty';
+        empty.textContent = 'No admin notifications yet. Important activity will appear here live.';
+        list.appendChild(empty);
+        return;
+      }
+
+      notifications.forEach((notification) => {
+        list.appendChild(createNotificationItem(notification));
+      });
+    };
+
+    const fetchSnapshot = async () => {
+      const response = await fetch('/admin/notifications?limit=12', {
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) throw new Error('Could not load notifications.');
+      renderNotifications(await response.json());
+    };
+
+    const markRead = async (id) => {
+      const response = await fetch('/admin/notifications/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(id ? { id } : { all: true }),
+      });
+      if (!response.ok) throw new Error('Could not update notification status.');
+      renderNotifications(await response.json());
+    };
+
+    const openDrawer = () => {
+      drawer.hidden = false;
+      toggle.setAttribute('aria-expanded', 'true');
+      fetchSnapshot().catch(() => setStatus('Could not refresh notifications.', 'error'));
+    };
+
+    const closeDrawer = () => {
+      drawer.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+    };
+
+    toggle?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (drawer.hidden) {
+        openDrawer();
+      } else {
+        closeDrawer();
+      }
+    });
+    closeButton?.addEventListener('click', closeDrawer);
+    drawer?.addEventListener('click', (event) => event.stopPropagation());
+    document.addEventListener('click', () => {
+      if (!drawer.hidden) closeDrawer();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !drawer.hidden) closeDrawer();
+    });
+
+    readAllButton?.addEventListener('click', async () => {
+      try {
+        await markRead();
+        setStatus('All notifications marked as read.', 'success');
+      } catch (error) {
+        setStatus(error.message, 'error');
+      }
+    });
+
+    composeForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(composeForm);
+      const payload = {
+        title: String(formData.get('title') || '').trim(),
+        body: String(formData.get('body') || '').trim(),
+        linkUrl: String(formData.get('linkUrl') || '').trim(),
+      };
+
+      try {
+        const response = await fetch('/admin/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not send message.');
+        composeForm.reset();
+        renderNotifications(result);
+        setStatus('Message sent to admin notifications.', 'success');
+      } catch (error) {
+        setStatus(error.message, 'error');
+      }
+    });
+
+    fetchSnapshot().catch(() => setStatus('Notifications will retry shortly.', 'error'));
+
+    if ('EventSource' in window) {
+      const stream = new EventSource('/admin/notifications/stream');
+      stream.addEventListener('open', () => setStatus('Live updates connected.', 'success'));
+      stream.addEventListener('notifications:snapshot', (event) => {
+        renderNotifications(JSON.parse(event.data));
+        setStatus('Live updates connected.', 'success');
+      });
+      stream.addEventListener('notifications:update', (event) => {
+        renderNotifications(JSON.parse(event.data));
+        setStatus('New activity received live.', 'success');
+      });
+      stream.addEventListener('error', () => {
+        setStatus('Live connection reconnecting...', 'warning');
+      });
+    } else {
+      setStatus('Live stream unavailable in this browser. Refresh to update.', 'warning');
+    }
+  })();
+</script>
 </body>
 </html>

@@ -89,6 +89,7 @@ const sessionSecureCookie = String(
 )
   .trim()
   .toLowerCase() === "true";
+const adminNotificationClients = new Set();
 
 const publicDirectory = path.join(process.cwd(), "public");
 const templatesDirectory = path.join(publicDirectory, "templates");
@@ -1334,6 +1335,229 @@ function logSystemAudit(action, details = {}) {
   );
 }
 
+function normalizeAdminNotification(row) {
+  return {
+    id: Number(row.id),
+    category: row.category || "system",
+    priority: row.priority || "normal",
+    title: row.title || "Notification",
+    body: row.body || "",
+    linkUrl: row.linkUrl || "",
+    sourceType: row.sourceType || "",
+    sourceId: row.sourceId || "",
+    createdBy: row.createdBy || "",
+    readAt: row.readAt || "",
+    createdAt: row.createdAt || "",
+    updatedAt: row.updatedAt || "",
+    isUnread: !row.readAt,
+    timeLabel: row.createdAt ? formatDateTime(row.createdAt) : "",
+  };
+}
+
+function getAdminNotifications(limit = 12) {
+  const safeLimit = clampInteger(limit, 12, 1, 50);
+  return db.prepare(`
+    SELECT
+      id,
+      category,
+      priority,
+      title,
+      body,
+      link_url AS linkUrl,
+      source_type AS sourceType,
+      source_id AS sourceId,
+      created_by AS createdBy,
+      read_at AS readAt,
+      created_at AS createdAt,
+      updated_at AS updatedAt
+    FROM admin_notifications
+    ORDER BY created_at DESC, id DESC
+    LIMIT ?
+  `).all(safeLimit).map(normalizeAdminNotification);
+}
+
+function getUnreadAdminNotificationCount() {
+  return Number(
+    db.prepare(`
+      SELECT COUNT(*) AS total
+      FROM admin_notifications
+      WHERE read_at IS NULL
+    `).get()?.total || 0,
+  );
+}
+
+function getAdminNotificationSnapshot(limit = 12) {
+  return {
+    unreadCount: getUnreadAdminNotificationCount(),
+    notifications: getAdminNotifications(limit),
+    generatedAt: nowIso(),
+  };
+}
+
+function writeAdminNotificationEvent(response, eventName, payload) {
+  response.write(`event: ${eventName}\n`);
+  response.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function broadcastAdminNotificationUpdate() {
+  if (adminNotificationClients.size === 0) {
+    return;
+  }
+
+  const payload = getAdminNotificationSnapshot();
+  for (const response of adminNotificationClients) {
+    try {
+      writeAdminNotificationEvent(response, "notifications:update", payload);
+    } catch (_error) {
+      adminNotificationClients.delete(response);
+    }
+  }
+}
+
+function createAdminNotification({
+  category = "system",
+  priority = "normal",
+  title,
+  body = "",
+  linkUrl = "",
+  sourceType = "",
+  sourceId = "",
+  createdBy = "system",
+} = {}) {
+  const safeTitle = String(title || "").trim().slice(0, 120);
+  if (!safeTitle) {
+    return null;
+  }
+
+  const timestamp = nowIso();
+  const result = db.prepare(`
+    INSERT INTO admin_notifications (
+      category,
+      priority,
+      title,
+      body,
+      link_url,
+      source_type,
+      source_id,
+      created_by,
+      created_at,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    String(category || "system").trim().slice(0, 40) || "system",
+    String(priority || "normal").trim().slice(0, 20) || "normal",
+    safeTitle,
+    String(body || "").trim().slice(0, 500),
+    String(linkUrl || "").trim().slice(0, 240),
+    String(sourceType || "").trim().slice(0, 60),
+    String(sourceId || "").trim().slice(0, 80),
+    String(createdBy || "system").trim().slice(0, 80),
+    timestamp,
+    timestamp,
+  );
+
+  broadcastAdminNotificationUpdate();
+  return Number(result.lastInsertRowid);
+}
+
+function markAdminNotificationsRead({ ids = [], all = false } = {}) {
+  const timestamp = nowIso();
+  if (all) {
+    db.prepare(`
+      UPDATE admin_notifications
+      SET read_at = COALESCE(read_at, ?), updated_at = ?
+      WHERE read_at IS NULL
+    `).run(timestamp, timestamp);
+    broadcastAdminNotificationUpdate();
+    return;
+  }
+
+  const safeIds = [...new Set(ids.map((id) => parseInteger(id, 0)).filter((id) => id > 0))];
+  if (safeIds.length === 0) {
+    return;
+  }
+
+  const placeholders = safeIds.map(() => "?").join(", ");
+  db.prepare(`
+    UPDATE admin_notifications
+    SET read_at = COALESCE(read_at, ?), updated_at = ?
+    WHERE id IN (${placeholders})
+  `).run(timestamp, timestamp, ...safeIds);
+  broadcastAdminNotificationUpdate();
+}
+
+function getAdminNotificationForAudit(actorType, actorIdentifier, action, details = {}, auditId = "") {
+  switch (action) {
+    case "vote_submitted":
+      return {
+        category: "vote",
+        priority: "normal",
+        title: "Vote recorded",
+        body: `${actorIdentifier} submitted ${details.submittedChoices || 0} choice${Number(details.submittedChoices || 0) === 1 ? "" : "s"} and skipped ${details.skippedCount || 0}.`,
+        linkUrl: "/admin/results",
+      };
+    case "nomination_submitted":
+      return {
+        category: "nomination",
+        priority: "high",
+        title: "New nomination submitted",
+        body: `${details.applicationNumber || actorIdentifier} applied for ${details.positionName || "a position"} (${details.staffId || "staff ID not listed"}).`,
+        linkUrl: details.nominationId ? `/admin/nominations/${details.nominationId}` : "/admin/nominations",
+      };
+    case "nomination_resubmitted":
+      return {
+        category: "nomination",
+        priority: "normal",
+        title: "Nomination correction resubmitted",
+        body: `${details.applicationNumber || actorIdentifier} resubmitted corrections for ${details.positionName || "a position"}.`,
+        linkUrl: details.nominationId ? `/admin/nominations/${details.nominationId}` : "/admin/nominations",
+      };
+    case "observer_incident_submitted":
+      return {
+        category: "observer",
+        priority: "high",
+        title: "Observer incident submitted",
+        body: `${actorIdentifier} submitted a ${details.category || "general"} incident report.`,
+        linkUrl: "/admin/observers#observer-incidents",
+      };
+    case "voter_otp_send_failed":
+    case "voter_otp_failed":
+    case "otp_test_send_failed":
+    case "captcha_verification_failed":
+    case "admin_login_failed":
+      return {
+        category: "security",
+        priority: "urgent",
+        title: "Security attention needed",
+        body: `${humanizeToken(action)} for ${actorIdentifier || actorType}.`,
+        linkUrl: action.includes("otp") ? "/admin/otp-logs" : "/admin/audit",
+      };
+    default:
+      return null;
+  }
+}
+
+function createAdminNotificationFromAudit(actorType, actorIdentifier, action, details = {}, auditId = "") {
+  const notification = getAdminNotificationForAudit(
+    actorType,
+    actorIdentifier,
+    action,
+    details,
+    auditId,
+  );
+
+  if (!notification) {
+    return null;
+  }
+
+  return createAdminNotification({
+    ...notification,
+    sourceType: "audit",
+    sourceId: String(auditId || ""),
+    createdBy: actorIdentifier || actorType || "system",
+  });
+}
+
 function getPositionsWithoutCandidates() {
   return db.prepare(`
     SELECT p.name
@@ -1633,7 +1857,7 @@ function syncAutomaticNominationLifecycle() {
 }
 
 function logAudit(req, actorType, actorIdentifier, action, details = {}) {
-  db.prepare(`
+  const insertResult = db.prepare(`
     INSERT INTO audit_logs (
       actor_type,
       actor_identifier,
@@ -1652,6 +1876,14 @@ function logAudit(req, actorType, actorIdentifier, action, details = {}) {
     req.ip || "",
     req.get("user-agent") || "",
     nowIso(),
+  );
+
+  createAdminNotificationFromAudit(
+    actorType,
+    actorIdentifier,
+    action,
+    details,
+    Number(insertResult.lastInsertRowid),
   );
 }
 
@@ -5125,6 +5357,7 @@ app.use(
   }),
 );
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "32kb" }));
 app.use("/uploads", express.static(uploadsRootDirectory));
 app.use(express.static(publicDirectory, { redirect: false }));
 app.use(
@@ -5158,6 +5391,9 @@ app.use((req, res, next) => {
   res.locals.observer = req.session.observer || null;
   res.locals.voter = req.session.voter || null;
   res.locals.nominationApplicant = req.session.nominationApplicant || null;
+  res.locals.adminNotificationUnreadCount = req.session.admin
+    ? getUnreadAdminNotificationCount()
+    : 0;
   res.locals.captcha = getCaptchaPublicConfig();
   res.locals.currentYear = new Date().getFullYear();
   res.locals.formatDateTime = formatDateTime;
@@ -6836,6 +7072,83 @@ app.post("/admin/logout", requireAdmin, (req, res) => {
   res.redirect("/admin/login");
 });
 
+app.get("/admin/notifications", requireAdmin, (req, res) => {
+  const limit = clampInteger(req.query.limit, 12, 1, 50);
+  return res.json(getAdminNotificationSnapshot(limit));
+});
+
+app.post("/admin/notifications", requireAdmin, (req, res) => {
+  const title = String(req.body.title || "").trim();
+  const body = String(req.body.body || "").trim();
+  const linkUrl = String(req.body.linkUrl || "").trim();
+
+  if (!title || title.length > 120 || !body || body.length > 500) {
+    return res.status(400).json({
+      error: "Enter a title and message. Title must be 120 characters or fewer, and message must be 500 characters or fewer.",
+    });
+  }
+
+  if (linkUrl && (!linkUrl.startsWith("/admin") || linkUrl.startsWith("//"))) {
+    return res.status(400).json({
+      error: "Message links must point to an admin page.",
+    });
+  }
+
+  const notificationId = createAdminNotification({
+    category: "message",
+    priority: "normal",
+    title,
+    body,
+    linkUrl,
+    sourceType: "admin_message",
+    sourceId: crypto.randomUUID(),
+    createdBy: req.session.admin.username,
+  });
+
+  logAudit(req, "admin", req.session.admin.username, "admin_message_sent", {
+    notificationId,
+    title,
+  });
+
+  return res.status(201).json(getAdminNotificationSnapshot());
+});
+
+app.post("/admin/notifications/read", requireAdmin, (req, res) => {
+  const all = req.body.all === true || req.body.all === "true" || req.body.all === "on";
+  const ids = Array.isArray(req.body.ids)
+    ? req.body.ids
+    : req.body.id
+      ? [req.body.id]
+      : [];
+
+  markAdminNotificationsRead({ ids, all });
+  return res.json(getAdminNotificationSnapshot());
+});
+
+app.get("/admin/notifications/stream", requireAdmin, (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  adminNotificationClients.add(res);
+  writeAdminNotificationEvent(res, "notifications:snapshot", getAdminNotificationSnapshot());
+
+  const heartbeat = setInterval(() => {
+    try {
+      writeAdminNotificationEvent(res, "notifications:heartbeat", { at: nowIso() });
+    } catch (_error) {
+      clearInterval(heartbeat);
+      adminNotificationClients.delete(res);
+    }
+  }, 25000);
+
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    adminNotificationClients.delete(res);
+  });
+});
+
 app.get("/admin", requireAdmin, async (req, res) => {
   const metrics = getDashboardMetrics();
   const settings = getElectionSettings();
@@ -8191,6 +8504,7 @@ app.post("/admin/election/archive-reset", requireAdmin, async (req, res) => {
     db.prepare("DELETE FROM candidates").run();
     db.prepare("DELETE FROM positions").run();
     db.prepare("DELETE FROM voters").run();
+    db.prepare("DELETE FROM admin_notifications").run();
 
     setSetting("election_phase", "setup");
     setSetting("opens_at", "");
@@ -8269,6 +8583,7 @@ app.post("/admin/system/fresh-reset", requireAdmin, async (req, res) => {
     db.prepare("DELETE FROM voters").run();
     db.prepare("DELETE FROM election_archives").run();
     db.prepare("DELETE FROM audit_logs").run();
+    db.prepare("DELETE FROM admin_notifications").run();
 
     setSetting("election_phase", "setup");
     setSetting("opens_at", "");
@@ -9362,12 +9677,21 @@ app.get("/admin/audit", requireAdmin, (req, res) => {
 app.use((error, req, res, _next) => {
   console.error(error);
 
+  const statusCode = error.status || error.statusCode || 500;
+  if (req.path.startsWith("/admin/notifications") || req.accepts("json") === "json") {
+    return res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({
+      error: error.message || "Something went wrong.",
+    });
+  }
+
   const redirectTarget = req.path.startsWith("/admin")
     ? "/admin"
     : req.path.startsWith("/nomination")
       ? "/nomination/login"
       : "/";
-  setFlash(req, "error", error.message || "Something went wrong.");
+  if (req.session) {
+    setFlash(req, "error", error.message || "Something went wrong.");
+  }
   res.redirect(redirectTarget);
 });
 
