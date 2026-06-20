@@ -28,6 +28,20 @@
 </div>
 <script>
   (() => {
+    document.querySelectorAll("img[data-image-fallback]").forEach((image) => {
+      const hideBrokenImage = () => {
+        image.hidden = true;
+        image.style.display = "none";
+      };
+
+      image.addEventListener("error", hideBrokenImage, { once: true });
+      if (image.complete && image.naturalWidth === 0) {
+        hideBrokenImage();
+      }
+    });
+  })();
+
+  (() => {
     const modal = document.querySelector("[data-voter-status-modal]");
     if (!modal) {
       return;

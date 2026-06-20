@@ -1,0 +1,31 @@
+<%
+  const flowSteps = [
+    { number: 1, label: 'Voter Login' },
+    { number: 2, label: 'Verify Identity' },
+    { number: 3, label: 'Cast Vote' },
+    { number: 4, label: 'Review & Confirm' },
+    { number: 5, label: 'Submission' },
+  ];
+%>
+
+<nav class="vote-flow-steps" aria-label="Voting progress">
+  <ol>
+    <% flowSteps.forEach((step) => { %>
+      <% const isComplete = allComplete || step.number < currentStep; %>
+      <% const isCurrent = !allComplete && step.number === currentStep; %>
+      <li class="<%= isComplete ? 'is-complete' : '' %> <%= isCurrent ? 'is-current' : '' %>">
+        <span class="vote-flow-steps__marker" aria-hidden="true">
+          <% if (isComplete) { %>
+            <svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9" /></svg>
+          <% } else { %>
+            <%= step.number %>
+          <% } %>
+        </span>
+        <span class="vote-flow-steps__copy">
+          <strong><%= step.number %>. <%= step.label %></strong>
+          <small><%= isComplete ? 'Complete' : isCurrent ? 'In Progress' : 'Pending' %></small>
+        </span>
+      </li>
+    <% }) %>
+  </ol>
+</nav>

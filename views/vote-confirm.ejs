@@ -1,34 +1,43 @@
 <%- include("partials/public-shell-start", { pageTitle }) %>
+<% const selectedCount = selections.filter((selection) => !selection.isSkipped).length; %>
+<% const skippedCount = selections.length - selectedCount; %>
 
-<section class="panel panel-light stack-lg narrow-panel">
-  <div class="section-heading">
-    <div>
-      <span class="eyebrow">Final Review</span>
-      <h2>Are you sure you want to submit your vote?</h2>
-    </div>
-    <p class="muted-text">After submission, you cannot change it.</p>
-  </div>
+<div class="vote-flow-container vote-flow-container--review">
+  <%- include("partials/vote-flow-steps", { currentStep: 4, allComplete: false }) %>
 
-  <div class="review-list">
-    <% selections.forEach((selection) => { %>
-      <article class="review-row">
-        <div>
-          <strong><%= selection.positionName %></strong>
-          <span><%= selection.isSkipped ? 'No vote selected' : 'Selected candidate' %></span>
-        </div>
-        <strong><%= selection.isSkipped ? 'Skipped' : selection.candidateName %></strong>
-      </article>
-    <% }) %>
-  </div>
+  <section class="vote-review-layout">
+    <article class="vote-review-panel">
+      <header><h1>Review Your Vote</h1><p>Check every selection carefully before submitting</p></header>
+      <div class="vote-review-warning"><svg viewBox="0 0 24 24"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg><strong>After submission, you cannot change your vote.</strong> Please review carefully.</div>
 
-  <div class="button-row">
-    <form action="/vote/step/<%= lastStep %>" method="get">
-      <button class="button button-ghost" type="submit">Go Back</button>
-    </form>
-    <form action="/vote/submit" method="post">
-      <button class="button" type="submit">Yes, Submit</button>
-    </form>
-  </div>
-</section>
+      <div class="vote-review-list">
+        <% selections.forEach((selection) => { %>
+          <article class="vote-review-row <%= selection.isSkipped ? 'is-skipped' : '' %>">
+            <span class="vote-review-row__photo">
+              <span><%= selection.isSkipped ? 'SK' : getInitials(selection.candidateName) %></span>
+              <% if (!selection.isSkipped && selection.candidatePhotoPath) { %><img src="<%= selection.candidatePhotoPath %>" alt="<%= selection.candidateName %>" data-image-fallback /><% } %>
+            </span>
+            <span class="vote-review-row__check"><svg viewBox="0 0 24 24"><path d="<%= selection.isSkipped ? 'M7 12h10' : 'm6 12 4 4 8-9' %>"/></svg></span>
+            <span class="vote-review-row__copy"><small><%= selection.positionName %></small><strong><%= selection.isSkipped ? 'No candidate selected' : selection.candidateName %></strong></span>
+            <a href="/vote/step/<%= selection.stepNumber %>"><svg viewBox="0 0 24 24"><path d="m4 20 4.5-1 10-10-3.5-3.5-10 10L4 20ZM13.5 7l3.5 3.5"/></svg>Change</a>
+          </article>
+        <% }) %>
+      </div>
+
+      <div class="vote-review-actions">
+        <a href="/vote/step/<%= lastStep %>"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>Go Back</a>
+        <form action="/vote/submit" method="post"><button type="submit"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>Yes, Submit My Vote</button></form>
+      </div>
+    </article>
+
+    <aside class="vote-summary-panel">
+      <h2>Vote Summary</h2>
+      <div class="vote-summary-stat is-green"><span><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4M9 12l2 2 4-4"/></svg></span><strong><%= selections.length %></strong><small>Positions Completed</small></div>
+      <div class="vote-summary-stat is-blue"><span><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 11a4 4 0 0 1 5 4v5"/></svg></span><strong><%= selectedCount %></strong><small>Candidates Selected</small></div>
+      <div class="vote-summary-stat is-yellow"><span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg></span><strong><%= skippedCount %></strong><small>Positions Skipped</small></div>
+      <div class="vote-summary-security"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 2.9 8.2 7 9.4 4.1-1.2 7-5 7-9.4V6l-7-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg><p><strong>Your vote is secure</strong><span>Your selections are encrypted and remain confidential.</span></p></div>
+    </aside>
+  </section>
+</div>
 
 <%- include("partials/public-shell-end") %>

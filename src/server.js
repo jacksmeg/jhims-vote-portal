@@ -1971,10 +1971,12 @@ function buildSelectionsFromMap(ballotData, selectionMap) {
 
     if (isSkipped) {
       selections.push({
+        stepNumber: index + 1,
         positionId: position.id,
         positionName: position.name,
         candidateId: null,
         candidateName: "",
+        candidatePhotoPath: "",
         isSkipped: true,
       });
       return;
@@ -1993,10 +1995,12 @@ function buildSelectionsFromMap(ballotData, selectionMap) {
     }
 
     selections.push({
+      stepNumber: index + 1,
       positionId: position.id,
       positionName: position.name,
       candidateId: candidate.id,
       candidateName: candidate.name,
+      candidatePhotoPath: candidate.photoPath || "",
       isSkipped: false,
     });
   });
@@ -5161,6 +5165,43 @@ app.post("/nomination/logout", (req, res) => {
   return res.redirect("/nomination/status/login");
 });
 
+app.get("/demo/how-to-vote", (req, res) => {
+  const liveBallot = getBallotData().filter((position) => position.candidates.length > 0);
+  const demoBallot = liveBallot.length > 0
+    ? liveBallot
+    : [
+        {
+          id: "demo-president",
+          name: "President",
+          candidates: [
+            { id: "demo-ama", name: "Ama Boateng", photoPath: "" },
+            { id: "demo-john", name: "John Mensah", photoPath: "" },
+          ],
+        },
+        {
+          id: "demo-secretary",
+          name: "Secretary",
+          candidates: [
+            { id: "demo-mary", name: "Mary Owusu", photoPath: "" },
+            { id: "demo-daniel", name: "Daniel Appiah", photoPath: "" },
+          ],
+        },
+        {
+          id: "demo-treasurer",
+          name: "Treasurer",
+          candidates: [
+            { id: "demo-kofi", name: "Kofi Asare", photoPath: "" },
+            { id: "demo-akosua", name: "Akosua Mensah", photoPath: "" },
+          ],
+        },
+      ];
+
+  return res.render("vote-demo", {
+    pageTitle: "How To Vote Demo",
+    demoBallot,
+  });
+});
+
 app.get("/vote/login", (req, res) => {
   if (req.session.voter) {
     return res.redirect("/vote");
@@ -5877,6 +5918,9 @@ app.post("/vote/submit", requireVoter, (req, res) => {
   req.session.voteComplete = {
     voterName: req.session.voter.fullName,
     submittedAt: nowIso(),
+    positionsReviewed: selections.length,
+    submittedChoices,
+    skippedCount,
   };
   clearVoterSession(req);
 

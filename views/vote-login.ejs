@@ -33,6 +33,7 @@
         ? "Voting window closed"
         : "Election setup in progress";
   const loginButtonLabel = otpEnabled ? "Request Code" : "Login";
+  const loginLoadingLabel = otpEnabled ? "Requesting code..." : "Signing in...";
   const loginIntroCopy = otpEnabled
     ? "Enter your details to receive a one-time verification code."
     : "Enter your verified voter details to continue to the ballot.";
@@ -149,7 +150,7 @@
             <h2>Staff Verification</h2>
             <p><%= loginIntroCopy %></p>
 
-            <form class="auth-form" action="/vote/login" method="post">
+            <form class="auth-form" action="/vote/login" method="post" data-auth-login-form>
               <label class="auth-field">
                 <span>STAFF ID</span>
                 <div class="auth-field__control">
@@ -185,11 +186,12 @@
                 </div>
               </label>
 
-              <button class="auth-submit" type="submit" <%= electionState.isOpen ? "" : "disabled" %>>
+              <button class="auth-submit" type="submit" data-auth-login-submit data-loading-label="<%= loginLoadingLabel %>" <%= electionState.isOpen ? "" : "disabled" %>>
+                <span class="auth-submit__spinner" aria-hidden="true"></span>
                 <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                   <path d="M12 2a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1V6a4 4 0 0 0-4-4Zm-2 7V6a2 2 0 1 1 4 0v3h-4Z" fill="currentColor"/>
                 </svg>
-                <span><%= loginButtonLabel %></span>
+                <span class="auth-submit__label"><%= loginButtonLabel %></span>
               </button>
             </form>
 
@@ -271,6 +273,18 @@
     <main class="auth-mobile-main">
       <%- include("partials/flash") %>
 
+      <a class="auth-mobile-brand" href="/">
+        <% if (settings.organizationLogoPath) { %>
+          <img src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
+        <% } else { %>
+          <span class="auth-mobile-brand__crest">VP</span>
+        <% } %>
+        <span>
+          <strong><%= settings.electionName %></strong>
+          <small>Election Portal</small>
+        </span>
+      </a>
+
       <article class="auth-mobile-card">
         <span class="auth-mobile-card__icon auth-mobile-card__icon--vote" aria-hidden="true">
           <svg viewBox="0 0 160 160" focusable="false">
@@ -302,7 +316,7 @@
           Login to access your voter portal and manage your details.
         </p>
 
-        <form class="auth-mobile-form" action="/vote/login" method="post">
+        <form class="auth-mobile-form" action="/vote/login" method="post" data-auth-login-form>
           <label class="auth-mobile-field">
             <span>Staff ID</span>
             <div class="auth-mobile-field__control">
@@ -338,11 +352,12 @@
             </div>
           </label>
 
-          <button class="auth-mobile-submit" type="submit" <%= electionState.isOpen ? "" : "disabled" %>>
+          <button class="auth-mobile-submit" type="submit" data-auth-login-submit data-loading-label="<%= loginLoadingLabel %>" <%= electionState.isOpen ? "" : "disabled" %>>
+            <span class="auth-submit__spinner" aria-hidden="true"></span>
             <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
               <path d="M10.2 6.4 8.8 7.8 12.99 12l-4.2 4.2 1.42 1.4 5.6-5.6-5.6-5.6Z" fill="currentColor"/>
             </svg>
-            <span><%= loginButtonLabel %></span>
+            <span class="auth-submit__label"><%= loginButtonLabel %></span>
           </button>
         </form>
 
@@ -379,6 +394,29 @@
 </div>
 
 <script>
+  (() => {
+    document.querySelectorAll("[data-auth-login-form]").forEach((form) => {
+      form.addEventListener("submit", () => {
+        if (!form.checkValidity()) {
+          return;
+        }
+
+        const submitButton = form.querySelector("[data-auth-login-submit]");
+        if (!submitButton || submitButton.classList.contains("is-loading")) {
+          return;
+        }
+
+        const buttonLabel = submitButton.querySelector(".auth-submit__label");
+        submitButton.classList.add("is-loading");
+        submitButton.setAttribute("aria-busy", "true");
+        submitButton.disabled = true;
+        if (buttonLabel) {
+          buttonLabel.textContent = submitButton.getAttribute("data-loading-label") || "Please wait...";
+        }
+      });
+    });
+  })();
+
   (() => {
     const countdownRoot = document.querySelector("[data-auth-countdown]");
     if (!countdownRoot) {

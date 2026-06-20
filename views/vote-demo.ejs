@@ -1,0 +1,215 @@
+<%- include("partials/head", { pageTitle, bodyClass: "vote-demo-body" }) %>
+
+<div class="vote-demo" data-demo-root>
+  <header class="vote-demo__header">
+    <a class="vote-demo__brand" href="/" aria-label="Return to election portal">
+      <% if (settings.organizationLogoPath) { %>
+        <img src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
+      <% } else { %>
+        <span class="vote-demo__logo-fallback">VP</span>
+      <% } %>
+      <span>
+        <strong><%= settings.electionName %></strong>
+        <small>Voter Training Centre</small>
+      </span>
+    </a>
+
+    <div class="vote-demo__training-badge">
+      <span></span>
+      Training Demo
+    </div>
+  </header>
+
+  <main class="vote-demo__main">
+    <aside class="vote-demo__guide">
+      <div class="vote-demo__guide-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.2c0 4.7 3.2 8.7 7.5 9.8 4.3-1.1 7.5-5.1 7.5-9.8V6L12 3Z"/><path d="m8.6 12 2.1 2.1 4.8-5"/></svg>
+      </div>
+      <p class="vote-demo__guide-label">Practice safely</p>
+      <h1>Learn how to cast your vote.</h1>
+      <p>Follow the same steps voters will use on election day. Nothing entered here is saved.</p>
+
+      <ol class="vote-demo__roadmap" aria-label="Demo progress">
+        <li class="is-current" data-roadmap-step="login"><span>1</span><div><strong>Voter login</strong><small>Enter staff details</small></div></li>
+        <li data-roadmap-step="otp"><span>2</span><div><strong>OTP check</strong><small>Verify the phone</small></div></li>
+        <li data-roadmap-step="ballot"><span>3</span><div><strong>Cast votes</strong><small>Choose or skip</small></div></li>
+        <li data-roadmap-step="review"><span>4</span><div><strong>Review</strong><small>Confirm every choice</small></div></li>
+        <li data-roadmap-step="complete"><span>5</span><div><strong>Complete</strong><small>Submit the ballot</small></div></li>
+      </ol>
+
+      <div class="vote-demo__privacy-note">
+        <svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.2c0 4.7 3.2 8.7 7.5 9.8 4.3-1.1 7.5-5.1 7.5-9.8V6L12 3Z"/><path d="m8.6 12 2.1 2.1 4.8-5"/></svg>
+        <span><strong>No real vote is recorded.</strong> You can restart this demonstration at any time.</span>
+      </div>
+    </aside>
+
+    <section class="vote-demo__workspace">
+      <div class="vote-demo__mobile-progress" aria-hidden="true">
+        <span class="is-current" data-mobile-step="login">1</span>
+        <i></i><span data-mobile-step="otp">2</span>
+        <i></i><span data-mobile-step="ballot">3</span>
+        <i></i><span data-mobile-step="review">4</span>
+        <i></i><span data-mobile-step="complete">5</span>
+      </div>
+
+      <section class="vote-demo__screen is-active" data-demo-screen="login">
+        <div class="vote-demo__screen-icon is-green" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.8 21a7.2 7.2 0 0 1 14.4 0"/><path d="M17 12.5 20 14v2.4c0 2-1.3 3.7-3 4.2-1.7-.5-3-2.2-3-4.2V14l3-1.5Z"/></svg>
+        </div>
+        <div class="vote-demo__screen-heading">
+          <small>Step 1 of 5</small>
+          <h2>Voter Login</h2>
+          <p>Enter the Staff ID and phone number registered by the election committee.</p>
+        </div>
+
+        <form class="vote-demo__form" data-demo-login-form>
+          <label>
+            <span>Staff ID</span>
+            <div class="vote-demo__input-wrap">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.8 21a7.2 7.2 0 0 1 14.4 0"/></svg>
+              <input name="staffId" autocomplete="off" placeholder="e.g. DEMO001" required />
+            </div>
+          </label>
+          <label>
+            <span>Phone Number</span>
+            <div class="vote-demo__input-wrap">
+              <svg viewBox="0 0 24 24"><path d="M6.6 3.8 9.3 8 7.8 9.8a15.5 15.5 0 0 0 6.4 6.4l1.8-1.5 4.2 2.7c.5.3.7.9.5 1.4-.5 1.3-1.8 2.2-3.2 2.2C9.5 21 3 14.5 3 6.5c0-1.4.9-2.7 2.2-3.2.5-.2 1.1 0 1.4.5Z"/></svg>
+              <input name="phoneNumber" inputmode="tel" autocomplete="off" placeholder="e.g. 059 000 0000" required />
+            </div>
+          </label>
+          <p class="vote-demo__form-error" data-demo-login-error role="alert"></p>
+          <button class="vote-demo__primary-button" type="submit">
+            Request Verification Code
+            <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </form>
+
+        <p class="vote-demo__helper"><span>i</span> Use sample details for this training. No SMS will be sent.</p>
+      </section>
+
+      <section class="vote-demo__screen" data-demo-screen="otp">
+        <button class="vote-demo__back-button" type="button" data-demo-back="login">
+          <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg> Back
+        </button>
+        <div class="vote-demo__screen-icon is-blue" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M9 6h6M10 18h4"/></svg>
+        </div>
+        <div class="vote-demo__screen-heading">
+          <small>Step 2 of 5</small>
+          <h2>Verify OTP Code</h2>
+          <p>A one-time code would normally arrive on the voter&rsquo;s registered phone.</p>
+        </div>
+
+        <form class="vote-demo__form" data-demo-otp-form>
+          <label>
+            <span>Enter the 4-digit demo code</span>
+            <input class="vote-demo__otp-input" name="otp" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="&bull; &bull; &bull; &bull;" required />
+          </label>
+          <div class="vote-demo__code-hint"><span>Demo code</span><strong>2026</strong></div>
+          <p class="vote-demo__form-error" data-demo-otp-error role="alert"></p>
+          <button class="vote-demo__primary-button" type="submit">Verify and Open Ballot</button>
+        </form>
+      </section>
+
+      <section class="vote-demo__screen vote-demo__screen--ballot" data-demo-screen="ballot">
+        <div class="vote-demo__ballot-header">
+          <div>
+            <small data-demo-ballot-step>Position 1 of <%= demoBallot.length %></small>
+            <h2 data-demo-position-name><%= demoBallot[0].name %></h2>
+            <p>Select one candidate, or skip this position.</p>
+          </div>
+          <div class="vote-demo__ballot-count"><strong data-demo-completed>0</strong><span>Completed</span></div>
+        </div>
+
+        <div class="vote-demo__progress-track"><span data-demo-progress style="width: <%= 100 / demoBallot.length %>%"></span></div>
+
+        <div class="vote-demo__positions">
+          <% demoBallot.forEach((position, positionIndex) => { %>
+            <div class="vote-demo__position <%= positionIndex === 0 ? 'is-active' : '' %>" data-demo-position="<%= positionIndex %>" data-position-name="<%= position.name %>">
+              <div class="vote-demo__candidate-list">
+                <% position.candidates.forEach((candidate, candidateIndex) => { %>
+                  <label class="vote-demo__candidate">
+                    <input type="radio" name="demoPosition<%= positionIndex %>" value="<%= candidate.name %>" />
+                    <span class="vote-demo__candidate-order"><%= candidateIndex + 1 %></span>
+                    <span class="vote-demo__candidate-photo">
+                      <% if (candidate.photoPath) { %>
+                        <img src="<%= candidate.photoPath %>" alt="<%= candidate.name %>" />
+                      <% } else { %>
+                        <span><%= getInitials(candidate.name) %></span>
+                      <% } %>
+                    </span>
+                    <span class="vote-demo__candidate-name"><strong><%= candidate.name %></strong><small>Candidate for <%= position.name %></small></span>
+                    <span class="vote-demo__candidate-check">
+                      <svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg>
+                    </span>
+                  </label>
+                <% }) %>
+              </div>
+              <p class="vote-demo__form-error" data-demo-ballot-error role="alert"></p>
+            </div>
+          <% }) %>
+        </div>
+
+        <div class="vote-demo__ballot-actions">
+          <button class="vote-demo__secondary-button" type="button" data-demo-ballot-back disabled>Back</button>
+          <button class="vote-demo__skip-button" type="button" data-demo-skip>Skip Position</button>
+          <button class="vote-demo__primary-button" type="button" data-demo-next>Next Position</button>
+        </div>
+      </section>
+
+      <section class="vote-demo__screen" data-demo-screen="review">
+        <button class="vote-demo__back-button" type="button" data-demo-review-back>
+          <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg> Change a choice
+        </button>
+        <div class="vote-demo__screen-icon is-yellow" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M7 3h10v3H7zM5 5h14v16H5z"/><path d="m8 11 2 2 4-4M8 17h8"/></svg>
+        </div>
+        <div class="vote-demo__screen-heading">
+          <small>Step 4 of 5</small>
+          <h2>Review Your Ballot</h2>
+          <p>Check every choice carefully. A real vote cannot be changed after submission.</p>
+        </div>
+        <div class="vote-demo__review-list" data-demo-review-list></div>
+        <button class="vote-demo__primary-button is-submit" type="button" data-demo-open-confirm>Submit Demo Vote</button>
+      </section>
+
+      <section class="vote-demo__screen vote-demo__screen--complete" data-demo-screen="complete">
+        <div class="vote-demo__success-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg>
+        </div>
+        <div class="vote-demo__screen-heading">
+          <small>Step 5 of 5</small>
+          <h2>Demo Vote Complete</h2>
+          <p>You have reached the same success screen a voter sees after submitting a ballot.</p>
+        </div>
+        <div class="vote-demo__success-note">
+          <strong>No real vote was recorded.</strong>
+          <span>This training can be repeated safely.</span>
+        </div>
+        <button class="vote-demo__primary-button" type="button" data-demo-reset>Restart Demonstration</button>
+        <a class="vote-demo__text-link" href="/vote/login">Go to the real voter login</a>
+      </section>
+    </section>
+  </main>
+
+  <footer class="vote-demo__footer">
+    <span>&copy; <%= currentYear %> IT Department Dunkwa Municipal Hospital. All rights reserved.</span>
+    <button type="button" data-demo-reset>Restart Demo</button>
+  </footer>
+
+  <dialog class="vote-demo__dialog" data-demo-dialog>
+    <div class="vote-demo__dialog-icon">
+      <svg viewBox="0 0 24 24"><path d="M7 3h10v3H7zM5 5h14v16H5z"/><path d="m8 12 3 3 5-6"/></svg>
+    </div>
+    <h2>Submit your demo vote?</h2>
+    <p>In the real election, your choices cannot be edited after this step.</p>
+    <div>
+      <button class="vote-demo__secondary-button" type="button" data-demo-cancel-confirm>Go Back</button>
+      <button class="vote-demo__primary-button" type="button" data-demo-confirm-submit>Yes, Submit</button>
+    </div>
+  </dialog>
+</div>
+
+<script src="/demo-vote.js" defer></script>
+</body>
+</html>

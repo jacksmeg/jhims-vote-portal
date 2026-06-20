@@ -1,11 +1,28 @@
 <% const isHomePage = currentPath === '/'; %>
-<%- include("head", { pageTitle, bodyClass: isHomePage ? "public-home-body" : "" }) %>
+<%
+  const isVoteFlowPage = currentPath === '/vote/verify-otp' || currentPath.startsWith('/vote/step/') || currentPath === '/vote/confirm' || currentPath === '/vote/complete';
+  const voteFlowPageClass = currentPath === '/vote/verify-otp'
+    ? 'vote-flow-otp-body'
+    : currentPath.startsWith('/vote/step/')
+      ? 'vote-flow-ballot-body'
+      : currentPath === '/vote/confirm'
+        ? 'vote-flow-review-body'
+        : currentPath === '/vote/complete'
+          ? 'vote-flow-complete-body'
+          : '';
+  const publicBodyClass = isHomePage
+    ? 'public-home-body'
+    : isVoteFlowPage
+      ? `vote-flow-body ${voteFlowPageClass}`
+      : '';
+%>
+<%- include("head", { pageTitle, bodyClass: publicBodyClass }) %>
 <% const isVotePortal = currentPath.startsWith('/vote'); %>
 <% const isNominationPortal = currentPath.startsWith('/nomination'); %>
 <% const isPortalFlow = isVotePortal || isNominationPortal; %>
 <% const isVoteLogin = currentPath === '/vote/login'; %>
 <% const showPortalHelpLink = !(isVoteLogin && isVotePortal); %>
-<% const showVoteCountdown = isVotePortal && electionState.isOpen && voteClosesAtMs && !isVoteLogin; %>
+<% const showVoteCountdown = isVotePortal && electionState.isOpen && voteClosesAtMs && !isVoteLogin && currentPath !== '/vote/complete'; %>
 <% const showNominationCountdown = currentPath === '/nomination/form' && nominationState.isScheduled && nominationOpensAtMs; %>
 <%
   const homeHeaderTitle = 'UDEGHSWWA ELECTION 2026';

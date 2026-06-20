@@ -1,124 +1,141 @@
 <%- include("partials/public-shell-start", { pageTitle }) %>
 
-<section class="split-stage">
-  <div class="panel panel-dark stack-lg">
-    <span class="eyebrow">Phone Verification</span>
-    <h2>Enter the OTP code sent to your phone.</h2>
-    <p>
-      We sent a one-time verification code to your registered number ending in
-      <strong><%= maskedPhoneNumber %></strong>. You must verify this code before the ballot can
-      open.
-    </p>
+<div class="vote-flow-container">
+  <%- include("partials/vote-flow-steps", { currentStep: 2, allComplete: false }) %>
 
-    <div class="check-list">
-      <div>Codes expire automatically after <%= otpTtlMinutes %> minutes</div>
-      <div>You can request a new OTP if the first message does not arrive</div>
-      <div>Your vote remains locked to one verified staff member</div>
-    </div>
-  </div>
-
-  <div class="panel panel-light stack-lg narrow-panel">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Secure OTP Check</span>
-        <h3>Verify before voting</h3>
+  <section class="otp-redesign-grid">
+    <article class="otp-visual-panel">
+      <div class="otp-visual-panel__art" aria-hidden="true">
+        <span class="otp-art-ring"></span>
+        <div class="otp-phone">
+          <span class="otp-phone__speaker"></span>
+          <svg class="otp-phone__shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 2.9 8.2 7 9.4 4.1-1.2 7-5 7-9.4V6l-7-3Z"/><rect x="9" y="10" width="6" height="5" rx="1"/><path d="M10.5 10V8.8a1.5 1.5 0 0 1 3 0V10"/></svg>
+          <strong>Secure Verification</strong>
+          <small>Enter OTP</small>
+          <span class="otp-phone__code">* * * * * *</span>
+        </div>
+        <div class="otp-message-bubble"><span></span><span></span><span></span></div>
+        <div class="otp-envelope">
+          <svg viewBox="0 0 24 24"><path d="M3 6h18v12H3z"/><path d="m3 7 9 6 9-6"/></svg>
+        </div>
+        <div class="otp-art-check"><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></div>
       </div>
-      <p class="muted-text">The ballot opens immediately after a successful OTP check.</p>
-    </div>
 
-    <p class="note-block">
-      OTP sent to <strong><%= maskedPhoneNumber %></strong>.
-      Enter the code exactly as received.
-    </p>
+      <div class="otp-visual-panel__copy">
+        <h2>Secure. Simple.<br />Your <span>Vote Matters.</span></h2>
+        <p>We use one-time passwords (OTP) to keep your account secure and your vote protected.</p>
+        <div class="otp-benefit-list">
+          <div><span class="is-green"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 2.9 8.2 7 9.4 4.1-1.2 7-5 7-9.4V6l-7-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg></span><p><strong>Secure & Private</strong><small>Your OTP is unique and valid for a short time only.</small></p></div>
+          <div><span class="is-blue"><svg viewBox="0 0 24 24"><rect x="6" y="10" width="12" height="10" rx="2"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></svg></span><p><strong>Protected Access</strong><small>Only you can access your ballot with this code.</small></p></div>
+          <div><span class="is-yellow"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><p><strong>Time-Sensitive</strong><small>OTP expires in <%= otpTtlMinutes %> minutes for your security.</small></p></div>
+        </div>
+      </div>
+    </article>
 
-    <% if (isExpired) { %>
-      <p class="note-block otp-note otp-note--warning">
-        This OTP has expired. Use <strong>Resend OTP</strong> to receive a new code.
-      </p>
-    <% } %>
+    <article class="otp-form-panel">
+      <header class="otp-form-panel__header">
+        <span><svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M9 6h6M10 18h4"/></svg></span>
+        <div><h1>Verify Your Phone</h1><p>Enter the OTP code sent to your phone</p></div>
+      </header>
 
-    <% if (devOtpPreview) { %>
-      <p class="note-block otp-note otp-note--dev">
-        Development OTP for testing: <strong><%= devOtpPreview %></strong>
-      </p>
-    <% } %>
+      <div class="otp-delivery-notice">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m7.8 12 2.8 2.8 5.8-6"/></svg>
+        <span>We sent a one-time verification code to your registered number ending in <strong><%= maskedPhoneNumber %></strong>.</span>
+      </div>
 
-    <form class="stack-md" action="/vote/verify-otp" method="post">
-      <label class="field">
-        <span>OTP Code</span>
-        <input
-          name="code"
-          inputmode="numeric"
-          autocomplete="one-time-code"
-          placeholder="Enter your OTP code"
-          required
-        />
-      </label>
+      <% if (isExpired) { %>
+        <p class="otp-state-note is-warning">This OTP has expired. Use <strong>Resend OTP</strong> to receive a new code.</p>
+      <% } %>
+      <% if (devOtpPreview) { %>
+        <p class="otp-state-note is-dev">Development OTP for testing: <strong><%= devOtpPreview %></strong></p>
+      <% } %>
 
-      <button class="button" type="submit">Verify and Continue</button>
-    </form>
-
-    <div class="button-row">
-      <form action="/vote/resend-otp" method="post">
-        <button class="button button-ghost" type="submit">Resend OTP</button>
+      <form class="otp-code-form" action="/vote/verify-otp" method="post" data-otp-code-form>
+        <label>OTP Code</label>
+        <input type="hidden" name="code" data-otp-code-value />
+        <div class="otp-digit-grid" aria-label="Six digit OTP code">
+          <% for (let digitIndex = 0; digitIndex < 6; digitIndex += 1) { %>
+            <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="OTP digit <%= digitIndex + 1 %>" data-otp-digit />
+          <% } %>
+        </div>
+        <small>Enter the 6-digit code exactly as received.</small>
+        <button class="vote-flow-primary-button" type="submit">
+          <svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 2.9 8.2 7 9.4 4.1-1.2 7-5 7-9.4V6l-7-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>
+          Verify and Continue
+          <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
       </form>
 
-      <form action="/vote/cancel-otp" method="post">
-        <button class="button button-ghost" type="submit">Back to Login</button>
-      </form>
-    </div>
-
-    <p
-      class="muted-text otp-helper-text"
-      data-otp-helper
-      data-resend-at="<%= resendAvailableAtMs || '' %>"
-      data-expires-at="<%= expiresAtMs || '' %>"
-    ></p>
-  </div>
-</section>
+      <div class="otp-form-panel__divider"><span>Didn&rsquo;t receive the code?</span></div>
+      <div class="otp-form-panel__actions">
+        <form action="/vote/resend-otp" method="post"><button type="submit"><svg viewBox="0 0 24 24"><path d="M20 7v5h-5"/><path d="M18.5 16a8 8 0 1 1 .4-8.5L20 12"/></svg>Resend OTP</button></form>
+        <p data-otp-helper data-resend-at="<%= resendAvailableAtMs || '' %>" data-expires-at="<%= expiresAtMs || '' %>"></p>
+        <form action="/vote/cancel-otp" method="post"><button type="submit"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>Back to Login</button></form>
+      </div>
+    </article>
+  </section>
+</div>
 
 <script>
   (() => {
-    const helper = document.querySelector("[data-otp-helper]");
-    if (!helper) {
-      return;
+    const otpForm = document.querySelector("[data-otp-code-form]");
+    const digitInputs = Array.from(document.querySelectorAll("[data-otp-digit]"));
+    const codeValue = document.querySelector("[data-otp-code-value]");
+
+    if (otpForm && digitInputs.length && codeValue) {
+      const syncCode = () => {
+        codeValue.value = digitInputs.map((input) => input.value).join("");
+      };
+
+      digitInputs.forEach((input, index) => {
+        input.addEventListener("input", () => {
+          input.value = input.value.replace(/\D/g, "").slice(-1);
+          syncCode();
+          if (input.value && digitInputs[index + 1]) digitInputs[index + 1].focus();
+        });
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "Backspace" && !input.value && digitInputs[index - 1]) digitInputs[index - 1].focus();
+        });
+        input.addEventListener("paste", (event) => {
+          const pastedCode = event.clipboardData?.getData("text")?.replace(/\D/g, "").slice(0, 6) || "";
+          if (!pastedCode) return;
+          event.preventDefault();
+          pastedCode.split("").forEach((digit, pastedIndex) => {
+            if (digitInputs[pastedIndex]) digitInputs[pastedIndex].value = digit;
+          });
+          syncCode();
+          digitInputs[Math.min(pastedCode.length, 6) - 1]?.focus();
+        });
+      });
+
+      otpForm.addEventListener("submit", (event) => {
+        syncCode();
+        if (codeValue.value.length !== 6) {
+          event.preventDefault();
+          digitInputs.find((input) => !input.value)?.focus();
+        }
+      });
     }
 
+    const helper = document.querySelector("[data-otp-helper]");
+    if (!helper) return;
     const resendAt = Number(helper.getAttribute("data-resend-at") || "0");
     const expiresAt = Number(helper.getAttribute("data-expires-at") || "0");
-
     const formatSeconds = (seconds) => {
-      if (seconds <= 0) {
-        return "0 seconds";
-      }
-
-      if (seconds < 60) {
-        return `${seconds} second${seconds === 1 ? "" : "s"}`;
-      }
-
+      if (seconds <= 0) return "0 seconds";
+      if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
       const minutes = Math.floor(seconds / 60);
       const remainingSeconds = seconds % 60;
       return `${minutes} minute${minutes === 1 ? "" : "s"}${remainingSeconds ? ` ${remainingSeconds} second${remainingSeconds === 1 ? "" : "s"}` : ""}`;
     };
-
     const update = () => {
       const now = Date.now();
       const resendSeconds = resendAt > now ? Math.ceil((resendAt - now) / 1000) : 0;
       const expirySeconds = expiresAt > now ? Math.ceil((expiresAt - now) / 1000) : 0;
-
-      if (expirySeconds <= 0) {
-        helper.textContent = "This OTP has expired. Request a new one to continue.";
-        return;
-      }
-
-      if (resendSeconds > 0) {
-        helper.textContent = `You can request a new OTP in ${formatSeconds(resendSeconds)}. This code expires in ${formatSeconds(expirySeconds)}.`;
-        return;
-      }
-
-      helper.textContent = `You can request a new OTP now. This code expires in ${formatSeconds(expirySeconds)}.`;
+      if (expirySeconds <= 0) helper.textContent = "This OTP has expired. Request a new one to continue.";
+      else if (resendSeconds > 0) helper.textContent = `Available in ${formatSeconds(resendSeconds)}`;
+      else helper.textContent = "Resend available now";
     };
-
     update();
     window.setInterval(update, 1000);
   })();

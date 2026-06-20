@@ -1,20 +1,35 @@
 <%- include("partials/public-shell-start", { pageTitle }) %>
 
-<section class="panel panel-light narrow-panel stack-lg success-panel">
-  <span class="eyebrow">Vote Submitted</span>
-  <h2>Your ballot has been recorded successfully.</h2>
-  <p>
-    Thank you <strong><%= receipt.voterName || 'Staff Member' %></strong>. Your vote was saved
-    on <strong><%= formatDateTime(receipt.submittedAt) %></strong> and your voter record has been
-    locked from further changes.
-  </p>
+<div class="vote-flow-container vote-flow-container--complete">
+  <section class="vote-complete-status">
+    <div><span></span><p><strong>Election in progress</strong><small>Voting closes at <%= settings.closesAt ? formatDateTime(settings.closesAt) : 'the scheduled closing time' %>.</small></p></div>
+    <div><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 2.9 8.2 7 9.4 4.1-1.2 7-5 7-9.4V6l-7-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>Election ID: UDEGHSWWA-2026</div>
+  </section>
 
-  <div class="button-row">
-    <a class="button" href="/vote/login">Back to Voter Login</a>
-    <form action="/vote/logout" method="post">
-      <button class="button button-ghost" type="submit">Finish Session</button>
-    </form>
+  <%- include("partials/vote-flow-steps", { currentStep: 5, allComplete: true }) %>
+
+  <section class="vote-complete-layout">
+    <article class="vote-complete-hero">
+      <div class="vote-complete-confetti" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="vote-complete-check"><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9"/></svg></div>
+      <h1>Your ballot has been recorded <span>successfully.</span></h1>
+      <p>Thank you <strong><%= receipt.voterName || 'Staff Member' %></strong>. Your vote was saved on <strong><%= formatDateTime(receipt.submittedAt) %></strong> and your voter record has been locked from further changes.</p>
+      <div class="vote-complete-privacy"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 2.9 8.2 7 9.4 4.1-1.2 7-5 7-9.4V6l-7-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg><p><strong>Your vote is private, secure, and encrypted.</strong><span>No one can see how you voted.</span></p></div>
+    </article>
+
+    <aside class="ballot-receipt-panel">
+      <header><span><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 2.9 8.2 7 9.4 4.1-1.2 7-5 7-9.4V6l-7-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg></span><div><h2>Ballot Receipt</h2><small><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>Verified and Secured</small></div></header>
+      <div class="ballot-receipt-row"><span><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4M9 12h6M9 16h6"/></svg>Reference</span><strong>Vote recorded</strong></div>
+      <div class="ballot-receipt-row"><span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Completion Time</span><strong><%= formatDateTime(receipt.submittedAt) %></strong></div>
+      <div class="ballot-receipt-row"><span><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 2.9 8.2 7 9.4 4.1-1.2 7-5 7-9.4V6l-7-3Z"/></svg>Security Status</span><strong>Your voter record is locked and cannot be changed.</strong></div>
+      <div class="ballot-receipt-complete"><span aria-hidden="true">&#10003;</span><p><strong>Election Completed</strong><small>You have successfully completed the election. Thank you for participating.</small></p></div>
+    </aside>
+  </section>
+
+  <div class="vote-complete-actions">
+    <form action="/vote/logout" method="post"><button type="submit"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>Finish Session</button></form>
+    <a href="/vote/login"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>Back to Voter Login</a>
   </div>
-</section>
+</div>
 
 <%- include("partials/public-shell-end") %>
