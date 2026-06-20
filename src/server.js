@@ -78,6 +78,9 @@ const envOtpResendCooldownSeconds = Math.min(
   ),
   300,
 );
+const envCaptchaSiteKey = String(process.env.CAPTCHA_SITE_KEY || "").trim();
+const envCaptchaSecretKey = String(process.env.CAPTCHA_SECRET_KEY || "").trim();
+const turnstileVerifyUrl = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const devOtpCodeLength = 6;
 const observerMaxLoginAttempts = 5;
 const observerLockMinutes = 15;
@@ -1165,6 +1168,146 @@ function getAdminOtpSettingsView() {
     isEnabled: otpConfig.provider === "twilio" || otpConfig.provider === "arkesel" || otpConfig.provider === "dev",
     arkeselConfigured: otpConfig.arkeselConfigured,
     twilioConfigured: otpConfig.twilioConfigured,
+  };
+}
+
+function isEnabledSetting(value) {
+  return String(value || "").trim().toLowerCase() === "true";
+}
+
+function getCaptchaConfig(settings = getAllSettings()) {
+  const siteKey = String(settings.captcha_site_key || envCaptchaSiteKey || "").trim();
+  const secretKey = String(settings.captcha_secret_key || envCaptchaSecretKey || "").trim();
+  const isConfigured = Boolean(siteKey && secretKey);
+  const isEnabled = isEnabledSetting(settings.captcha_enabled) && isConfigured;
+
+  return {
+    isConfigured,
+    isEnabled,
+    siteKey,
+    secretKey,
+    protectVoterLogin: isEnabledSetting(settings.captcha_protect_voter_login || "true"),
+    protectAdminLogin: isEnabledSetting(settings.captcha_protect_admin_login || "true"),
+    protectObserverLogin: isEnabledSetting(settings.captcha_protect_observer_login || "true"),
+    protectNomination: isEnabledSetting(settings.captcha_protect_nomination || "true"),
+  };
+}
+
+function getCaptchaPublicConfig(settings = getAllSettings()) {
+  const config = getCaptchaConfig(settings);
+  return {
+    isConfigured: config.isConfigured,
+    isEnabled: config.isEnabled,
+    siteKey: config.siteKey,
+  };
+}
+
+function getAdminCaptchaSettingsView() {
+  const settings = getAllSettings();
+  const config = getCaptchaConfig(settings);
+  return {
+    isConfigured: config.isConfigured,
+    isEnabled: config.isEnabled,
+    requestedEnabled: isEnabledSetting(settings.captcha_enabled),
+    siteKey: config.siteKey,
+    secretConfigured: Boolean(String(settings.captcha_secret_key || envCaptchaSecretKey || "").trim()),
+    protectVoterLogin: config.protectVoterLogin,
+    protectAdminLogin: config.protectAdminLogin,
+    protectObserverLogin: config.protectObserverLogin,
+    protectNomination: config.protectNomination,
+  };
+}
+
+function isCaptchaRequiredForContext(context) {
+  const config = getCaptchaConfig();
+  if (!config.isEnabled) {
+    return false;
+  }
+
+  switch (context) {
+    case "voter_login":
+      return config.protectVoterLogin;
+    case "admin_login":
+      return config.protectAdminLogin;
+    case "observer_login":
+      return config.protectObserverLogin;
+    case "nomination":
+      return config.protectNomination;
+    default:
+      return false;
+  }
+}
+
+function getCaptchaFailureRedirect(context) {
+  switch (context) {
+    case "admin_login":
+      return "/admin/login";
+    case "observer_login":
+      return "/observer/login";
+    case "nomination":
+      return "/nomination/status/login";
+    case "voter_login":
+    default:
+      return "/vote/login";
+  }
+}
+
+async function verifyCaptchaSubmission(req, context) {
+  if (!isCaptchaRequiredForContext(context)) {
+    return { ok: true, skipped: true };
+  }
+
+  const config = getCaptchaConfig();
+  const token = String(req.body["cf-turnstile-response"] || "").trim();
+  if (!token) {
+    return { ok: false, reason: "missing_token" };
+  }
+
+  const formData = new URLSearchParams();
+  formData.set("secret", config.secretKey);
+  formData.set("response", token);
+  if (req.ip) {
+    formData.set("remoteip", req.ip);
+  }
+
+  try {
+    const response = await fetch(turnstileVerifyUrl, {
+      method: "POST",
+      body: formData,
+    });
+    const payload = await response.json();
+
+    if (payload.success) {
+      return { ok: true };
+    }
+
+    return {
+      ok: false,
+      reason: "verification_failed",
+      errorCodes: Array.isArray(payload["error-codes"]) ? payload["error-codes"] : [],
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "verification_error",
+      message: error.message,
+    };
+  }
+}
+
+function requireCaptcha(context) {
+  return async (req, res, next) => {
+    const result = await verifyCaptchaSubmission(req, context);
+    if (result.ok) {
+      return next();
+    }
+
+    logAudit(req, "security", context, "captcha_verification_failed", {
+      reason: result.reason,
+      errorCodes: result.errorCodes || [],
+    });
+    setFlash(req, "error", "Please complete the security check before continuing.");
+    return res.redirect(getCaptchaFailureRedirect(context));
   };
 }
 
@@ -5015,6 +5158,7 @@ app.use((req, res, next) => {
   res.locals.observer = req.session.observer || null;
   res.locals.voter = req.session.voter || null;
   res.locals.nominationApplicant = req.session.nominationApplicant || null;
+  res.locals.captcha = getCaptchaPublicConfig();
   res.locals.currentYear = new Date().getFullYear();
   res.locals.formatDateTime = formatDateTime;
   res.locals.formatPercent = formatPercent;
@@ -5221,7 +5365,7 @@ app.get("/nomination/status/login", (req, res) => {
   });
 });
 
-app.post("/nomination/status/login", (req, res) => {
+app.post("/nomination/status/login", requireCaptcha("nomination"), (req, res) => {
   const applicationNumber = normalizeApplicationNumber(req.body.applicationNumber);
 
   if (!applicationNumber) {
@@ -5316,6 +5460,23 @@ app.post(
     const isCorrectionResubmission =
       existingEditableNomination &&
       existingEditableNomination.statusMeta.canApplicantEdit;
+
+    const captchaResult = await verifyCaptchaSubmission(req, "nomination");
+    if (!captchaResult.ok) {
+      if (req.file) {
+        await safeRemoveFile(req.file.path);
+      }
+      logAudit(req, "security", "nomination", "captcha_verification_failed", {
+        reason: captchaResult.reason,
+        errorCodes: captchaResult.errorCodes || [],
+      });
+      setFlash(req, "error", "Please complete the security check before submitting the nomination.");
+      return res.redirect(
+        isCorrectionResubmission
+          ? `/nomination/form?edit=${existingEditableNomination.id}`
+          : "/nomination/form",
+      );
+    }
 
     if (nominationId > 0 && !isCorrectionResubmission) {
       if (req.file) {
@@ -5643,7 +5804,7 @@ app.get("/vote/login", (req, res) => {
   });
 });
 
-app.post("/vote/login", async (req, res) => {
+app.post("/vote/login", requireCaptcha("voter_login"), async (req, res) => {
   const staffId = normalizeStaffId(req.body.staffId);
   const phoneNumber = normalizePhoneNumber(req.body.phoneNumber);
   const settings = getElectionSettings();
@@ -6379,7 +6540,7 @@ app.get("/observer/login", (req, res) => {
   });
 });
 
-app.post("/observer/login", (req, res) => {
+app.post("/observer/login", requireCaptcha("observer_login"), (req, res) => {
   const observerId = normalizeObserverId(req.body.observerId);
   const password = String(req.body.password || "");
   const row = observerId
@@ -6600,7 +6761,7 @@ app.get("/admin/login", (req, res) => {
   });
 });
 
-app.post("/admin/login", (req, res) => {
+app.post("/admin/login", requireCaptcha("admin_login"), (req, res) => {
   const username = String(req.body.username || "").trim();
   const password = String(req.body.password || "");
   const twoFactorState = getAdminTwoFactorState();
@@ -6771,6 +6932,7 @@ app.get("/admin/settings", requireAdmin, async (req, res) => {
     metrics,
     readiness: getElectionReadiness(settings),
     otpSettings: getAdminOtpSettingsView(),
+    captchaSettings: getAdminCaptchaSettingsView(),
     otpActivity: getOtpActivityLogs(7),
     themeOptions: getThemeOptions(),
     adminTwoFactorState,
@@ -7081,6 +7243,61 @@ app.post("/admin/otp-settings", requireAdmin, (req, res) => {
         : "";
 
   setFlash(req, "success", `${providerLabel} OTP settings saved.${configSuffix}`);
+  return res.redirect(getAdminReturnPath(req, "/admin/settings#security"));
+});
+
+app.post("/admin/captcha-settings", requireAdmin, (req, res) => {
+  const captchaEnabled = req.body.captchaEnabled === "on";
+  const siteKey = String(req.body.captchaSiteKey || "").trim();
+  const submittedSecretKey = String(req.body.captchaSecretKey || "").trim();
+  const existingCaptchaConfig = getCaptchaConfig();
+  const secretKey = submittedSecretKey || existingCaptchaConfig.secretKey;
+
+  runTransaction(() => {
+    setSetting("captcha_enabled", captchaEnabled ? "true" : "false");
+    setSetting("captcha_site_key", siteKey);
+    if (submittedSecretKey) {
+      setSetting("captcha_secret_key", submittedSecretKey);
+    }
+    setSetting(
+      "captcha_protect_voter_login",
+      req.body.protectVoterLogin === "on" ? "true" : "false",
+    );
+    setSetting(
+      "captcha_protect_admin_login",
+      req.body.protectAdminLogin === "on" ? "true" : "false",
+    );
+    setSetting(
+      "captcha_protect_observer_login",
+      req.body.protectObserverLogin === "on" ? "true" : "false",
+    );
+    setSetting(
+      "captcha_protect_nomination",
+      req.body.protectNomination === "on" ? "true" : "false",
+    );
+  });
+
+  const nextCaptchaConfig = getCaptchaConfig();
+  logAudit(req, "admin", req.session.admin.username, "captcha_settings_updated", {
+    enabled: captchaEnabled,
+    active: nextCaptchaConfig.isEnabled,
+    hasSiteKey: Boolean(siteKey || envCaptchaSiteKey),
+    hasSecretKey: Boolean(secretKey || envCaptchaSecretKey),
+    protectedForms: {
+      voterLogin: nextCaptchaConfig.protectVoterLogin,
+      adminLogin: nextCaptchaConfig.protectAdminLogin,
+      observerLogin: nextCaptchaConfig.protectObserverLogin,
+      nomination: nextCaptchaConfig.protectNomination,
+    },
+  });
+
+  const statusMessage = nextCaptchaConfig.isEnabled
+    ? "CAPTCHA protection is now active."
+    : captchaEnabled
+      ? "CAPTCHA settings saved, but protection is inactive until both keys are configured."
+      : "CAPTCHA protection has been disabled.";
+
+  setFlash(req, "success", statusMessage);
   return res.redirect(getAdminReturnPath(req, "/admin/settings#security"));
 });
 

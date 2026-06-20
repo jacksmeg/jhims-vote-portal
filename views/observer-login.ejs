@@ -46,6 +46,7 @@
         <form class="observer-login-form" action="/observer/login" method="post" data-observer-login-form>
           <label><span>Observer ID</span><div class="observer-login-control"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0"/></svg><input name="observerId" autocomplete="username" placeholder="e.g. OBS-2026-0001" required /></div></label>
           <label><span>Password</span><div class="observer-login-control"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><input id="observer-password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required /><button type="button" data-password-toggle aria-label="Show password">Show</button></div></label>
+          <%- include("partials/captcha-widget") %>
           <button class="observer-login-submit" type="submit" data-observer-login-submit><span class="observer-login-spinner" aria-hidden="true"></span><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.9 8.5 7 10 4.1-1.5 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-5"/></svg><span data-login-label>Sign In Securely</span></button>
         </form>
 

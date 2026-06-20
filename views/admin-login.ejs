@@ -140,6 +140,8 @@
                 </div>
               </label>
 
+              <%- include("partials/captcha-widget") %>
+
               <button class="auth-submit auth-submit--admin" type="submit">
                 <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                   <path d="m10.2 6.4 1.4 1.4-2.2 2.2H21v2H9.4l2.2 2.2-1.4 1.4L5.6 11l4.6-4.6ZM5 5h2v12H5V5Z" fill="currentColor"/>
@@ -264,6 +266,8 @@
               <input name="password" type="password" autocomplete="current-password" required />
             </div>
           </label>
+
+          <%- include("partials/captcha-widget") %>
 
           <button class="auth-mobile-submit auth-mobile-submit--admin" type="submit">
             <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">

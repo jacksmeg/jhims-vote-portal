@@ -134,6 +134,8 @@
         </label>
       </fieldset>
 
+      <%- include("partials/captcha-widget") %>
+
       <div class="button-row">
         <button class="button" type="submit" <%= formLocked ? 'disabled' : '' %>>
           <%= formLocked

@@ -12,6 +12,7 @@
   const logoStatusLabel = settings.organizationLogoPath ? 'Uploaded' : 'Not Set';
   const twoFactorStatusLabel = adminTwoFactorState.enabled ? 'Protected' : 'Off';
   const scheduleStatusLabel = electionState.isOpen ? 'Open' : electionState.isClosed ? 'Closed' : electionState.isScheduled ? 'Scheduled' : 'Setup';
+  const captchaStatusLabel = captchaSettings.isEnabled ? 'Active' : captchaSettings.requestedEnabled ? 'Needs Keys' : 'Off';
 %>
 
 <section class="settings-summary-grid" aria-label="System settings summary">
@@ -19,6 +20,7 @@
   <article class="settings-summary-card is-pink"><span class="settings-summary-card__icon">B</span><div><small>Branding</small><strong><%= logoStatusLabel %></strong><span><%= settings.themeName ? 'Theme active' : 'Default theme' %></span></div></article>
   <article class="settings-summary-card is-yellow"><span class="settings-summary-card__icon">O</span><div><small>Voter OTP</small><strong><%= otpStatusLabel %></strong><span><%= otpSettings.effectiveProviderLabel %></span></div></article>
   <article class="settings-summary-card is-blue"><span class="settings-summary-card__icon">2</span><div><small>Admin 2FA</small><strong><%= twoFactorStatusLabel %></strong><span>Authenticator protection</span></div></article>
+  <article class="settings-summary-card is-violet"><span class="settings-summary-card__icon">C</span><div><small>CAPTCHA</small><strong><%= captchaStatusLabel %></strong><span>Cloudflare Turnstile</span></div></article>
 </section>
 
 <nav class="settings-section-nav" aria-label="Settings sections">
@@ -132,6 +134,38 @@
       <% } else { %>
         <form action="/admin/2fa/setup" method="post"><button class="settings-primary-button" type="submit">Set Up QR Code</button></form>
       <% } %>
+    </article>
+
+    <article class="settings-panel captcha-settings-panel">
+      <div class="settings-panel__heading">
+        <h3>CAPTCHA protection</h3>
+        <p>Use Cloudflare Turnstile to block automated form abuse while keeping the voter experience simple.</p>
+      </div>
+      <div class="captcha-status <%= captchaSettings.isEnabled ? 'is-enabled' : captchaSettings.requestedEnabled ? 'is-warning' : 'is-disabled' %>">
+        <span></span>
+        <div>
+          <strong><%= captchaStatusLabel %></strong>
+          <small><%= captchaSettings.isConfigured ? 'Site and secret keys are configured.' : 'Enter both keys before CAPTCHA can become active.' %></small>
+        </div>
+      </div>
+      <form class="settings-form" action="/admin/captcha-settings" method="post">
+        <input type="hidden" name="returnTo" value="/admin/settings#security" />
+        <label class="field-checkbox">
+          <input type="checkbox" name="captchaEnabled" <%= captchaSettings.requestedEnabled ? 'checked' : '' %> />
+          <span>Enable Cloudflare Turnstile CAPTCHA protection</span>
+        </label>
+        <div class="settings-form-grid">
+          <label class="field"><span>Turnstile Site Key</span><input name="captchaSiteKey" value="<%= captchaSettings.siteKey %>" placeholder="0x4AAAA..." /></label>
+          <label class="field"><span>Turnstile Secret Key</span><input name="captchaSecretKey" type="password" value="" autocomplete="new-password" placeholder="<%= captchaSettings.secretConfigured ? 'Leave blank to keep saved secret' : 'Enter secret key' %>" /></label>
+        </div>
+        <div class="captcha-target-grid" aria-label="Protected forms">
+          <label class="field-checkbox"><input type="checkbox" name="protectVoterLogin" <%= captchaSettings.protectVoterLogin ? 'checked' : '' %> /><span>Protect voter login</span></label>
+          <label class="field-checkbox"><input type="checkbox" name="protectAdminLogin" <%= captchaSettings.protectAdminLogin ? 'checked' : '' %> /><span>Protect admin login</span></label>
+          <label class="field-checkbox"><input type="checkbox" name="protectObserverLogin" <%= captchaSettings.protectObserverLogin ? 'checked' : '' %> /><span>Protect observer login</span></label>
+          <label class="field-checkbox"><input type="checkbox" name="protectNomination" <%= captchaSettings.protectNomination ? 'checked' : '' %> /><span>Protect nomination forms</span></label>
+        </div>
+        <button class="settings-primary-button" type="submit">Save CAPTCHA Settings</button>
+      </form>
     </article>
   </div>
 

@@ -1,0 +1,5 @@
+<% if (typeof captcha !== "undefined" && captcha.isEnabled && captcha.siteKey) { %>
+  <div class="captcha-widget" aria-label="Security check">
+    <div class="cf-turnstile" data-sitekey="<%= captcha.siteKey %>"></div>
+  </div>
+<% } %>

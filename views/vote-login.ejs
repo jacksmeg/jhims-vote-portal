@@ -186,6 +186,8 @@
                 </div>
               </label>
 
+              <%- include("partials/captcha-widget") %>
+
               <button class="auth-submit" type="submit" data-auth-login-submit data-loading-label="<%= loginLoadingLabel %>" <%= electionState.isOpen ? "" : "disabled" %>>
                 <span class="auth-submit__spinner" aria-hidden="true"></span>
                 <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
@@ -351,6 +353,8 @@
               />
             </div>
           </label>
+
+          <%- include("partials/captcha-widget") %>
 
           <button class="auth-mobile-submit" type="submit" data-auth-login-submit data-loading-label="<%= loginLoadingLabel %>" <%= electionState.isOpen ? "" : "disabled" %>>
             <span class="auth-submit__spinner" aria-hidden="true"></span>

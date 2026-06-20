@@ -399,6 +399,13 @@ function initDatabase(defaultElectionName) {
     ["arkesel_api_key", ""],
     ["arkesel_sender_id", ""],
     ["arkesel_otp_message", "Your OTP code is %otp_code%. It expires in %expiry% minutes."],
+    ["captcha_enabled", "false"],
+    ["captcha_site_key", ""],
+    ["captcha_secret_key", ""],
+    ["captcha_protect_voter_login", "true"],
+    ["captcha_protect_admin_login", "true"],
+    ["captcha_protect_observer_login", "true"],
+    ["captcha_protect_nomination", "true"],
   ];
 
   for (const [key, value] of defaults) {
