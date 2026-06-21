@@ -116,6 +116,33 @@
       </form>
     </article>
 
+    <article class="settings-panel results-sms-settings-panel">
+      <div class="settings-panel__heading">
+        <h3>Automatic result SMS</h3>
+        <p>Send provisional results to registered voters automatically after the voting window closes.</p>
+      </div>
+      <div class="captcha-status <%= resultsSms.autoEnabled ? 'is-enabled' : 'is-disabled' %>">
+        <span></span>
+        <div>
+          <strong><%= resultsSms.autoEnabled ? 'Auto-send enabled' : 'Auto-send off' %></strong>
+          <small><%= resultsSms.configured ? `Arkesel sender: ${resultsSms.senderId}` : 'Add Arkesel API key and sender ID before enabling live SMS.' %></small>
+        </div>
+      </div>
+      <div class="settings-info-row"><span>SMS recipients</span><strong><%= resultsSms.recipientCount.toLocaleString() %></strong></div>
+      <div class="settings-info-row"><span>Last automatic attempt</span><strong><%= resultsSms.autoLastAttemptAt ? formatDateTime(resultsSms.autoLastAttemptAt) : 'Not yet' %></strong></div>
+      <form class="settings-form" action="/admin/results/sms-settings" method="post">
+        <input type="hidden" name="returnTo" value="/admin/settings#security" />
+        <label class="field-checkbox">
+          <input type="checkbox" name="autoEnabled" <%= resultsSms.autoEnabled ? 'checked' : '' %> />
+          <span>Automatically send provisional results SMS once voting closes</span>
+        </label>
+        <button class="settings-primary-button" type="submit">Save Result SMS Automation</button>
+      </form>
+      <p class="note-block">
+        Manual sending remains available on the Results page after close. Duplicate protection prevents the same result totals from being sent repeatedly.
+      </p>
+    </article>
+
     <article class="settings-panel two-factor-settings-panel">
       <div class="settings-panel__heading"><h3>Admin two-factor authentication</h3><p>Use Google Authenticator, Microsoft Authenticator, or another TOTP app.</p></div>
       <div class="two-factor-status <%= adminTwoFactorState.enabled ? 'is-enabled' : 'is-disabled' %>"><span></span><div><strong><%= adminTwoFactorState.enabled ? '2FA is enabled' : '2FA is not enabled' %></strong><small><%= adminTwoFactorState.enabled ? 'Admin login requires a rotating security code.' : 'Add a second layer of protection to the admin account.' %></small></div></div>

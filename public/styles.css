@@ -7568,6 +7568,114 @@ body {
   gap: 12px;
 }
 
+.results-sms-control {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 26px;
+  border: 1px solid rgba(22, 152, 112, 0.18);
+  background:
+    radial-gradient(circle at top right, rgba(22, 152, 112, 0.16), transparent 28%),
+    linear-gradient(135deg, rgba(236, 255, 248, 0.94), rgba(255, 255, 255, 0.96));
+  box-shadow: 0 18px 38px rgba(18, 35, 63, 0.08);
+}
+
+.results-sms-control__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.results-sms-control__header h3 {
+  margin: 4px 0 6px;
+  color: var(--ink-900);
+  font-size: clamp(1.3rem, 2vw, 1.8rem);
+}
+
+.results-sms-control__header p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.results-sms-control__badge {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.results-sms-control__badge.is-ready {
+  color: #066a4f;
+  background: rgba(22, 152, 112, 0.14);
+  border: 1px solid rgba(22, 152, 112, 0.2);
+}
+
+.results-sms-control__badge.is-warning {
+  color: #9a5b00;
+  background: rgba(255, 181, 93, 0.18);
+  border: 1px solid rgba(255, 181, 93, 0.3);
+}
+
+.results-sms-control__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.results-sms-control__stats span {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 18px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(18, 35, 63, 0.08);
+}
+
+.results-sms-control__stats strong {
+  color: var(--ink-900);
+  font-size: 1.35rem;
+}
+
+.results-sms-control__preview textarea {
+  resize: vertical;
+  min-height: 110px;
+  color: var(--ink-900);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.results-sms-control__confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.results-sms-control__confirm input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.results-sms-control__settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(18, 35, 63, 0.08);
+}
+
 .results-position-stack {
   display: grid;
   gap: 24px;
@@ -7943,6 +8051,7 @@ body {
   .results-kpi-grid,
   .results-command-grid,
   .results-signature-grid,
+  .results-sms-control__stats,
   .results-print-summary-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -7966,8 +8075,13 @@ body {
   .results-kpi-grid,
   .results-command-grid,
   .results-signature-grid,
+  .results-sms-control__stats,
   .results-print-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .results-sms-control__header {
+    flex-direction: column;
   }
 
   .results-leader-card {
@@ -9293,6 +9407,8 @@ body.admin-app-body {
 }
 
 .admin-app-body .admin-topbar {
+  position: relative;
+  z-index: 6000;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 320px) auto;
   align-items: center;
@@ -9436,25 +9552,29 @@ body.admin-app-body {
 
 .admin-notification-center {
   position: relative;
+  z-index: 5000;
 }
 
 .admin-notification-drawer {
-  position: absolute;
-  top: calc(100% + 14px);
-  right: 0;
-  z-index: 80;
-  width: min(430px, calc(100vw - 32px));
-  max-height: min(720px, calc(100vh - 110px));
+  position: fixed;
+  top: clamp(82px, 9vh, 112px);
+  right: clamp(18px, 3vw, 54px);
+  z-index: 5001;
+  width: min(460px, calc(100vw - 32px));
+  max-height: min(740px, calc(100vh - 142px));
   display: grid;
   grid-template-rows: auto auto minmax(160px, 1fr) auto auto;
   overflow: hidden;
   border: 1px solid rgba(17, 53, 94, 0.12);
   border-radius: 24px;
+  isolation: isolate;
   background:
     radial-gradient(circle at 0 0, rgba(239, 61, 69, 0.11), transparent 12rem),
     radial-gradient(circle at 100% 0, rgba(37, 99, 235, 0.12), transparent 13rem),
     #ffffff;
-  box-shadow: 0 30px 70px rgba(15, 35, 68, 0.22);
+  box-shadow:
+    0 34px 90px rgba(15, 35, 68, 0.28),
+    0 0 0 9999px rgba(15, 35, 68, 0.08);
 }
 
 .admin-notification-drawer[hidden] {
@@ -9472,6 +9592,7 @@ body.admin-app-body {
   background: #ffffff;
   border-left: 1px solid rgba(17, 53, 94, 0.1);
   border-top: 1px solid rgba(17, 53, 94, 0.1);
+  z-index: -1;
 }
 
 .admin-notification-drawer__header {
@@ -9548,7 +9669,7 @@ body.admin-app-body {
 .admin-notification-item {
   border: 1px solid rgba(17, 53, 94, 0.08);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.86);
+  background: #ffffff;
 }
 
 .admin-notification-empty {
@@ -9589,6 +9710,7 @@ body.admin-app-body {
 .admin-notification-item__icon.is-observer { background: #efe8ff; color: #6d28d9; }
 .admin-notification-item__icon.is-security { background: #ffe7ed; color: #df2448; }
 .admin-notification-item__icon.is-message { background: #e8f0ff; color: #245ddb; }
+.admin-notification-item__icon.is-results { background: #e9fff7; color: #008767; }
 
 .admin-notification-item__content {
   min-width: 0;
@@ -9646,14 +9768,14 @@ body.admin-app-body {
   padding: 13px 16px;
   border-top: 1px solid #edf1f6;
   border-bottom: 1px solid #edf1f6;
-  background: rgba(248, 251, 255, 0.78);
+  background: #f8fbff;
 }
 
 .admin-notification-compose {
   display: grid;
   gap: 9px;
   padding: 16px;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(239, 61, 69, 0.06));
+  background: linear-gradient(135deg, #f2f7ff, #fff4f7);
 }
 
 .admin-notification-compose strong {
@@ -9670,7 +9792,7 @@ body.admin-app-body {
   color: #182f51;
   font: inherit;
   font-size: 0.74rem;
-  background: rgba(255, 255, 255, 0.92);
+  background: #ffffff;
 }
 
 .admin-notification-compose button {

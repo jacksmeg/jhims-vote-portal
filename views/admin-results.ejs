@@ -74,6 +74,83 @@
         Live results are provisional and this page refreshes automatically every 30 seconds while voting remains open.
       </div>
     <% } else if (canArchiveReset) { %>
+      <div class="results-sms-control">
+        <div class="results-sms-control__header">
+          <div>
+            <span class="eyebrow">Voter SMS Broadcast</span>
+            <h3>Send provisional results to registered voters</h3>
+            <p>
+              Uses your saved Arkesel sender
+              <strong><%= resultsSms.senderId || 'not configured' %></strong>
+              to text each unique voter phone number after the election closes.
+            </p>
+          </div>
+          <div class="results-sms-control__badge <%= resultsSms.configured ? 'is-ready' : 'is-warning' %>">
+            <%= resultsSms.configured ? (resultsSms.autoEnabled ? 'Auto SMS On' : 'Arkesel Ready') : 'Setup Needed' %>
+          </div>
+        </div>
+
+        <div class="results-sms-control__stats">
+          <span><strong><%= resultsSms.recipientCount.toLocaleString() %></strong> recipients</span>
+          <span><strong><%= resultsSms.duplicateCount.toLocaleString() %></strong> duplicate phones skipped</span>
+          <span><strong><%= resultsSms.invalidCount.toLocaleString() %></strong> invalid phones skipped</span>
+        </div>
+
+        <form class="results-sms-control__settings" action="/admin/results/sms-settings" method="post">
+          <input type="hidden" name="returnTo" value="/admin/results" />
+          <label class="results-sms-control__confirm">
+            <input type="checkbox" name="autoEnabled" <%= resultsSms.autoEnabled ? 'checked' : '' %> />
+            <span>Automatically send provisional results SMS once voting closes</span>
+          </label>
+          <button class="button button-ghost" type="submit">Save Auto SMS Setting</button>
+        </form>
+
+        <label class="field results-sms-control__preview">
+          <span>SMS preview</span>
+          <textarea rows="4" readonly><%= resultsSms.messagePreview %></textarea>
+        </label>
+
+        <% if (resultsSms.lastSentAt) { %>
+          <p class="note-block">
+            Last send: <strong><%= formatDateTime(resultsSms.lastSentAt) %></strong>.
+            Successful: <strong><%= resultsSms.lastSuccessCount.toLocaleString() %></strong>.
+            Failed: <strong><%= resultsSms.lastFailureCount.toLocaleString() %></strong>.
+          </p>
+        <% } %>
+        <% if (resultsSms.autoLastAttemptAt) { %>
+          <p class="note-block">
+            Last automatic attempt: <strong><%= formatDateTime(resultsSms.autoLastAttemptAt) %></strong>.
+          </p>
+        <% } %>
+
+        <% if (!resultsSms.configured) { %>
+          <p class="note-block">
+            Add your Arkesel API key and sender ID under OTP settings before sending result SMS.
+          </p>
+        <% } else if (resultsSms.alreadySentForCurrentResults) { %>
+          <p class="note-block">
+            These exact results have already been sent. Tick the confirmation box below only if you want to resend them.
+          </p>
+        <% } %>
+
+        <form
+          class="stack-sm"
+          action="/admin/results/sms"
+          method="post"
+          onsubmit="return confirm('Send provisional results SMS to registered voters now? This will use Arkesel SMS credit.');"
+        >
+          <% if (resultsSms.alreadySentForCurrentResults) { %>
+            <label class="results-sms-control__confirm">
+              <input type="checkbox" name="confirmResend" />
+              <span>I understand these results were already sent and I want to resend them.</span>
+            </label>
+          <% } %>
+          <button class="button" type="submit" <%= !resultsSms.canSend ? 'disabled' : '' %>>
+            Send Provisional Results SMS
+          </button>
+        </form>
+      </div>
+
       <form
         class="stack-sm"
         action="/admin/election/archive-reset"

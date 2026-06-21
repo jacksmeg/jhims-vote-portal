@@ -90,6 +90,7 @@ const sessionSecureCookie = String(
   .trim()
   .toLowerCase() === "true";
 const adminNotificationClients = new Set();
+let resultsSmsAutoSendInProgress = false;
 
 const publicDirectory = path.join(process.cwd(), "public");
 const templatesDirectory = path.join(publicDirectory, "templates");
@@ -1313,7 +1314,7 @@ function requireCaptcha(context) {
 }
 
 function logSystemAudit(action, details = {}) {
-  db.prepare(`
+  const insertResult = db.prepare(`
     INSERT INTO audit_logs (
       actor_type,
       actor_identifier,
@@ -1332,6 +1333,14 @@ function logSystemAudit(action, details = {}) {
     "",
     "",
     nowIso(),
+  );
+
+  createAdminNotificationFromAudit(
+    "system",
+    "scheduler",
+    action,
+    details,
+    Number(insertResult.lastInsertRowid),
   );
 }
 
@@ -1519,6 +1528,14 @@ function getAdminNotificationForAudit(actorType, actorIdentifier, action, detail
         title: "Observer incident submitted",
         body: `${actorIdentifier} submitted a ${details.category || "general"} incident report.`,
         linkUrl: "/admin/observers#observer-incidents",
+      };
+    case "results_sms_sent":
+      return {
+        category: "results",
+        priority: details.failureCount > 0 ? "high" : "normal",
+        title: "Provisional results SMS sent",
+        body: `${Number(details.successCount || 0).toLocaleString()} sent, ${Number(details.failureCount || 0).toLocaleString()} failed.`,
+        linkUrl: "/admin/results",
       };
     case "voter_otp_send_failed":
     case "voter_otp_failed":
@@ -1808,6 +1825,7 @@ function syncAutomaticClosure() {
     logSystemAudit("election_auto_closed", {
       closesAt: settings.closesAt,
     });
+    void triggerAutomaticResultsSms("election_auto_closed");
   }
 }
 
@@ -2125,6 +2143,65 @@ async function sendArkeselOtpCode(smsPhoneNumber, otpConfig = getOtpConfig()) {
   return { provider: "arkesel" };
 }
 
+function isLikelyArkeselSmsFailure(payload) {
+  const status = String(payload?.status || payload?.code || "").toLowerCase();
+  const message = String(
+    payload?.message || payload?.msg || payload?.error || "",
+  ).toLowerCase();
+
+  return (
+    ["error", "failed", "fail", "false"].includes(status) ||
+    message.includes("invalid") ||
+    message.includes("insufficient") ||
+    message.includes("failed") ||
+    message.includes("error")
+  );
+}
+
+async function sendArkeselTextMessage(phoneNumber, message, otpConfig = getOtpConfig()) {
+  if (!otpConfig.arkeselConfigured) {
+    throw new Error("Add your Arkesel API key and sender ID before sending SMS.");
+  }
+
+  if (otpConfig.arkeselSenderId.length > 11) {
+    throw new Error("Your Arkesel sender ID must be 11 characters or fewer.");
+  }
+
+  const arkeselNumber = toArkeselOtpNumber(phoneNumber);
+  if (!arkeselNumber) {
+    throw new Error("The phone number is not in a valid format for Arkesel SMS delivery.");
+  }
+
+  const smsText = normalizeSmsMessageText(message);
+  if (!smsText) {
+    throw new Error("SMS message cannot be empty.");
+  }
+
+  const query = new URLSearchParams({
+    action: "send-sms",
+    api_key: otpConfig.arkeselApiKey,
+    to: arkeselNumber,
+    from: otpConfig.arkeselSenderId,
+    sms: smsText,
+  });
+  const response = await fetch(`https://sms.arkesel.com/sms/api?${query.toString()}`);
+  const payload = await parseOtpApiResponse(response);
+
+  if (!response.ok || isLikelyArkeselSmsFailure(payload)) {
+    throw new Error(
+      payload?.message ||
+        payload?.msg ||
+        payload?.error ||
+        "The SMS could not be sent right now. Please check your Arkesel balance and try again.",
+    );
+  }
+
+  return {
+    provider: "arkesel",
+    payload,
+  };
+}
+
 async function sendOtpChallenge(smsPhoneNumber, otpConfig = getOtpConfig()) {
   if (otpConfig.provider === "twilio") {
     return sendTwilioOtpCode(smsPhoneNumber, otpConfig);
@@ -2415,6 +2492,290 @@ function getResultsExportPayload() {
       ? "Official declaration ready for sign-off."
       : "Provisional monitoring only until voting closes.",
   };
+}
+
+function sanitizeSmsText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeSmsMessageText(value) {
+  return String(value || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+function truncateSmsText(value, maxLength = 40) {
+  const text = sanitizeSmsText(value);
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, Math.max(maxLength - 3, 1)).trim()}...`;
+}
+
+function buildResultsSmsFingerprint(payload) {
+  const compactResults = payload.results.map((position) => ({
+    id: position.id,
+    name: position.name,
+    totalVotes: position.totalVotes,
+    winnerLabel: position.winnerLabel,
+    candidates: position.candidates.map((candidate) => ({
+      id: candidate.id,
+      name: candidate.name,
+      voteCount: candidate.voteCount,
+    })),
+  }));
+
+  return crypto
+    .createHash("sha256")
+    .update(
+      JSON.stringify({
+        electionName: payload.settings.electionName,
+        opensAt: payload.settings.opensAt,
+        closesAt: payload.settings.closesAt,
+        totalVoters: payload.metrics.totalVoters,
+        votedCount: payload.metrics.votedCount,
+        results: compactResults,
+      }),
+    )
+    .digest("hex");
+}
+
+function buildResultsSmsMessage(payload) {
+  const electionName = truncateSmsText(payload.settings.electionName, 52);
+  const turnout = payload.metrics.totalVoters
+    ? formatPercent(payload.metrics.votedCount / payload.metrics.totalVoters)
+    : "0.0%";
+  const winnerItems = payload.results.map((position) => {
+    const leadingCandidate = position.candidates.find((candidate) => candidate.isLeading);
+    const winnerName = truncateSmsText(position.winnerLabel || "No votes recorded", 30);
+    const winnerVotes = leadingCandidate ? leadingCandidate.voteCount : 0;
+    const voteLabel = Number(winnerVotes) === 1 ? "vote" : "votes";
+    return `${truncateSmsText(position.name, 20)}: ${winnerName} - ${winnerVotes} ${voteLabel}`;
+  });
+
+  let includedCount = winnerItems.length;
+  let message = "";
+
+  do {
+    const shownWinners = winnerItems
+      .slice(0, includedCount)
+      .map((winner, index) => `${index + 1}. ${winner}`);
+    const hiddenCount = winnerItems.length - includedCount;
+    const hiddenText = hiddenCount > 0 ? `+${hiddenCount} more position${hiddenCount === 1 ? "" : "s"}` : "";
+    const winnerLines = shownWinners.length > 0
+      ? ["Winners:", ...shownWinners, hiddenText].filter(Boolean)
+      : ["Winners: No position results recorded yet."];
+
+    message = normalizeSmsMessageText([
+      "PROVISIONAL RESULTS",
+      electionName,
+      `Turnout: ${turnout} (${payload.metrics.votedCount}/${payload.metrics.totalVoters})`,
+      ...winnerLines,
+      "Status: Subject to official declaration.",
+    ].join("\n"));
+    includedCount -= 1;
+  } while (message.length > 620 && includedCount > 0);
+
+  return message;
+}
+
+function getResultsSmsRecipients() {
+  const rows = db.prepare(`
+    SELECT
+      id,
+      staff_id AS staffId,
+      phone_number AS phoneNumber,
+      full_name AS fullName
+    FROM voters
+    WHERE phone_number IS NOT NULL
+      AND TRIM(phone_number) <> ''
+    ORDER BY staff_id COLLATE NOCASE ASC
+  `).all();
+  const seenNumbers = new Set();
+  const recipients = [];
+  let duplicateCount = 0;
+  let invalidCount = 0;
+
+  for (const row of rows) {
+    const smsNumber = toArkeselOtpNumber(row.phoneNumber);
+
+    if (!smsNumber) {
+      invalidCount += 1;
+      continue;
+    }
+
+    if (seenNumbers.has(smsNumber)) {
+      duplicateCount += 1;
+      continue;
+    }
+
+    seenNumbers.add(smsNumber);
+    recipients.push({
+      id: row.id,
+      staffId: row.staffId,
+      fullName: row.fullName,
+      phoneNumber: row.phoneNumber,
+      smsNumber,
+      maskedPhoneNumber: maskPhoneNumber(row.phoneNumber),
+    });
+  }
+
+  return {
+    recipients,
+    duplicateCount,
+    invalidCount,
+    totalWithPhone: rows.length,
+  };
+}
+
+function getResultsSmsStatus(payload) {
+  const settings = getAllSettings();
+  const otpConfig = getOtpConfig();
+  const recipientSnapshot = getResultsSmsRecipients();
+  const currentFingerprint = buildResultsSmsFingerprint(payload);
+  const lastFingerprint = String(settings.results_sms_last_fingerprint || "");
+  const autoLastAttemptFingerprint = String(
+    settings.results_sms_auto_last_attempt_fingerprint || "",
+  );
+  const alreadySentForCurrentResults = Boolean(
+    lastFingerprint && lastFingerprint === currentFingerprint,
+  );
+  const autoAlreadyAttemptedForCurrentResults = Boolean(
+    autoLastAttemptFingerprint && autoLastAttemptFingerprint === currentFingerprint,
+  );
+
+  return {
+    providerLabel: "Arkesel",
+    autoEnabled: String(settings.results_sms_auto_enabled || "false") === "true",
+    autoLastAttemptAt: String(settings.results_sms_auto_last_attempt_at || ""),
+    autoAlreadyAttemptedForCurrentResults,
+    configured: otpConfig.arkeselConfigured,
+    senderId: otpConfig.arkeselSenderId || "",
+    recipientCount: recipientSnapshot.recipients.length,
+    duplicateCount: recipientSnapshot.duplicateCount,
+    invalidCount: recipientSnapshot.invalidCount,
+    totalWithPhone: recipientSnapshot.totalWithPhone,
+    messagePreview: buildResultsSmsMessage(payload),
+    currentFingerprint,
+    alreadySentForCurrentResults,
+    canSend:
+      payload.electionState.isClosed &&
+      otpConfig.arkeselConfigured &&
+      recipientSnapshot.recipients.length > 0,
+    lastSentAt: String(settings.results_sms_last_sent_at || ""),
+    lastSuccessCount: Number(settings.results_sms_last_success_count || 0),
+    lastFailureCount: Number(settings.results_sms_last_failure_count || 0),
+  };
+}
+
+async function sendResultsSmsBatch(recipients, message, otpConfig = getOtpConfig()) {
+  const failedRecipients = [];
+  let successCount = 0;
+
+  for (const recipient of recipients) {
+    try {
+      await sendArkeselTextMessage(recipient.smsNumber, message, otpConfig);
+      successCount += 1;
+    } catch (error) {
+      failedRecipients.push({
+        staffId: recipient.staffId,
+        phoneNumber: recipient.maskedPhoneNumber,
+        error: error.message || "SMS failed",
+      });
+    }
+  }
+
+  return {
+    successCount,
+    failureCount: failedRecipients.length,
+    failedRecipients,
+  };
+}
+
+async function triggerAutomaticResultsSms(reason = "election_closed") {
+  if (resultsSmsAutoSendInProgress) {
+    return {
+      skipped: true,
+      reason: "already_running",
+    };
+  }
+
+  const payload = getResultsExportPayload();
+  const resultsSms = getResultsSmsStatus(payload);
+
+  if (
+    !payload.electionState.isClosed ||
+    !resultsSms.autoEnabled ||
+    !resultsSms.configured ||
+    resultsSms.recipientCount === 0 ||
+    resultsSms.alreadySentForCurrentResults ||
+    resultsSms.autoAlreadyAttemptedForCurrentResults
+  ) {
+    return {
+      skipped: true,
+      reason: "not_ready",
+    };
+  }
+
+  resultsSmsAutoSendInProgress = true;
+
+  try {
+    const recipientSnapshot = getResultsSmsRecipients();
+    const message = buildResultsSmsMessage(payload);
+    const attemptedAt = nowIso();
+
+    setSetting("results_sms_auto_last_attempt_at", attemptedAt);
+    setSetting("results_sms_auto_last_attempt_fingerprint", resultsSms.currentFingerprint);
+
+    const sendResult = await sendResultsSmsBatch(
+      recipientSnapshot.recipients,
+      message,
+      getOtpConfig(),
+    );
+
+    setSetting("results_sms_last_sent_at", attemptedAt);
+    setSetting("results_sms_last_success_count", String(sendResult.successCount));
+    setSetting("results_sms_last_failure_count", String(sendResult.failureCount));
+
+    if (sendResult.successCount > 0) {
+      setSetting("results_sms_last_fingerprint", resultsSms.currentFingerprint);
+    }
+
+    logSystemAudit("results_sms_sent", {
+      automatic: true,
+      reason,
+      electionName: payload.settings.electionName,
+      resultsFingerprint: resultsSms.currentFingerprint,
+      recipientCount: recipientSnapshot.recipients.length,
+      successCount: sendResult.successCount,
+      failureCount: sendResult.failureCount,
+      duplicateCount: recipientSnapshot.duplicateCount,
+      invalidCount: recipientSnapshot.invalidCount,
+      failedRecipients: sendResult.failedRecipients.slice(0, 5),
+    });
+
+    return sendResult;
+  } catch (error) {
+    logSystemAudit("results_sms_sent", {
+      automatic: true,
+      reason,
+      successCount: 0,
+      failureCount: resultsSms.recipientCount,
+      error: error.message || "Automatic results SMS failed.",
+    });
+    return {
+      successCount: 0,
+      failureCount: resultsSms.recipientCount,
+      failedRecipients: [],
+    };
+  } finally {
+    resultsSmsAutoSendInProgress = false;
+  }
 }
 
 function getElectionArchives() {
@@ -5378,6 +5739,7 @@ app.use(
 app.use((req, res, next) => {
   syncAutomaticClosure();
   syncAutomaticNominationLifecycle();
+  void triggerAutomaticResultsSms("closed_election_check");
 
   const settings = getElectionSettings();
   const electionState = computeElectionState(settings);
@@ -7246,6 +7608,7 @@ app.get("/admin/settings", requireAdmin, async (req, res) => {
     readiness: getElectionReadiness(settings),
     otpSettings: getAdminOtpSettingsView(),
     captchaSettings: getAdminCaptchaSettingsView(),
+    resultsSms: getResultsSmsStatus(getResultsExportPayload()),
     otpActivity: getOtpActivityLogs(7),
     themeOptions: getThemeOptions(),
     adminTwoFactorState,
@@ -8424,7 +8787,8 @@ app.post("/admin/election/close", requireAdmin, (req, res) => {
 
   setSetting("election_phase", "closed");
   logAudit(req, "admin", req.session.admin.username, "election_closed");
-  setFlash(req, "success", "Voting has been closed. Results are now final.");
+  void triggerAutomaticResultsSms("manual_election_closed");
+  setFlash(req, "success", "Voting has been closed. Results are now final. Automatic results SMS will send if enabled.");
   return res.redirect("/admin/results");
 });
 
@@ -9642,6 +10006,122 @@ app.get("/admin/results/pdf", requireAdmin, (req, res) => {
   document.end();
 });
 
+app.post("/admin/results/sms-settings", requireAdmin, (req, res) => {
+  const autoEnabled = req.body.autoEnabled === "on";
+
+  setSetting("results_sms_auto_enabled", autoEnabled ? "true" : "false");
+  logAudit(req, "admin", req.session.admin.username, "results_sms_settings_updated", {
+    autoEnabled,
+  });
+  setFlash(
+    req,
+    "success",
+    autoEnabled
+      ? "Automatic provisional results SMS is enabled. It will send once voting closes."
+      : "Automatic provisional results SMS has been disabled.",
+  );
+
+  return res.redirect(getAdminReturnPath(req, "/admin/results"));
+});
+
+app.post("/admin/results/sms", requireAdmin, async (req, res) => {
+  const payload = getResultsExportPayload();
+
+  if (resultsSmsAutoSendInProgress) {
+    setFlash(
+      req,
+      "warning",
+      "Automatic results SMS is already sending. Please wait a moment before sending manually.",
+    );
+    return res.redirect("/admin/results");
+  }
+
+  if (!payload.electionState.isClosed) {
+    setFlash(
+      req,
+      "error",
+      "Provisional results SMS can only be sent after voting has closed.",
+    );
+    return res.redirect("/admin/results");
+  }
+
+  const resultsSms = getResultsSmsStatus(payload);
+
+  if (!resultsSms.configured) {
+    setFlash(
+      req,
+      "error",
+      "Add your Arkesel API key and sender ID before sending results by SMS.",
+    );
+    return res.redirect("/admin/results");
+  }
+
+  if (resultsSms.recipientCount === 0) {
+    setFlash(req, "error", "No voter phone numbers are available for results SMS.");
+    return res.redirect("/admin/results");
+  }
+
+  const confirmedResend = req.body.confirmResend === "on";
+  if (resultsSms.alreadySentForCurrentResults && !confirmedResend) {
+    setFlash(
+      req,
+      "error",
+      "These exact results have already been sent. Tick the resend confirmation box if you want to send them again.",
+    );
+    return res.redirect("/admin/results");
+  }
+
+  const recipientSnapshot = getResultsSmsRecipients();
+  const message = buildResultsSmsMessage(payload);
+  const sentAt = nowIso();
+  const sendResult = await sendResultsSmsBatch(
+    recipientSnapshot.recipients,
+    message,
+    getOtpConfig(),
+  );
+
+  setSetting("results_sms_last_sent_at", sentAt);
+  setSetting("results_sms_last_success_count", String(sendResult.successCount));
+  setSetting("results_sms_last_failure_count", String(sendResult.failureCount));
+
+  if (sendResult.successCount > 0) {
+    setSetting("results_sms_last_fingerprint", resultsSms.currentFingerprint);
+  }
+
+  logAudit(req, "admin", req.session.admin.username, "results_sms_sent", {
+    electionName: payload.settings.electionName,
+    resultsFingerprint: resultsSms.currentFingerprint,
+    recipientCount: recipientSnapshot.recipients.length,
+    successCount: sendResult.successCount,
+    failureCount: sendResult.failureCount,
+    duplicateCount: recipientSnapshot.duplicateCount,
+    invalidCount: recipientSnapshot.invalidCount,
+    failedRecipients: sendResult.failedRecipients.slice(0, 5),
+  });
+
+  if (sendResult.successCount > 0 && sendResult.failureCount === 0) {
+    setFlash(
+      req,
+      "success",
+      `Provisional results SMS sent successfully to ${sendResult.successCount.toLocaleString()} voters.`,
+    );
+  } else if (sendResult.successCount > 0) {
+    setFlash(
+      req,
+      "warning",
+      `Results SMS sent to ${sendResult.successCount.toLocaleString()} voters, but ${sendResult.failureCount.toLocaleString()} failed. Check your Arkesel balance and phone numbers.`,
+    );
+  } else {
+    setFlash(
+      req,
+      "error",
+      "Results SMS could not be sent to any voter. Check your Arkesel balance, sender ID, and API key.",
+    );
+  }
+
+  return res.redirect("/admin/results");
+});
+
 app.get("/admin/results", requireAdmin, (req, res) => {
   const payload = getResultsExportPayload();
   const showResults = payload.electionState.isOpen || payload.electionState.isClosed;
@@ -9663,6 +10143,7 @@ app.get("/admin/results", requireAdmin, (req, res) => {
     resultsLocked: !showResults,
     isLiveResults: payload.electionState.isOpen,
     canArchiveReset: payload.electionState.isClosed,
+    resultsSms: getResultsSmsStatus(payload),
   });
 });
 
