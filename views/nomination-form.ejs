@@ -1,232 +1,440 @@
 <%- include("partials/public-shell-start", { pageTitle }) %>
 
-<section class="panel panel-light stack-lg">
-  <div class="section-heading">
-    <div>
-      <span class="eyebrow">Nomination Form</span>
-      <h2><%= editableNomination ? 'Update and resubmit your nomination' : 'Submit your nomination application' %></h2>
-    </div>
-    <p>
-      <% if (editableNomination) { %>
-        The committee requested correction on this nomination. Update the details below and resubmit.
-      <% } else { %>
-        Fill every field carefully before you submit. After submission, you will receive an application number for status tracking.
-      <% } %>
-    </p>
-  </div>
+<%
+  const nominationWindowLabel = nominationState.isOpen
+    ? 'Nomination Open'
+    : nominationState.isScheduled
+      ? 'Nomination Scheduled'
+      : nominationState.isClosed
+        ? 'Nomination Closed'
+        : 'Nomination Setup';
+  const formTitle = editableNomination ? 'Update Nomination' : 'Apply for Nomination';
+  const formSubtitle = editableNomination
+    ? 'Update your nomination details and resubmit for committee review.'
+    : 'Complete your nomination details and submit for committee review.';
+%>
 
-  <% if (formLocked) { %>
-    <p class="note-block otp-note--warning">
-      <strong>Submission locked for now:</strong>
-      Nominations will open on <%= formatDateTime(settings.nominationOpensAt) %>. You can review the form below and use
-      <strong>Check Status</strong> for any existing application, but new submission starts only when the countdown finishes.
-    </p>
-  <% } %>
-
-  <% if (editableNomination && editableNomination.adminNotes) { %>
-    <p class="note-block"><strong>Committee Note:</strong> <%= editableNomination.adminNotes %></p>
-  <% } %>
-
-  <div class="nomination-layout">
-    <form class="stack-md" action="/nomination/form" method="post" enctype="multipart/form-data">
+<section class="nomination-application-shell" aria-labelledby="nomination-application-title">
+  <div class="nomination-application-card">
+    <form class="nomination-application-form" action="/nomination/form" method="post" enctype="multipart/form-data">
       <% if (editableNomination) { %>
         <input type="hidden" name="nominationId" value="<%= editableNomination.id %>" />
       <% } %>
 
-      <fieldset class="nomination-form-fieldset stack-md" <%= formLocked ? 'disabled' : '' %>>
-        <div class="form-grid">
-          <label class="field">
-            <span>Full Name</span>
-            <input
-              name="fullName"
-              value="<%= editableNomination ? editableNomination.fullName : '' %>"
-              required
-            />
-          </label>
-
-          <label class="field">
-            <span>Department</span>
-            <input
-              name="department"
-              value="<%= editableNomination ? editableNomination.department : '' %>"
-              required
-            />
-          </label>
+      <header class="nomination-form-header">
+        <div>
+          <h1 id="nomination-application-title"><%= formTitle %></h1>
+          <p><%= formSubtitle %></p>
         </div>
 
-        <div class="form-grid">
-          <label class="field">
-            <span>Staff ID</span>
-            <input
-              name="staffId"
-              value="<%= editableNomination ? editableNomination.staffId : '' %>"
-              placeholder="STF0234"
-              required
-            />
-          </label>
+        <% if (editableNomination) { %>
+          <span class="nomination-form-chip nomination-form-chip--violet">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M4 6.5h16M4 12h10M4 17.5h7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
+            </svg>
+            <%= editableNomination.statusMeta.label %>
+          </span>
+        <% } %>
+      </header>
 
-          <label class="field">
-            <span>Phone Number</span>
-            <input
-              name="phoneNumber"
-              value="<%= editableNomination ? editableNomination.phoneNumber : '' %>"
-              placeholder="0240000000"
-              required
-            />
-          </label>
+      <% if (formLocked) { %>
+        <div class="nomination-lock-notice">
+          <strong>Submission locked for now.</strong>
+          Nominations open on <%= formatDateTime(settings.nominationOpensAt) %>. You may review the form, but submission starts automatically when the window opens.
+        </div>
+      <% } %>
+
+      <% if (editableNomination && editableNomination.adminNotes) { %>
+        <div class="nomination-lock-notice nomination-lock-notice--note">
+          <strong>Committee note:</strong>
+          <%= editableNomination.adminNotes %>
+        </div>
+      <% } %>
+
+      <div class="nomination-stepper" aria-label="Nomination application steps">
+        <span class="nomination-stepper__item is-active">
+          <strong>1</strong>
+          <small>Personal Info</small>
+        </span>
+        <span class="nomination-stepper__item">
+          <strong>2</strong>
+          <small>Position</small>
+        </span>
+        <span class="nomination-stepper__item">
+          <strong>3</strong>
+          <small>Profile &amp; Photo</small>
+        </span>
+        <span class="nomination-stepper__item">
+          <strong>4</strong>
+          <small>Declaration</small>
+        </span>
+        <span class="nomination-stepper__item">
+          <strong>5</strong>
+          <small>Submit</small>
+        </span>
+      </div>
+
+      <fieldset class="nomination-form-fieldset nomination-form-fieldset--modern" <%= formLocked ? 'disabled' : '' %>>
+        <section class="nomination-form-section nomination-form-section--green">
+          <h2>
+            <span class="nomination-form-section__icon">
+              <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
+              </svg>
+            </span>
+            Personal Details
+          </h2>
+
+          <div class="nomination-fields-grid nomination-fields-grid--four">
+            <label class="nomination-field">
+              <span>Full Name</span>
+              <input
+                name="fullName"
+                value="<%= editableNomination ? editableNomination.fullName : '' %>"
+                placeholder="e.g. Kofi Yeboah"
+                autocomplete="name"
+                required
+              />
+            </label>
+
+            <label class="nomination-field">
+              <span>Staff ID</span>
+              <input
+                name="staffId"
+                value="<%= editableNomination ? editableNomination.staffId : '' %>"
+                placeholder="e.g. STF0234"
+                autocomplete="off"
+                required
+              />
+            </label>
+
+            <label class="nomination-field">
+              <span>Phone Number</span>
+              <input
+                name="phoneNumber"
+                value="<%= editableNomination ? editableNomination.phoneNumber : '' %>"
+                placeholder="e.g. 024 123 4567"
+                autocomplete="tel"
+                required
+              />
+            </label>
+
+            <label class="nomination-field">
+              <span>Department</span>
+              <input
+                name="department"
+                value="<%= editableNomination ? editableNomination.department : '' %>"
+                placeholder="e.g. Finance"
+                required
+              />
+            </label>
+          </div>
+        </section>
+
+        <div class="nomination-form-split">
+          <section class="nomination-form-section nomination-form-section--blue">
+            <h2>
+              <span class="nomination-form-section__icon">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="M8 7V5.5A2.5 2.5 0 0 1 10.5 3h3A2.5 2.5 0 0 1 16 5.5V7m-9 0h10a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8"/>
+                </svg>
+              </span>
+              Position Applying For
+            </h2>
+
+            <label class="nomination-field nomination-field--single">
+              <span class="sr-only">Position Applying For</span>
+              <select name="positionId" required>
+                <option value="">Select position you wish to contest</option>
+                <% positions.forEach((position) => { %>
+                  <option
+                    value="<%= position.id %>"
+                    <%= (editableNomination ? editableNomination.positionId : '') === position.id ? 'selected' : '' %>
+                  >
+                    <%= position.name %>
+                  </option>
+                <% }) %>
+              </select>
+            </label>
+          </section>
+
+          <section class="nomination-form-section nomination-form-section--violet">
+            <h2>
+              <span class="nomination-form-section__icon">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="M7 8h1.2L10 6h4l1.8 2H17a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8"/>
+                  <path d="M12 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+              </span>
+              Candidate Photo
+            </h2>
+
+            <label class="nomination-photo-upload">
+              <span class="nomination-photo-upload__avatar">
+                <% if (editableNomination?.photoPath) { %>
+                  <img src="<%= editableNomination.photoPath %>" alt="<%= editableNomination.fullName %>" data-image-fallback />
+                <% } else { %>
+                  <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                    <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
+                  </svg>
+                <% } %>
+              </span>
+              <span>
+                <strong><%= editableNomination?.photoPath ? 'Replace candidate photo' : 'Upload candidate photo' %></strong>
+                <small>JPG, PNG (Max 2MB)</small>
+              </span>
+              <input name="photo" type="file" accept="image/*" <%= editableNomination ? '' : 'required' %> />
+            </label>
+          </section>
         </div>
 
-        <div class="form-grid">
-          <label class="field">
-            <span>Application Number</span>
-            <input
-              value="<%= editableNomination ? editableNomination.applicationNumber : 'Assigned automatically after submission' %>"
-              disabled
-            />
+        <section class="nomination-form-section nomination-form-section--yellow">
+          <h2>
+            <span class="nomination-form-section__icon">
+              <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <path d="M8 7h8M8 11h8M8 15h5M6 3h12a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2-3-2V5a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+              </svg>
+            </span>
+            Short Profile / Bio
+          </h2>
+          <label class="nomination-field nomination-field--single">
+            <span class="sr-only">Short Profile / Bio</span>
+            <textarea name="bio" rows="3" maxlength="250" placeholder="Briefly introduce yourself and your motivation for the position..." required><%= editableNomination ? editableNomination.bio : '' %></textarea>
+            <small>0 / 250</small>
           </label>
+        </section>
 
-          <label class="field">
-            <span>Position Applying For</span>
-            <select name="positionId" required>
-              <option value="">Select a position</option>
-              <% positions.forEach((position) => { %>
-                <option
-                  value="<%= position.id %>"
-                  <%= (editableNomination ? editableNomination.positionId : '') === position.id ? 'selected' : '' %>
-                >
-                  <%= position.name %>
-                </option>
-              <% }) %>
-            </select>
+        <section class="nomination-form-section nomination-form-section--blue">
+          <h2>
+            <span class="nomination-form-section__icon">
+              <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <path d="M4 13v-2l11-5v12L4 13Zm0 0v4a2 2 0 0 0 2 2h1" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+                <path d="M18 9.5c1 .5 1.5 1.3 1.5 2.5s-.5 2-1.5 2.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
+              </svg>
+            </span>
+            Manifesto / Message
+          </h2>
+          <label class="nomination-field nomination-field--single">
+            <span class="sr-only">Manifesto / Message</span>
+            <textarea name="manifesto" rows="3" maxlength="500" placeholder="Share your key ideas, plans and how you will contribute to our organization..." required><%= editableNomination ? editableNomination.manifesto : '' %></textarea>
+            <small>0 / 500</small>
           </label>
+        </section>
+
+        <div class="nomination-form-split">
+          <section class="nomination-form-section nomination-form-section--pink">
+            <h2>Proposer Name</h2>
+            <label class="nomination-field nomination-field--single">
+              <span class="sr-only">Proposer Name</span>
+              <input
+                name="proposerName"
+                value="<%= editableNomination ? editableNomination.proposerName : '' %>"
+                placeholder="Enter proposer's full name"
+                required
+              />
+            </label>
+          </section>
+
+          <section class="nomination-form-section nomination-form-section--pink">
+            <h2>Seconder Name</h2>
+            <label class="nomination-field nomination-field--single">
+              <span class="sr-only">Seconder Name</span>
+              <input
+                name="seconderName"
+                value="<%= editableNomination ? editableNomination.seconderName : '' %>"
+                placeholder="Enter seconder's full name"
+                required
+              />
+            </label>
+          </section>
         </div>
 
-        <label class="field">
-          <span>Candidate Photo</span>
-          <input name="photo" type="file" accept="image/*" <%= editableNomination ? '' : 'required' %> />
-        </label>
-
-        <label class="field">
-          <span>Short Profile / Bio</span>
-          <textarea name="bio" rows="4" required><%= editableNomination ? editableNomination.bio : '' %></textarea>
-        </label>
-
-        <label class="field">
-          <span>Manifesto / Message</span>
-          <textarea name="manifesto" rows="5" required><%= editableNomination ? editableNomination.manifesto : '' %></textarea>
-        </label>
-
-        <div class="form-grid">
-          <label class="field">
-            <span>Proposer Name</span>
-            <input name="proposerName" value="<%= editableNomination ? editableNomination.proposerName : '' %>" required />
-          </label>
-
-          <label class="field">
-            <span>Seconder Name</span>
-            <input name="seconderName" value="<%= editableNomination ? editableNomination.seconderName : '' %>" required />
-          </label>
-        </div>
-
-        <label class="field-checkbox">
+        <label class="nomination-declaration">
           <input type="checkbox" name="declarationAccepted" <%= editableNomination?.declarationAccepted ? 'checked' : '' %> required />
-          <span>I confirm that all details in this nomination form are accurate and submitted by me.</span>
+          <span>I confirm that the information provided is accurate.</span>
         </label>
       </fieldset>
 
       <%- include("partials/captcha-widget") %>
 
-      <div class="button-row">
-        <button class="button" type="submit" <%= formLocked ? 'disabled' : '' %>>
+      <div class="nomination-actions">
+        <a class="nomination-action nomination-action--home" href="/">
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="m4 11 8-7 8 7M6 10.5V20h12v-9.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+          </svg>
+          Back Home
+        </a>
+        <button class="nomination-action nomination-action--draft" type="button" data-save-nomination-draft <%= formLocked ? 'disabled' : '' %>>
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="M5 4h12l2 2v14H5V4Zm3 0v6h8V4M8 20v-6h8v6" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8"/>
+          </svg>
+          Save Draft
+        </button>
+        <button class="nomination-action nomination-action--submit" type="submit" <%= formLocked ? 'disabled' : '' %>>
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="m21 3-7.2 18-4-8-8-4L21 3Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8"/>
+          </svg>
           <%= formLocked
             ? 'Submission Opens Automatically'
             : editableNomination
               ? 'Resubmit Nomination'
               : 'Submit Nomination' %>
         </button>
-        <a class="button button-ghost" href="/nomination/status/login">Check Status</a>
-        <a class="button button-ghost" href="#nomination-guide-inline">How to Apply</a>
       </div>
     </form>
 
-    <aside class="panel panel-light nomination-sidebar-card">
-      <div class="section-heading">
-        <div>
-          <span class="eyebrow">Submission Guide</span>
-          <h3>What happens next</h3>
-        </div>
-      </div>
-
-      <div class="stack-sm">
-        <div class="mini-card">
-          <strong>Application Number</strong>
-          <span><%= editableNomination ? editableNomination.applicationNumber : 'Issued after submission' %></span>
-        </div>
-
-        <div class="mini-card">
-          <strong>Status</strong>
-          <span><%= editableNomination ? editableNomination.statusMeta.label : formLocked ? 'Waiting for nomination opening time' : 'Ready for first submission' %></span>
-        </div>
-
-        <% if (editableNomination) { %>
-          <div class="mini-card">
-            <strong>Last Submitted</strong>
-            <span><%= formatDateTime(editableNomination.submittedAt) %></span>
+    <aside class="nomination-help-column" aria-label="Nomination guidance">
+      <article class="nomination-side-card nomination-side-card--green">
+        <span class="nomination-side-card__icon">
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="M7 3v3M17 3v3M4.5 9.5h15M7 13h3m4 0h3M7 17h3m4 0h3M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+          </svg>
+        </span>
+        <h2>Nomination Window</h2>
+        <dl class="nomination-window-list">
+          <div>
+            <dt><span class="dot dot--green"></span> Opens</dt>
+            <dd><%= settings.nominationOpensAt ? formatDateTime(settings.nominationOpensAt) : 'Not scheduled' %></dd>
           </div>
-        <% } else if (formLocked) { %>
-          <div class="mini-card">
-            <strong>Opens At</strong>
-            <span><%= formatDateTime(settings.nominationOpensAt) %></span>
+          <div>
+            <dt><span class="dot dot--red"></span> Closes</dt>
+            <dd><%= settings.nominationClosesAt ? formatDateTime(settings.nominationClosesAt) : 'Not scheduled' %></dd>
           </div>
-        <% } else { %>
-          <div class="mini-card">
-            <strong>Important</strong>
-            <span>Save the application number shown after submission because you will need it to check your status later.</span>
-          </div>
-        <% } %>
+        </dl>
+      </article>
 
-        <div class="mini-card">
-          <strong>Need help?</strong>
-          <span><a href="#nomination-guide-inline">Read the nomination guide before you submit.</a></span>
-        </div>
-      </div>
+      <article class="nomination-side-card nomination-side-card--blue">
+        <span class="nomination-side-card__icon">
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/>
+          </svg>
+        </span>
+        <h2>What Happens Next</h2>
+        <ol class="nomination-next-list">
+          <li><strong>Submit application</strong><span>Submit your nomination before the deadline.</span></li>
+          <li><strong>Committee review</strong><span>Applications are verified and reviewed.</span></li>
+          <li><strong>Approval and publication</strong><span>Approved candidates are published for voting.</span></li>
+        </ol>
+      </article>
+
+      <article class="nomination-side-card nomination-side-card--yellow">
+        <span class="nomination-side-card__icon">
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="M9 4h6l1 2h3v15H5V6h3l1-2Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8"/>
+            <path d="m8 12 2 2 4-4M8 17h8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+          </svg>
+        </span>
+        <h2>Required Details</h2>
+        <ul class="nomination-required-list">
+          <li>Valid Staff ID</li>
+          <li>Active phone number</li>
+          <li>Candidate photo</li>
+          <li>Proposer and seconder names</li>
+        </ul>
+      </article>
+
+      <article class="nomination-side-card nomination-side-card--violet">
+        <span class="nomination-side-card__icon">
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="M5 5h14v14H5V5Zm4 4h6M9 12h6M9 15h3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+          </svg>
+        </span>
+        <h2>Application Number</h2>
+        <p>
+          <%= editableNomination
+            ? `Your application number is ${editableNomination.applicationNumber}. Use it to track your application status.`
+            : 'A unique application number will be generated after submission. Use it to track your application status.' %>
+        </p>
+      </article>
     </aside>
   </div>
+
+  <div class="nomination-info-grid" id="nomination-guide-inline">
+    <article class="nomination-info-card nomination-info-card--red">
+      <span>
+        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+          <path d="M12 3 19 6v5c0 4.6-2.9 8.3-7 10-4.1-1.7-7-5.4-7-10V6l7-3Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8"/>
+          <path d="M9 12h6M10 12V9.8a2 2 0 0 1 4 0V12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
+        </svg>
+      </span>
+      <div>
+        <h3>Secure Submission</h3>
+        <p>Your data is encrypted and securely transmitted to ensure confidentiality and integrity.</p>
+      </div>
+    </article>
+
+    <article class="nomination-info-card nomination-info-card--pink">
+      <span>
+        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+          <path d="M8 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3 20a5 5 0 0 1 10 0m-2-1a5 5 0 0 1 10 0" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
+        </svg>
+      </span>
+      <div>
+        <h3>Committee Review</h3>
+        <p>All nominations are carefully reviewed by the Election Committee for compliance and eligibility.</p>
+      </div>
+    </article>
+
+    <article class="nomination-info-card nomination-info-card--yellow">
+      <span>
+        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+          <path d="M5 5h14v14H5V5Zm4 4h6M9 12h6M9 15h3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+        </svg>
+      </span>
+      <div>
+        <h3>Application Number</h3>
+        <p>Receive a unique reference number after submission to track your application in real-time.</p>
+      </div>
+    </article>
+
+    <article class="nomination-info-card nomination-info-card--blue">
+      <span>
+        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+          <path d="M6 3h8l4 4v14H6V3Zm8 0v5h4M9 14h6M9 17h4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+        </svg>
+      </span>
+      <div>
+        <h3>Download PDF After Submission</h3>
+        <p>Download a copy of your nomination form as PDF for your records and confirmation.</p>
+      </div>
+    </article>
+  </div>
 </section>
 
-<section class="panel panel-light stack-lg" id="nomination-guide-inline">
-  <div class="section-heading">
-    <div>
-      <span class="eyebrow">How To Apply</span>
-      <h3>Step-by-step nomination guide for applicants</h3>
-    </div>
-    <a class="button button-ghost button-small" href="/nomination/form">Back to Form</a>
-  </div>
+<script>
+  (() => {
+    const draftButton = document.querySelector('[data-save-nomination-draft]');
+    const form = document.querySelector('.nomination-application-form');
+    if (!draftButton || !form) {
+      return;
+    }
 
-  <ol class="flow-list">
-    <li>Open the nomination form during the nomination window.</li>
-    <li>If the opening time has not reached yet, review the form and wait for the countdown to unlock submission.</li>
-    <li>Fill in your full name, department, staff ID, phone number, and the position you want to contest.</li>
-    <li>Upload your photo and complete your short profile, manifesto, proposer name, and seconder name.</li>
-    <li>Tick the declaration checkbox and submit the nomination form once submission is open.</li>
-    <li>After successful submission, save the application number shown by the system.</li>
-    <li>Use that application number later to check your status, download your filled form, or continue any correction requested by the committee.</li>
-  </ol>
+    const storageKey = 'jhims-nomination-draft';
+    const fields = ['fullName', 'staffId', 'phoneNumber', 'department', 'bio', 'manifesto', 'proposerName', 'seconderName'];
 
-  <div class="feature-grid guide-feature-grid">
-    <article class="feature-card">
-      <h4>Timing matters</h4>
-      <p>Nominations close automatically when voting starts, so submit before the election opens.</p>
-    </article>
-    <article class="feature-card">
-      <h4>Save your number</h4>
-      <p>Your application number is the only number you need for status checking and future follow-up.</p>
-    </article>
-    <article class="feature-card">
-      <h4>Committee review</h4>
-      <p>Every nomination is reviewed before it can be approved and published as a candidate.</p>
-    </article>
-  </div>
-</section>
+    fields.forEach((fieldName) => {
+      const field = form.elements[fieldName];
+      const saved = window.localStorage.getItem(`${storageKey}:${fieldName}`);
+      if (field && saved && !field.value) {
+        field.value = saved;
+      }
+    });
+
+    draftButton.addEventListener('click', () => {
+      fields.forEach((fieldName) => {
+        const field = form.elements[fieldName];
+        if (field) {
+          window.localStorage.setItem(`${storageKey}:${fieldName}`, field.value || '');
+        }
+      });
+
+      const defaultMarkup = draftButton.innerHTML;
+      draftButton.innerHTML = 'Draft Saved';
+      window.setTimeout(() => {
+        draftButton.innerHTML = defaultMarkup;
+      }, 1600);
+    });
+  })();
+</script>
 
 <%- include("partials/public-shell-end") %>

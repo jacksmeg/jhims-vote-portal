@@ -10,10 +10,13 @@
         : currentPath === '/vote/complete'
           ? 'vote-flow-complete-body'
           : '';
+  const isNominationFormPage = currentPath === '/nomination/form';
   const publicBodyClass = isHomePage
     ? 'public-home-body'
     : isVoteFlowPage
       ? `vote-flow-body ${voteFlowPageClass}`
+      : isNominationFormPage
+        ? 'nomination-portal-body'
       : '';
 %>
 <%- include("head", { pageTitle, bodyClass: publicBodyClass }) %>
@@ -42,6 +45,8 @@
       ? '/nomination/form#nomination-guide-inline'
       : '/';
   const portalHelpLabel = isVotePortal ? 'How To Vote' : isNominationPortal ? 'How To Apply' : 'Help';
+  const portalHeaderTitle = isNominationFormPage ? 'UDEGHSWWA ELECTION 2026' : settings.electionName;
+  const portalHeaderSubtitle = isNominationFormPage ? 'Nomination Portal' : 'Election Portal';
 %>
 <div class="site-shell">
   <header class="site-header <%= isPortalFlow ? 'site-header--portal' : 'site-header--home' %>">
@@ -52,14 +57,28 @@
         <span class="brand-mark__crest">VP</span>
       <% } %>
       <span>
-        <strong><%= isPortalFlow ? settings.electionName : homeHeaderTitle %></strong>
-        <small><%= isPortalFlow ? 'Election Portal' : homeHeaderSubtitle %></small>
+        <strong><%= isPortalFlow ? portalHeaderTitle : homeHeaderTitle %></strong>
+        <small><%= isPortalFlow ? portalHeaderSubtitle : homeHeaderSubtitle %></small>
       </span>
     </a>
 
     <% if (isPortalFlow) { %>
       <div class="site-header__utility">
-        <% if (showPortalHelpLink) { %>
+        <% if (isNominationFormPage) { %>
+          <span class="site-utility-link site-utility-link--nomination">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M7 3v3M17 3v3M4.5 9.5h15M7 13h3m4 0h3M7 17h3m4 0h3M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+            </svg>
+            <%= nominationState.badgeLabel === 'Nominations Open' ? 'Nomination Open' : nominationState.badgeLabel %>
+          </span>
+          <span class="site-utility-link site-utility-link--secure">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M12 3 19 6v5c0 4.6-2.9 8.3-7 10-4.1-1.7-7-5.4-7-10V6l7-3Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8"/>
+              <path d="m8.8 12 2.1 2.1 4.4-4.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+            </svg>
+            Secure Application
+          </span>
+        <% } else if (showPortalHelpLink) { %>
           <a
             class="site-utility-link"
             href="<%= portalHelpHref %>"
@@ -68,10 +87,12 @@
           </a>
         <% } %>
 
-        <div class="status-badge <%= electionState.badgeClass %>">
-          <span class="status-dot"></span>
-          <%= electionState.badgeLabel %>
-        </div>
+        <% if (!isNominationFormPage) { %>
+          <div class="status-badge <%= electionState.badgeClass %>">
+            <span class="status-dot"></span>
+            <%= electionState.badgeLabel %>
+          </div>
+        <% } %>
       </div>
     <% } else { %>
       <nav class="site-nav site-nav--home">
