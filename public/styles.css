@@ -18571,3 +18571,682 @@ button:disabled { cursor: not-allowed; opacity: .48; box-shadow: none; }
     height: 30px;
   }
 }
+
+/* Nomination status redesign */
+.nomination-status-body {
+  --status-page-blue: #176cf0;
+  --status-page-green: #08a66a;
+  --status-page-navy: #061b3e;
+  --status-page-text: #061a43;
+  --status-page-muted: #5d6f95;
+  --status-page-line: #d7e4f3;
+  --status-page-red: #ff3450;
+  --status-page-pink: #e83892;
+  --status-page-yellow: #f5aa08;
+}
+
+.nomination-status-body .site-utility-link--tracking {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.nomination-status-body .site-main {
+  max-width: 1480px;
+  padding-top: 32px;
+}
+
+.nomination-status-page {
+  position: relative;
+  display: grid;
+  gap: 20px;
+  max-width: 1368px;
+  margin: 0 auto;
+}
+
+.nomination-status-page::before,
+.nomination-status-page::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 86px;
+  height: 86px;
+  border: 1px solid rgba(8, 166, 106, 0.26);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.nomination-status-page::before {
+  top: 182px;
+  left: -62px;
+}
+
+.nomination-status-page::after {
+  top: 468px;
+  right: -36px;
+}
+
+.nomination-status-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(480px, 0.88fr);
+  gap: 46px;
+  align-items: center;
+  min-height: 636px;
+  padding: 28px clamp(34px, 3.8vw, 48px);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(7, 27, 67, 0.08);
+  border-radius: 24px;
+  box-shadow: 0 28px 72px rgba(19, 44, 83, 0.12);
+}
+
+.nomination-status-panel--form {
+  padding-right: 46px;
+  border-right: 1px solid rgba(65, 91, 132, 0.18);
+}
+
+.nomination-status-panel h1 {
+  max-width: 650px;
+  margin: 0;
+  color: var(--status-page-text);
+  font-family: "Sora", "Plus Jakarta Sans", sans-serif;
+  font-size: clamp(2.05rem, 4.4vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: -0.065em;
+}
+
+.nomination-status-lead {
+  max-width: 600px;
+  margin: 20px 0 36px;
+  color: #40547c;
+  font-size: clamp(1rem, 1.7vw, 1.24rem);
+  line-height: 1.55;
+}
+
+.nomination-status-form {
+  display: grid;
+  gap: 22px;
+}
+
+.nomination-status-field {
+  display: grid;
+  gap: 10px;
+  max-width: 726px;
+  color: var(--status-page-text);
+  font-size: 0.98rem;
+  font-weight: 900;
+}
+
+.nomination-status-input-wrap {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  min-height: 64px;
+  padding: 0 22px;
+  background: #fff;
+  border: 1.5px solid #bfd0e7;
+  border-radius: 13px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.nomination-status-input-wrap:focus-within {
+  border-color: var(--status-page-blue);
+  box-shadow: 0 0 0 4px rgba(23, 108, 240, 0.11);
+}
+
+.nomination-status-input-wrap input {
+  width: 100%;
+  height: 100%;
+  color: var(--status-page-text);
+  font: 800 1rem/1.2 "Plus Jakarta Sans", sans-serif;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.nomination-status-input-wrap input::placeholder {
+  color: #9aabc4;
+}
+
+.nomination-status-search-icon {
+  position: relative;
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 3px solid #176cf0;
+  border-radius: 50%;
+}
+
+.nomination-status-search-icon::after {
+  content: "";
+  position: absolute;
+  right: -8px;
+  bottom: -6px;
+  width: 10px;
+  height: 3px;
+  background: currentColor;
+  border-radius: 99px;
+  transform: rotate(45deg);
+}
+
+.nomination-status-search-icon--light {
+  width: 15px;
+  height: 15px;
+  color: #fff;
+  border-color: #fff;
+}
+
+.nomination-status-search-icon--light::after {
+  background: #fff;
+}
+
+.nomination-status-lock-icon {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 13px;
+  border: 2px solid #176cf0;
+  border-radius: 4px;
+}
+
+.nomination-status-lock-icon::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: -9px;
+  width: 7px;
+  height: 9px;
+  border: 2px solid #176cf0;
+  border-bottom: 0;
+  border-radius: 7px 7px 0 0;
+}
+
+.nomination-status-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  max-width: 726px;
+}
+
+.nomination-status-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  min-height: 54px;
+  padding: 0 24px;
+  color: var(--status-page-text);
+  font: 900 0.94rem/1 "Plus Jakarta Sans", sans-serif;
+  text-decoration: none;
+  border-radius: 12px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.nomination-status-button:hover {
+  transform: translateY(-1px);
+}
+
+.nomination-status-button--primary {
+  color: #fff;
+  background: linear-gradient(135deg, #176cf0 0%, #08a66a 100%);
+  box-shadow: 0 18px 34px rgba(22, 113, 224, 0.22);
+}
+
+.nomination-status-button--outline {
+  color: #0a47d4;
+  background: #fff;
+  border-color: #176cf0;
+}
+
+.nomination-status-button--soft {
+  color: #0a47d4;
+  background: rgba(255, 255, 255, 0.82);
+  border-color: #bcd0ef;
+}
+
+.nomination-status-button--warning {
+  color: #7b4d00;
+  background: linear-gradient(135deg, #fff5d8, #fff);
+  border-color: rgba(245, 170, 8, 0.48);
+}
+
+.nomination-status-button--wide {
+  grid-column: 1 / -1;
+}
+
+.nomination-status-security-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 726px;
+  margin-top: 22px;
+  padding: 18px 22px;
+  color: #0e4bbf;
+  font-size: 1rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #f6faff, #eef5ff);
+  border: 1px solid #dbe8f8;
+  border-radius: 13px;
+}
+
+.nomination-status-form .captcha-widget {
+  max-width: 726px;
+}
+
+.nomination-result-card {
+  position: relative;
+  overflow: hidden;
+  padding: 20px 26px 22px;
+  border-radius: 22px;
+  color: var(--status-page-text);
+  background:
+    radial-gradient(circle at 88% 18%, rgba(8, 166, 106, 0.08), transparent 28%),
+    linear-gradient(135deg, #f9fffc, #ffffff 54%, #f3fff9);
+  border: 1.5px solid var(--status-page-green);
+  box-shadow: 0 22px 52px rgba(8, 166, 106, 0.12);
+}
+
+.nomination-result-card::after {
+  content: "";
+  position: absolute;
+  top: 70px;
+  right: 38px;
+  width: 104px;
+  height: 128px;
+  border-radius: 30px;
+  border: 16px solid rgba(8, 166, 106, 0.035);
+  transform: rotate(7deg);
+  pointer-events: none;
+}
+
+.nomination-result-card--empty {
+  border-color: rgba(23, 108, 240, 0.44);
+  background:
+    radial-gradient(circle at 88% 18%, rgba(23, 108, 240, 0.07), transparent 28%),
+    linear-gradient(135deg, #f8fbff, #ffffff 54%, #f4f8ff);
+}
+
+.nomination-result-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--status-page-line);
+}
+
+.nomination-result-head h2 {
+  margin: 0 0 8px;
+  color: #00724b;
+  font-family: "Sora", "Plus Jakarta Sans", sans-serif;
+  font-size: clamp(1.55rem, 2.2vw, 2rem);
+  line-height: 1.06;
+  letter-spacing: -0.055em;
+  white-space: nowrap;
+}
+
+.nomination-result-card--empty .nomination-result-head h2 {
+  color: #0b48d4;
+}
+
+.nomination-result-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 86px;
+  height: 86px;
+  color: #fff;
+  font-size: 3rem;
+  font-weight: 900;
+  line-height: 1;
+  background: linear-gradient(135deg, #10b978, #008653);
+  border-radius: 50%;
+  box-shadow: 0 0 0 12px rgba(8, 166, 106, 0.12);
+}
+
+.nomination-result-icon--blue {
+  font-size: 3rem;
+  background: linear-gradient(135deg, #176cf0, #0aa5ce);
+  box-shadow: 0 0 0 12px rgba(23, 108, 240, 0.11);
+}
+
+.nomination-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 15px;
+  color: #00724b;
+  font-size: 0.94rem;
+  font-weight: 900;
+  background: #e8fff4;
+  border: 1px solid rgba(8, 166, 106, 0.33);
+  border-radius: 999px;
+}
+
+.nomination-status-pill--blue {
+  color: #0b48d4;
+  background: #eef5ff;
+  border-color: rgba(23, 108, 240, 0.28);
+}
+
+.nomination-result-table {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  margin-bottom: 22px;
+}
+
+.nomination-result-table > div {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 18px;
+  align-items: center;
+  min-height: 38px;
+  border-bottom: 1px solid var(--status-page-line);
+}
+
+.nomination-result-table span {
+  color: #627493;
+  font-size: 0.94rem;
+  font-weight: 900;
+}
+
+.nomination-result-table strong {
+  color: var(--status-page-text);
+  font-size: 0.95rem;
+  font-weight: 950;
+}
+
+.nomination-result-note {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  color: #30486f;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid #dbe8f8;
+  border-radius: 12px;
+}
+
+.nomination-result-actions {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.nomination-result-actions .nomination-status-button {
+  min-height: 42px;
+  padding: 0 14px;
+  font-size: 0.83rem;
+}
+
+.nomination-progress-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  padding: 15px 18px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(7, 27, 67, 0.08);
+  border-radius: 18px;
+  box-shadow: 0 16px 38px rgba(19, 44, 83, 0.08);
+}
+
+.nomination-progress-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  align-items: center;
+  column-gap: 14px;
+  padding: 0 18px;
+}
+
+.nomination-progress-step::after {
+  content: "";
+  position: absolute;
+  right: -18px;
+  top: 50%;
+  width: 42px;
+  height: 2px;
+  background: #cbd8eb;
+  transform: translateY(-50%);
+}
+
+.nomination-progress-step:last-child::after {
+  display: none;
+}
+
+.nomination-progress-step strong {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: #65789a;
+  font-size: 1rem;
+  font-weight: 950;
+  background: #edf3fb;
+  border-radius: 50%;
+}
+
+.nomination-progress-step.is-done strong,
+.nomination-progress-step.is-active strong {
+  color: #fff;
+  background: var(--status-page-green);
+  box-shadow: 0 12px 24px rgba(8, 166, 106, 0.18);
+}
+
+.nomination-progress-step.is-active strong {
+  background: var(--status-page-blue);
+  box-shadow: 0 12px 24px rgba(23, 108, 240, 0.2);
+}
+
+.nomination-progress-step.is-done::after,
+.nomination-progress-step.is-active::after {
+  background: linear-gradient(90deg, var(--status-page-green), #cbd8eb);
+}
+
+.nomination-progress-step span {
+  color: var(--status-page-text);
+  font-size: 0.98rem;
+  font-weight: 950;
+}
+
+.nomination-progress-step small {
+  color: #5170a2;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.nomination-status-info-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.nomination-status-info-card {
+  --card-tone: var(--status-page-blue);
+  --card-soft: rgba(23, 108, 240, 0.08);
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 18px;
+  min-height: 122px;
+  padding: 24px 22px;
+  background: linear-gradient(135deg, #fff, var(--card-soft));
+  border: 1.5px solid color-mix(in srgb, var(--card-tone) 72%, white);
+  border-radius: 18px;
+  box-shadow: 0 14px 34px rgba(19, 44, 83, 0.07);
+}
+
+.nomination-status-info-card::after {
+  content: "";
+  position: absolute;
+  right: -28px;
+  bottom: -44px;
+  width: 170px;
+  height: 74px;
+  background: color-mix(in srgb, var(--card-tone) 16%, transparent);
+  border-radius: 50%;
+}
+
+.nomination-status-info-card > span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  color: #fff;
+  font-size: 1.35rem;
+  font-weight: 950;
+  background: linear-gradient(135deg, var(--card-tone), color-mix(in srgb, var(--card-tone) 76%, #fff));
+  border-radius: 22px;
+  box-shadow: 0 18px 30px color-mix(in srgb, var(--card-tone) 24%, transparent);
+}
+
+.nomination-status-info-card div {
+  position: relative;
+  z-index: 1;
+}
+
+.nomination-status-info-card h3 {
+  margin: 4px 0 8px;
+  color: var(--card-tone);
+  font-family: "Sora", "Plus Jakarta Sans", sans-serif;
+  font-size: 1.12rem;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+
+.nomination-status-info-card p {
+  margin: 0;
+  color: #40547c;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.nomination-status-info-card--red {
+  --card-tone: var(--status-page-red);
+  --card-soft: rgba(255, 52, 80, 0.08);
+}
+
+.nomination-status-info-card--pink {
+  --card-tone: var(--status-page-pink);
+  --card-soft: rgba(232, 56, 146, 0.08);
+}
+
+.nomination-status-info-card--yellow {
+  --card-tone: var(--status-page-yellow);
+  --card-soft: rgba(245, 170, 8, 0.12);
+}
+
+.nomination-status-info-card--blue {
+  --card-tone: var(--status-page-blue);
+  --card-soft: rgba(23, 108, 240, 0.08);
+}
+
+@media (max-width: 1120px) {
+  .nomination-status-shell {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    gap: 26px;
+  }
+
+  .nomination-status-panel--form {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .nomination-status-info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .nomination-status-body .site-main {
+    padding-top: 18px;
+  }
+
+  .nomination-status-shell {
+    padding: 22px 16px;
+    border-radius: 20px;
+  }
+
+  .nomination-status-panel h1 {
+    font-size: 2rem;
+  }
+
+  .nomination-status-lead {
+    margin: 14px 0 24px;
+    font-size: 0.98rem;
+  }
+
+  .nomination-status-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .nomination-result-card {
+    padding: 22px 16px;
+  }
+
+  .nomination-result-head {
+    align-items: flex-start;
+    gap: 18px;
+  }
+
+  .nomination-result-head h2 {
+    white-space: normal;
+  }
+
+  .nomination-result-icon {
+    width: 72px;
+    height: 72px;
+    font-size: 2.3rem;
+  }
+
+  .nomination-result-table > div {
+    grid-template-columns: 1fr;
+    gap: 3px;
+    padding: 10px 0;
+  }
+
+  .nomination-result-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .nomination-progress-strip {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .nomination-progress-step {
+    padding: 0;
+  }
+
+  .nomination-progress-step::after {
+    display: none;
+  }
+
+  .nomination-status-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nomination-status-info-card {
+    grid-template-columns: 72px 1fr;
+  }
+
+  .nomination-status-info-card > span {
+    width: 62px;
+    height: 62px;
+    border-radius: 18px;
+  }
+}

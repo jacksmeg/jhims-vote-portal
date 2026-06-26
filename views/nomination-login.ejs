@@ -1,43 +1,115 @@
 <%- include("partials/public-shell-start", { pageTitle }) %>
 
-<section class="split-stage">
-  <div class="panel panel-dark stack-lg">
-    <span class="eyebrow">Nomination Status</span>
-    <h2>Check your nomination with your application number.</h2>
-    <p>
-      After you submit a nomination, the system gives you an official application number.
-      Use that number here to follow committee decisions and continue any correction request.
-    </p>
+<section class="nomination-status-page">
+  <div class="nomination-status-shell">
+    <div class="nomination-status-panel nomination-status-panel--form">
+      <h1>Check Nomination Status</h1>
+      <p class="nomination-status-lead">
+        Enter your application number to view your nomination progress and committee decision.
+      </p>
 
-    <div class="check-list">
-      <div>Each submitted nomination gets its own application number</div>
-      <div>The same number is used later for status tracking and corrections</div>
-      <div>Committee approval is required before anyone reaches the ballot</div>
-      <div>New applications close automatically once voting starts</div>
+      <form class="nomination-status-form" action="/nomination/status/login" method="post">
+        <label class="nomination-status-field">
+          <span>Application Number</span>
+          <div class="nomination-status-input-wrap">
+            <span class="nomination-status-search-icon" aria-hidden="true"></span>
+            <input name="applicationNumber" placeholder="e.g. NOM-2026-0042" required />
+          </div>
+        </label>
+
+        <%- include("partials/captcha-widget") %>
+
+        <div class="nomination-status-actions">
+          <button class="nomination-status-button nomination-status-button--primary" type="submit">
+            <span class="nomination-status-search-icon nomination-status-search-icon--light" aria-hidden="true"></span>
+            Check Status
+          </button>
+          <a class="nomination-status-button nomination-status-button--outline" href="/nomination/form">
+            &larr; Back to Nomination Form
+          </a>
+        </div>
+      </form>
+
+      <div class="nomination-status-security-note">
+        <span class="nomination-status-lock-icon" aria-hidden="true"></span>
+        Your application record is protected and confidential.
+      </div>
+    </div>
+
+    <aside class="nomination-result-card nomination-result-card--empty" aria-label="Application tracking guide">
+      <div class="nomination-result-head">
+        <span class="nomination-result-icon nomination-result-icon--blue">#</span>
+        <div>
+          <h2>Application Tracking</h2>
+          <span class="nomination-status-pill nomination-status-pill--blue">Use Your Number</span>
+        </div>
+      </div>
+
+      <div class="nomination-result-table">
+        <div><span>Application Number</span><strong>NOM-2026-0042</strong></div>
+        <div><span>Status Updates</span><strong>Committee decision</strong></div>
+        <div><span>Records</span><strong>PDF and flyer</strong></div>
+        <div><span>Privacy</span><strong>Confidential check</strong></div>
+      </div>
+
+      <p class="nomination-result-note">
+        Use the unique number given after submission. If the number is correct, your full application record will open here.
+      </p>
+    </aside>
+  </div>
+
+  <div class="nomination-progress-strip nomination-progress-strip--muted" aria-label="Nomination application progress">
+    <div class="nomination-progress-step is-done">
+      <strong>&#10003;</strong>
+      <span>Submitted</span>
+      <small>Application received</small>
+    </div>
+    <div class="nomination-progress-step">
+      <strong>2</strong>
+      <span>Committee Review</span>
+      <small>Currently active</small>
+    </div>
+    <div class="nomination-progress-step">
+      <strong>3</strong>
+      <span>Decision</span>
+      <small>Pending</small>
+    </div>
+    <div class="nomination-progress-step">
+      <strong>4</strong>
+      <span>Candidate Publication</span>
+      <small>Pending</small>
     </div>
   </div>
 
-  <div class="panel panel-light stack-lg narrow-panel">
-    <div class="section-heading">
+  <div class="nomination-status-info-grid">
+    <article class="nomination-status-info-card nomination-status-info-card--red">
+      <span>#</span>
       <div>
-        <span class="eyebrow">Status Check</span>
-        <h3>Open your nomination record</h3>
+        <h3>Keep Your Number</h3>
+        <p>Use your application number to return and check your nomination anytime.</p>
       </div>
-      <p class="muted-text">Track progress</p>
-    </div>
-
-    <form class="stack-md" action="/nomination/status/login" method="post">
-      <label class="field">
-        <span>Application Number</span>
-        <input name="applicationNumber" placeholder="APP-8K4P-21QX" required />
-      </label>
-
-      <%- include("partials/captcha-widget") %>
-
-      <button class="button" type="submit">Check Status</button>
-    </form>
-
-    <p class="note-block">Status remains available even after the nomination window closes.</p>
+    </article>
+    <article class="nomination-status-info-card nomination-status-info-card--pink">
+      <span>2</span>
+      <div>
+        <h3>Committee Review</h3>
+        <p>Your details are checked by the election committee before approval.</p>
+      </div>
+    </article>
+    <article class="nomination-status-info-card nomination-status-info-card--yellow">
+      <span>!</span>
+      <div>
+        <h3>Decision Notice</h3>
+        <p>Status changes clearly show if approved, rejected, or correction is needed.</p>
+      </div>
+    </article>
+    <article class="nomination-status-info-card nomination-status-info-card--blue">
+      <span>PDF</span>
+      <div>
+        <h3>Download Records</h3>
+        <p>Approved applicants can download their filled form and campaign flyer.</p>
+      </div>
+    </article>
   </div>
 </section>
 

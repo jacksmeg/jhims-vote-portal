@@ -11,12 +11,14 @@
           ? 'vote-flow-complete-body'
           : '';
   const isNominationFormPage = currentPath === '/nomination/form';
+  const isNominationStatusPage = currentPath === '/nomination/status/login' || currentPath === '/nomination/status';
+  const isNominationBrandedPage = isNominationFormPage || isNominationStatusPage;
   const publicBodyClass = isHomePage
     ? 'public-home-body'
     : isVoteFlowPage
       ? `vote-flow-body ${voteFlowPageClass}`
-      : isNominationFormPage
-        ? 'nomination-portal-body'
+      : isNominationBrandedPage
+        ? `nomination-portal-body${isNominationStatusPage ? ' nomination-status-body' : ''}`
       : '';
 %>
 <%- include("head", { pageTitle, bodyClass: publicBodyClass }) %>
@@ -45,8 +47,8 @@
       ? '/nomination/form#nomination-guide-inline'
       : '/';
   const portalHelpLabel = isVotePortal ? 'How To Vote' : isNominationPortal ? 'How To Apply' : 'Help';
-  const portalHeaderTitle = isNominationFormPage ? 'UDEGHSWWA ELECTION 2026' : settings.electionName;
-  const portalHeaderSubtitle = isNominationFormPage ? 'Nomination Portal' : 'Election Portal';
+  const portalHeaderTitle = isNominationBrandedPage ? 'UDEGHSWWA ELECTION 2026' : settings.electionName;
+  const portalHeaderSubtitle = isNominationBrandedPage ? 'Nomination Portal' : 'Election Portal';
 %>
 <div class="site-shell">
   <header class="site-header <%= isPortalFlow ? 'site-header--portal' : 'site-header--home' %>">
@@ -78,6 +80,15 @@
             </svg>
             Secure Application
           </span>
+        <% } else if (isNominationStatusPage) { %>
+          <span class="site-utility-link site-utility-link--nomination">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M12 3 19 6v5c0 4.6-2.9 8.3-7 10-4.1-1.7-7-5.4-7-10V6l7-3Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8"/>
+              <path d="m8.8 12 2.1 2.1 4.4-4.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+            </svg>
+            Secure Status Check
+          </span>
+          <span class="site-utility-link site-utility-link--tracking"># Application Tracking</span>
         <% } else if (showPortalHelpLink) { %>
           <a
             class="site-utility-link"
@@ -87,7 +98,7 @@
           </a>
         <% } %>
 
-        <% if (!isNominationFormPage) { %>
+        <% if (!isNominationBrandedPage) { %>
           <div class="status-badge <%= electionState.badgeClass %>">
             <span class="status-dot"></span>
             <%= electionState.badgeLabel %>

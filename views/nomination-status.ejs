@@ -1,84 +1,166 @@
+<%
+  const statusValue = nomination.statusMeta?.value || nomination.status || "pending";
+  const publicStatusLabel = statusValue === "pending" ? "Under Committee Review" : nomination.statusMeta.label;
+  const currentStage = statusValue === "published"
+    ? 4
+    : ["approved", "rejected", "correction_requested"].includes(statusValue)
+      ? 3
+      : 2;
+  const isFinalDecision = ["approved", "rejected", "published"].includes(statusValue);
+  const progressSteps = [
+    {
+      number: 1,
+      title: "Submitted",
+      description: "Application received",
+      className: "is-done",
+    },
+    {
+      number: 2,
+      title: "Committee Review",
+      description: currentStage === 2 ? "Currently active" : "Review completed",
+      className: currentStage === 2 ? "is-active" : "is-done",
+    },
+    {
+      number: 3,
+      title: "Decision",
+      description: currentStage >= 3 ? publicStatusLabel : "Pending",
+      className: currentStage > 3 ? "is-done" : currentStage === 3 ? "is-active" : "",
+    },
+    {
+      number: 4,
+      title: "Candidate Publication",
+      description: statusValue === "published" ? "Published" : "Pending",
+      className: currentStage === 4 ? "is-active" : "",
+    },
+  ];
+%>
+
 <%- include("partials/public-shell-start", { pageTitle }) %>
 
-<section class="panel panel-light stack-lg">
-  <div class="section-heading">
-    <div>
-      <span class="eyebrow">Nomination Status</span>
-      <h2>Track your nomination application</h2>
-    </div>
-    <p>
-      Application number <strong><%= nomination.applicationNumber %></strong> is signed in.
-      Use this page to follow committee decisions and continue any correction requested by the committee.
-    </p>
-  </div>
+<section class="nomination-status-page">
+  <div class="nomination-status-shell">
+    <div class="nomination-status-panel nomination-status-panel--form">
+      <h1>Check Nomination Status</h1>
+      <p class="nomination-status-lead">
+        Enter your application number to view your nomination progress and committee decision.
+      </p>
 
-  <div class="button-row">
-    <% if (nominationState.isOpen && nomination?.statusMeta.canApplicantEdit) { %>
-      <a class="button" href="/nomination/form?edit=<%= nomination.id %>">Continue Correction</a>
-    <% } %>
-    <a class="button" href="/nomination/status/flyer">Download Campaign Flyer</a>
-    <a class="button button-ghost" href="/nomination/status/pdf">Download Filled Form PDF</a>
-    <button
-      class="button button-ghost button-small"
-      type="button"
-      data-copy-text="<%= nomination.applicationNumber %>"
-      data-copy-default-label="Copy Application Number"
-      data-copy-success-label="Application Number Copied"
-    >
-      Copy Application Number
-    </button>
-    <form action="/nomination/logout" method="post">
-      <button class="button button-ghost" type="submit">Sign Out</button>
-    </form>
-  </div>
-
-  <article class="panel panel-light nomination-status-card">
-    <div class="nomination-status-card__topline">
-      <div>
-        <span class="eyebrow">Position</span>
-        <h3><%= nomination.positionName %></h3>
-      </div>
-      <span class="inline-badge <%= nomination.statusMeta.className %>"><%= nomination.statusMeta.label %></span>
-    </div>
-
-    <div class="nomination-status-grid">
-      <div class="stack-sm">
-        <div class="info-row"><span>Submitted</span><strong><%= formatDateTime(nomination.submittedAt) %></strong></div>
-        <div class="info-row"><span>Staff ID</span><strong><%= nomination.staffId %></strong></div>
-        <div class="info-row"><span>Phone Number</span><strong><%= nomination.phoneNumber %></strong></div>
-        <div class="info-row"><span>Department</span><strong><%= nomination.department %></strong></div>
-      </div>
-
-      <div class="stack-sm">
-        <div class="info-row info-row--with-action">
+      <form class="nomination-status-form" action="/nomination/status/login" method="post">
+        <label class="nomination-status-field">
           <span>Application Number</span>
-          <div class="info-row__action">
-            <strong><%= nomination.applicationNumber %></strong>
-            <button
-              class="button button-ghost button-small"
-              type="button"
-              data-copy-text="<%= nomination.applicationNumber %>"
-              data-copy-default-label="Copy"
-              data-copy-success-label="Copied"
-            >
-              Copy
-            </button>
+          <div class="nomination-status-input-wrap">
+            <span class="nomination-status-search-icon" aria-hidden="true"></span>
+            <input name="applicationNumber" value="<%= nomination.applicationNumber %>" placeholder="e.g. NOM-2026-0042" required />
           </div>
+        </label>
+
+        <%- include("partials/captcha-widget") %>
+
+        <div class="nomination-status-actions">
+          <button class="nomination-status-button nomination-status-button--primary" type="submit">
+            <span class="nomination-status-search-icon nomination-status-search-icon--light" aria-hidden="true"></span>
+            Check Status
+          </button>
+          <a class="nomination-status-button nomination-status-button--outline" href="/nomination/form">
+            &larr; Back to Nomination Form
+          </a>
         </div>
-        <div class="info-row"><span>Proposer</span><strong><%= nomination.proposerName %></strong></div>
-        <div class="info-row"><span>Seconder</span><strong><%= nomination.seconderName %></strong></div>
-        <div class="info-row"><span>Committee Review</span><strong><%= nomination.reviewedAt ? formatDateTime(nomination.reviewedAt) : 'Pending review' %></strong></div>
+      </form>
+
+      <div class="nomination-status-security-note">
+        <span class="nomination-status-lock-icon" aria-hidden="true"></span>
+        Your application record is protected and confidential.
       </div>
     </div>
 
-    <% if (nomination.adminNotes) { %>
-      <p class="note-block"><strong>Committee Note:</strong> <%= nomination.adminNotes %></p>
-    <% } %>
+    <aside class="nomination-result-card" aria-label="Nomination application details">
+      <div class="nomination-result-head">
+        <span class="nomination-result-icon">&#10003;</span>
+        <div>
+          <h2>Application Found</h2>
+          <span class="nomination-status-pill"><%= publicStatusLabel %></span>
+        </div>
+      </div>
 
-    <% if (nomination.statusMeta.canApplicantEdit && nominationState.isOpen) { %>
-      <a class="button" href="/nomination/form?edit=<%= nomination.id %>">Continue Correction</a>
-    <% } %>
-  </article>
+      <div class="nomination-result-table">
+        <div><span>Applicant Name</span><strong><%= nomination.fullName %></strong></div>
+        <div><span>Application Number</span><strong><%= nomination.applicationNumber %></strong></div>
+        <div><span>Staff ID</span><strong><%= nomination.staffId %></strong></div>
+        <div><span>Position Applied For</span><strong><%= nomination.positionName %></strong></div>
+        <div><span>Department</span><strong><%= nomination.department %></strong></div>
+        <div><span>Submitted On</span><strong><%= formatDateTime(nomination.submittedAt) %></strong></div>
+        <div><span>Current Status</span><strong><%= isFinalDecision ? publicStatusLabel : "Committee Review" %></strong></div>
+      </div>
+
+      <% if (nomination.adminNotes) { %>
+        <p class="nomination-result-note"><strong>Committee Note:</strong> <%= nomination.adminNotes %></p>
+      <% } %>
+
+      <div class="nomination-result-actions">
+        <button
+          class="nomination-status-button nomination-status-button--soft"
+          type="button"
+          data-copy-text="<%= nomination.applicationNumber %>"
+          data-copy-default-label="Copy Number"
+          data-copy-success-label="Number Copied"
+        >
+          Copy Number
+        </button>
+        <a class="nomination-status-button nomination-status-button--soft" href="/nomination/status/pdf">Filled Form PDF</a>
+        <a class="nomination-status-button nomination-status-button--primary nomination-status-button--wide" href="/nomination/status/flyer">
+          Download Campaign Flyer
+        </a>
+        <% if (nominationState.isOpen && nomination.statusMeta.canApplicantEdit) { %>
+          <a class="nomination-status-button nomination-status-button--warning nomination-status-button--wide" href="/nomination/form?edit=<%= nomination.id %>">
+            Continue Correction
+          </a>
+        <% } %>
+      </div>
+    </aside>
+  </div>
+
+  <div class="nomination-progress-strip" aria-label="Nomination application progress">
+    <% progressSteps.forEach((step) => { %>
+      <div class="nomination-progress-step <%= step.className %>">
+        <strong>
+          <% if (step.className === "is-done") { %>&#10003;<% } else { %><%= step.number %><% } %>
+        </strong>
+        <span><%= step.title %></span>
+        <small><%= step.description %></small>
+      </div>
+    <% }) %>
+  </div>
+
+  <div class="nomination-status-info-grid">
+    <article class="nomination-status-info-card nomination-status-info-card--red">
+      <span>#</span>
+      <div>
+        <h3>Keep Your Number</h3>
+        <p>Use your application number to return and check your nomination anytime.</p>
+      </div>
+    </article>
+    <article class="nomination-status-info-card nomination-status-info-card--pink">
+      <span>2</span>
+      <div>
+        <h3>Committee Review</h3>
+        <p>Your details are checked by the election committee before approval.</p>
+      </div>
+    </article>
+    <article class="nomination-status-info-card nomination-status-info-card--yellow">
+      <span>!</span>
+      <div>
+        <h3>Decision Notice</h3>
+        <p>Status changes clearly show if approved, rejected, or correction is needed.</p>
+      </div>
+    </article>
+    <article class="nomination-status-info-card nomination-status-info-card--blue">
+      <span>PDF</span>
+      <div>
+        <h3>Download Records</h3>
+        <p>Approved applicants can download their filled form and campaign flyer.</p>
+      </div>
+    </article>
+  </div>
 </section>
 
 <%- include("partials/public-shell-end") %>
