@@ -1,7 +1,6 @@
 <%- include("partials/public-shell-start", { pageTitle }) %>
 
 <%
-  const voterStatusInputValue = voterStatusLookup?.staffId || '';
   const opensAtLabel = settings.opensAt ? formatDateTime(settings.opensAt) : 'To be announced';
   const closesAtLabel = settings.closesAt ? formatDateTime(settings.closesAt) : 'To be announced';
   const closesAtDate = settings.closesAt ? new Date(settings.closesAt) : null;
@@ -73,12 +72,11 @@
     {
       title: 'Check Voter Status',
       description: 'Verify your voter registration and eligibility status.',
-      href: '#voter-status-modal',
+      href: '/voter-status',
       buttonLabel: 'Check Status',
       buttonClass: 'is-blue',
       iconClass: 'is-cyan',
       icon: 'voter',
-      opensVoterStatusModal: true,
     },
     {
       title: 'Observer Portal',
@@ -294,10 +292,6 @@
       <a
         class="home-action-card__button <%= card.buttonClass %>"
         href="<%= card.href %>"
-        <% if (card.opensVoterStatusModal) { %>
-          data-voter-status-open
-          aria-controls="voter-status-modal"
-        <% } %>
       >
         <span><%= card.buttonLabel %></span>
         <svg viewBox="0 0 24 24" focusable="false">
@@ -398,107 +392,6 @@
       </svg>
     </div>
   </article>
-</section>
-
-<section
-  class="home-voter-status-modal <%= voterStatusLookup ? 'is-open' : '' %>"
-  id="voter-status-modal"
-  data-voter-status-modal
-  data-voter-status-auto-open="<%= voterStatusLookup ? 'true' : 'false' %>"
-  aria-hidden="<%= voterStatusLookup ? 'false' : 'true' %>"
->
-  <div class="home-voter-status-modal__backdrop" data-voter-status-close></div>
-  <div
-    class="home-voter-status-modal__dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="voter-status-title"
-    tabindex="-1"
-  >
-    <button class="home-voter-status-modal__close" type="button" data-voter-status-close aria-label="Close voter status window">
-      &times;
-    </button>
-
-    <div class="home-voter-status home-voter-status--modal" id="voter-status-panel">
-      <div class="home-voter-status__intro">
-        <h3 id="voter-status-title">Check Voter Status</h3>
-        <p>
-          Verify that your staff details are in the voter register before voting opens. Enter your staff ID and
-          the portal will confirm your record instantly.
-        </p>
-        <ul class="home-voter-status__bullets">
-          <li>Confirm your name and department</li>
-          <li>See your masked registered phone number</li>
-          <li>Check whether a vote has already been recorded</li>
-        </ul>
-      </div>
-
-      <div class="home-voter-status__workspace">
-        <form class="home-voter-status__form" action="/" method="get">
-          <label class="field">
-            <span>Staff ID</span>
-            <input
-              name="voterStatusStaffId"
-              value="<%= voterStatusInputValue %>"
-              placeholder="e.g. STF0234"
-              required
-            />
-          </label>
-
-          <button class="home-voter-status__submit" type="submit">Check My Status</button>
-          <p class="home-voter-status__help">
-            Your status check is private and will only show the information attached to the staff ID entered.
-          </p>
-        </form>
-
-        <article class="home-voter-status__result">
-          <% if (!voterStatusLookup) { %>
-            <div class="home-voter-status__empty">
-              <strong>No search yet</strong>
-              <p>Enter your staff ID to check whether your voter record has already been uploaded into the portal.</p>
-            </div>
-          <% } else if (voterStatusLookup.found) { %>
-            <div class="home-voter-status__result-head">
-              <span class="voter-status-pill <%= voterStatusLookup.statusToneClass %>"><%= voterStatusLookup.statusLabel %></span>
-              <strong>Voter record found</strong>
-            </div>
-
-            <div class="home-voter-status__details">
-              <div>
-                <span>Full Name</span>
-                <strong><%= voterStatusLookup.fullName %></strong>
-              </div>
-              <div>
-                <span>Staff ID</span>
-                <strong><%= voterStatusLookup.staffId %></strong>
-              </div>
-              <div>
-                <span>Department</span>
-                <strong><%= voterStatusLookup.department || 'Not recorded' %></strong>
-              </div>
-              <div>
-                <span>Registered Phone</span>
-                <strong><%= voterStatusLookup.maskedPhoneNumber || 'Not recorded' %></strong>
-              </div>
-              <div>
-                <span>Voting Status</span>
-                <strong><%= voterStatusLookup.hasVoted ? 'Already voted' : 'Not voted yet' %></strong>
-              </div>
-              <div>
-                <span>Last Vote Time</span>
-                <strong><%= voterStatusLookup.votedAt ? formatDateTime(voterStatusLookup.votedAt) : 'No vote recorded yet' %></strong>
-              </div>
-            </div>
-          <% } else { %>
-            <div class="home-voter-status__empty home-voter-status__empty--alert">
-              <strong><%= voterStatusLookup.invalid ? 'Invalid staff ID' : 'Record not found' %></strong>
-              <p><%= voterStatusLookup.message %></p>
-            </div>
-          <% } %>
-        </article>
-      </div>
-    </div>
-  </div>
 </section>
 
 <%- include("partials/public-shell-end") %>

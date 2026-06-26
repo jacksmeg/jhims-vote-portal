@@ -1,0 +1,270 @@
+<%- include("partials/head", { pageTitle, bodyClass: "public-voter-status-body" }) %>
+
+<%
+  const lookup = voterStatusLookup || null;
+  const hasLookup = Boolean(lookup);
+  const found = Boolean(lookup?.found);
+  const hasVoted = found && Boolean(Number(lookup.hasVoted));
+  const statusLabel = hasVoted ? "Voted" : "Not Voted";
+  const statusClass = hasVoted ? "is-voted" : "is-not-voted";
+  const eligibilityLabel = found ? "Eligible to Vote" : lookup?.invalid ? "Invalid Staff ID" : "Not Verified";
+  const eligibilityClass = found ? "is-eligible" : "is-alert";
+  const panelTitle = !hasLookup
+    ? "Ready to Check"
+    : found
+      ? "Voter Found"
+      : lookup.invalid
+        ? "Invalid Staff ID"
+        : "Voter Not Found";
+  const panelBadge = found ? "Verified & Eligible" : hasLookup ? "Please Review" : "Secure Lookup";
+  const panelIconClass = found ? "is-success" : hasLookup ? "is-warning" : "is-neutral";
+  const electionDateLabel = settings.opensAt ? formatDateTime(settings.opensAt).split(",")[0] : "To be announced";
+  const statusCards = [
+    {
+      title: "Registered Staff",
+      body: "Only verified and eligible staff can participate in the election.",
+      className: "is-red",
+      icon: "users",
+    },
+    {
+      title: "One Staff ID",
+      body: "Use your unique Staff ID to check your voter status and record.",
+      className: "is-pink",
+      icon: "id",
+    },
+    {
+      title: "Secure Check",
+      body: "Your data is protected with industry-standard security and encryption.",
+      className: "is-yellow",
+      icon: "lock",
+    },
+    {
+      title: "Transparent Process",
+      body: "We ensure a fair, transparent and credible election for every staff member.",
+      className: "is-blue",
+      icon: "shield",
+    },
+  ];
+  const voterStatusHeaderTitle = "UDEGHSWWA ELECTION 2026";
+%>
+
+<div class="voter-status-page">
+  <header class="voter-status-hero">
+    <a class="voter-status-brand" href="/">
+      <% if (settings.organizationLogoPath) { %>
+        <img src="<%= settings.organizationLogoPath %>" alt="<%= voterStatusHeaderTitle %> logo" />
+      <% } else { %>
+        <span class="voter-status-brand__crest">VP</span>
+      <% } %>
+      <span>
+        <strong><%= voterStatusHeaderTitle %></strong>
+        <small>Election Portal</small>
+      </span>
+    </a>
+
+    <div class="voter-status-secure-pill">
+      <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+        <path d="M12 2.5 5 5.6v5.9c0 4.45 2.82 8.58 7 10 4.18-1.42 7-5.55 7-10V5.6l-7-3.1Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <path d="m9 12.2 2 2 4.2-4.4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      </svg>
+      <span>Secure Voter Check</span>
+    </div>
+  </header>
+
+  <main class="voter-status-main">
+    <%- include("partials/flash") %>
+
+    <section class="voter-status-shell" aria-labelledby="voter-status-page-title">
+      <div class="voter-status-search-panel">
+        <h1 id="voter-status-page-title">Check Voter Status</h1>
+        <p>Enter your Staff ID to confirm your voter registration and eligibility.</p>
+
+        <form class="voter-status-check-form" action="/voter-status" method="get">
+          <label for="staffId">Staff ID</label>
+          <div class="voter-status-input-wrap">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.31 0-6 1.79-6 4v1h12v-1c0-2.21-2.69-4-6-4Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            </svg>
+            <input
+              id="staffId"
+              name="staffId"
+              value="<%= voterStatusInputValue || '' %>"
+              placeholder="e.g. STF0234"
+              autocomplete="off"
+              required
+            />
+          </div>
+
+          <button class="voter-status-check-button" type="submit">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/>
+              <path d="m16 16 4 4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.4"/>
+            </svg>
+            <span>Check Status</span>
+          </button>
+        </form>
+
+        <div class="voter-status-privacy-note">
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="M17 10h1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h1V8a5 5 0 0 1 10 0v2Zm-2 0V8a3 3 0 1 0-6 0v2h6Z" fill="currentColor"/>
+          </svg>
+          <span>Your information is encrypted and kept confidential.</span>
+        </div>
+      </div>
+
+      <article class="voter-status-result-panel <%= found ? 'is-found' : hasLookup ? 'is-missing' : 'is-ready' %>">
+        <div class="voter-status-result-watermark" aria-hidden="true">
+          <svg viewBox="0 0 120 120" focusable="false">
+            <path d="M60 12 24 28v30c0 27.5 15.4 50.2 36 58 20.6-7.8 36-30.5 36-58V28L60 12Z" fill="none" stroke="currentColor" stroke-width="8"/>
+            <path d="m45 61 10 10 23-25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"/>
+          </svg>
+        </div>
+
+        <div class="voter-status-result-head">
+          <span class="voter-status-checkmark <%= panelIconClass %>" aria-hidden="true">
+            <% if (found) { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="m9.2 15.8-4-4 1.9-1.9 2.1 2.1 7.6-7.6 1.9 1.9-9.5 9.5Z" fill="currentColor"/>
+              </svg>
+            <% } else if (hasLookup) { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 3 2.5 20h19L12 3Zm1 13h-2v2h2v-2Zm0-7h-2v5h2V9Z" fill="currentColor"/>
+              </svg>
+            <% } else { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 2.5 5 5.6v5.9c0 4.45 2.82 8.58 7 10 4.18-1.42 7-5.55 7-10V5.6l-7-3.1Z" fill="currentColor"/>
+              </svg>
+            <% } %>
+          </span>
+
+          <div>
+            <h2><%= panelTitle %></h2>
+            <span class="voter-status-result-badge <%= found ? 'is-success' : hasLookup ? 'is-warning' : 'is-neutral' %>">
+              <% if (found) { %>
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="M12 2.5 5 5.6v5.9c0 4.45 2.82 8.58 7 10 4.18-1.42 7-5.55 7-10V5.6l-7-3.1Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                  <path d="m9 12.2 2 2 4.2-4.4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+                </svg>
+              <% } %>
+              <%= panelBadge %>
+            </span>
+          </div>
+        </div>
+
+        <% if (found) { %>
+          <dl class="voter-status-detail-list">
+            <div>
+              <dt>Name</dt>
+              <dd><%= lookup.fullName || "Not recorded" %></dd>
+            </div>
+            <div>
+              <dt>Staff ID</dt>
+              <dd><%= lookup.staffId %></dd>
+            </div>
+            <div>
+              <dt>Department</dt>
+              <dd><%= lookup.department || "Not recorded" %></dd>
+            </div>
+            <div>
+              <dt>Phone</dt>
+              <dd><%= lookup.maskedPhoneNumber || "Not recorded" %></dd>
+            </div>
+            <div>
+              <dt>Voting Status</dt>
+              <dd><span class="voter-status-mini-pill <%= statusClass %>"><%= statusLabel %></span></dd>
+            </div>
+            <div>
+              <dt>Eligibility</dt>
+              <dd><span class="voter-status-mini-pill <%= eligibilityClass %>"><%= eligibilityLabel %></span></dd>
+            </div>
+          </dl>
+        <% } else { %>
+          <div class="voter-status-empty-state">
+            <strong><%= hasLookup ? "We could not verify this staff record." : "Enter a Staff ID to begin." %></strong>
+            <p>
+              <%= hasLookup
+                ? lookup.message
+                : "Your voter registration result will appear here with your masked phone number, department, voting status, and eligibility." %>
+            </p>
+          </div>
+        <% } %>
+
+        <div class="voter-status-result-actions">
+          <button class="voter-status-action-button" type="button" onclick="window.print()" <%= found ? '' : 'disabled' %>>
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M7 7V3h10v4H7Zm10 9h2a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h2v5h10v-5Zm-8 3v-5h6v5H9Z" fill="currentColor"/>
+            </svg>
+            <span>Print Details</span>
+          </button>
+          <a class="voter-status-action-button is-secondary" href="/">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="m3 11 9-8 9 8v10h-6v-6H9v6H3V11Z" fill="currentColor"/>
+            </svg>
+            <span>Back Home</span>
+          </a>
+        </div>
+      </article>
+    </section>
+
+    <section class="voter-status-info-grid" aria-label="Voter status information">
+      <% statusCards.forEach((card) => { %>
+        <article class="voter-status-info-card <%= card.className %>">
+          <span class="voter-status-info-card__icon" aria-hidden="true">
+            <% if (card.icon === "users") { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M8.5 11a3.2 3.2 0 1 0-3.2-3.2A3.2 3.2 0 0 0 8.5 11Zm7 0a3.2 3.2 0 1 0-3.2-3.2A3.2 3.2 0 0 0 15.5 11ZM2.5 19c0-2.8 3.4-5 6-5s6 2.2 6 5v1h-12v-1Zm9 1v-1c0-1.4-.58-2.7-1.52-3.72A8.17 8.17 0 0 1 15.5 14c2.6 0 6 2.2 6 5v1h-10Z" fill="currentColor"/>
+              </svg>
+            <% } else if (card.icon === "id") { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm3 4v6h6V9H7Zm8 1v2h4v-2h-4Zm0 4v2h3v-2h-3Z" fill="currentColor"/>
+              </svg>
+            <% } else if (card.icon === "lock") { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M17 10h1a2 2 0 0 1 2 2v8H4v-8a2 2 0 0 1 2-2h1V8a5 5 0 0 1 10 0v2Zm-2 0V8a3 3 0 0 0-6 0v2h6Z" fill="currentColor"/>
+              </svg>
+            <% } else { %>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 2.5 5 5.6v5.9c0 4.45 2.82 8.58 7 10 4.18-1.42 7-5.55 7-10V5.6l-7-3.1Zm-1.2 12.5-3-3 1.4-1.4 1.6 1.6 4-4 1.4 1.4-5.4 5.4Z" fill="currentColor"/>
+              </svg>
+            <% } %>
+          </span>
+          <div>
+            <h3><%= card.title %></h3>
+            <p><%= card.body %></p>
+          </div>
+        </article>
+      <% }) %>
+    </section>
+  </main>
+
+  <footer class="voter-status-footer">
+    <span>
+      <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+        <path d="M12 2.5 5 5.6v5.9c0 4.45 2.82 8.58 7 10 4.18-1.42 7-5.55 7-10V5.6l-7-3.1Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      </svg>
+      Secure. Fair. Transparent.
+    </span>
+    <span>Your Vote. Your Voice. Your Future.</span>
+    <span>
+      <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+        <path d="M7 2h2v2h6V2h2v2h2a2 2 0 0 1 2 2v13H3V6a2 2 0 0 1 2-2h2V2Zm12 8H5v7h14v-7Z" fill="currentColor"/>
+      </svg>
+      Election Date: <%= electionDateLabel %>
+    </span>
+    <a href="tel:0592934612">
+      <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+        <path d="M6.6 10.8c1.6 3.1 3.5 5 6.6 6.6l2.2-2.2c.3-.3.8-.4 1.2-.3 1.3.4 2.6.6 4 .6.7 0 1.2.5 1.2 1.2V20c0 .7-.5 1.2-1.2 1.2C10.8 21.2 2.8 13.2 2.8 3.4 2.8 2.7 3.3 2.2 4 2.2h3.3c.7 0 1.2.5 1.2 1.2 0 1.4.2 2.7.6 4 .1.4 0 .9-.3 1.2l-2.2 2.2Z" fill="currentColor"/>
+      </svg>
+      059 293 4612
+    </a>
+    <a href="mailto:election@dunkwahospital.org">
+      <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+        <path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 3 8 5 8-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+      </svg>
+      election@dunkwahospital.org
+    </a>
+  </footer>
+</div>
+
+</body>
+</html>

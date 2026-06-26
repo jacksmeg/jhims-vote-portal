@@ -4376,6 +4376,39 @@ function getPublicVoterStatusByStaffId(staffId) {
   };
 }
 
+function buildPublicVoterStatusLookup(requestedStaffId) {
+  const rawStaffId = String(requestedStaffId || "").trim();
+  if (!rawStaffId) {
+    return null;
+  }
+
+  const normalizedStaffId = normalizeStaffId(rawStaffId);
+  if (!normalizedStaffId) {
+    return {
+      staffId: rawStaffId,
+      found: false,
+      invalid: true,
+      message: "Enter a valid staff ID to check voter details.",
+    };
+  }
+
+  const voterRecord = getPublicVoterStatusByStaffId(normalizedStaffId);
+  if (voterRecord) {
+    return {
+      found: true,
+      invalid: false,
+      ...voterRecord,
+    };
+  }
+
+  return {
+    staffId: normalizedStaffId,
+    found: false,
+    invalid: false,
+    message: "No registered voter record was found for that staff ID.",
+  };
+}
+
 function getPositions() {
   return db.prepare(`
     SELECT
@@ -5774,39 +5807,21 @@ app.use((req, res, next) => {
 app.get("/", (req, res) => {
   const metrics = getDashboardMetrics();
   const turnoutRate = metrics.totalVoters ? metrics.votedCount / metrics.totalVoters : 0;
-  const requestedStaffId = String(req.query.voterStatusStaffId || "").trim();
-  const normalizedStaffId = normalizeStaffId(requestedStaffId);
-  let voterStatusLookup = null;
-
-  if (requestedStaffId) {
-    if (!normalizedStaffId) {
-      voterStatusLookup = {
-        staffId: requestedStaffId,
-        found: false,
-        invalid: true,
-        message: "Enter a valid staff ID to check voter details.",
-      };
-    } else {
-      const voterRecord = getPublicVoterStatusByStaffId(normalizedStaffId);
-      voterStatusLookup = voterRecord
-        ? {
-            found: true,
-            invalid: false,
-            ...voterRecord,
-          }
-        : {
-            staffId: normalizedStaffId,
-            found: false,
-            invalid: false,
-            message: "No registered voter record was found for that staff ID.",
-          };
-    }
-  }
 
   res.render("home", {
     pageTitle: "Election Portal",
     metrics,
     turnoutRate,
+  });
+});
+
+app.get("/voter-status", (req, res) => {
+  const requestedStaffId = String(req.query.staffId || req.query.voterStatusStaffId || "").trim();
+  const voterStatusLookup = buildPublicVoterStatusLookup(requestedStaffId);
+
+  res.render("voter-status", {
+    pageTitle: "Check Voter Status",
+    voterStatusInputValue: requestedStaffId,
     voterStatusLookup,
   });
 });
