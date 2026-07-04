@@ -13,13 +13,16 @@
   const isNominationFormPage = currentPath === '/nomination/form';
   const isNominationStatusPage = currentPath === '/nomination/status/login' || currentPath === '/nomination/status';
   const isNominationBrandedPage = isNominationFormPage || isNominationStatusPage;
+  const isLegalPage = currentPath === '/privacy-policy' || currentPath === '/terms-of-use';
   const publicBodyClass = isHomePage
     ? 'public-home-body'
     : isVoteFlowPage
       ? `vote-flow-body ${voteFlowPageClass}`
       : isNominationBrandedPage
         ? `nomination-portal-body${isNominationStatusPage ? ' nomination-status-body' : ''}`
-      : '';
+      : isLegalPage
+        ? 'legal-page-body'
+        : '';
 %>
 <%- include("head", { pageTitle, bodyClass: publicBodyClass }) %>
 <% const isVotePortal = currentPath.startsWith('/vote'); %>

@@ -5826,6 +5826,18 @@ app.get("/voter-status", (req, res) => {
   });
 });
 
+app.get("/privacy-policy", (_req, res) => {
+  res.render("privacy-policy", {
+    pageTitle: "Privacy Policy",
+  });
+});
+
+app.get("/terms-of-use", (_req, res) => {
+  res.render("terms-of-use", {
+    pageTitle: "Terms of Use",
+  });
+});
+
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true });
 });
