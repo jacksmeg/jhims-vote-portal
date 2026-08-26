@@ -4553,15 +4553,6 @@ body {
   color: var(--vote-green);
 }
 
-.ballot-skip-notice {
-  margin: 0 28px 13px;
-  padding: 10px 12px;
-  border-radius: 9px;
-  background: #fff6dd;
-  color: #966200;
-  font-size: 0.66rem;
-}
-
 .ballot-candidate-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
@@ -4704,7 +4695,7 @@ body {
 
 .ballot-action-bar {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: center;
   gap: 20px;
   padding: 20px 28px;
@@ -4729,13 +4720,6 @@ body {
 .ballot-action-bar > a {
   justify-self: start;
   border: 1px solid #cad7e3;
-  background: #fff;
-  color: #17385f;
-}
-
-.ballot-skip-button {
-  justify-self: center;
-  border: 1px solid #ccd8e4;
   background: #fff;
   color: #17385f;
 }
@@ -4906,10 +4890,6 @@ body {
   border-radius: 50%;
   background: var(--vote-green);
   color: #fff;
-}
-
-.vote-review-row.is-skipped .vote-review-row__check {
-  background: #f0a20d;
 }
 
 .vote-review-row__check svg {
@@ -5762,9 +5742,10 @@ body {
     width: 100%;
   }
 
-  .ballot-action-bar > a,
-  .ballot-skip-button {
+  .ballot-action-bar > a {
+    grid-column: 1 / -1;
     justify-self: stretch;
+    width: 100%;
   }
 
   .vote-review-layout {
@@ -15621,7 +15602,7 @@ button:disabled { cursor: not-allowed; opacity: .48; box-shadow: none; }
   text-align: right;
 }
 
-.vote-demo__review-list article > strong.is-skipped {
+.vote-demo__review-list article > strong.is-missing {
   color: #b06d00;
 }
 

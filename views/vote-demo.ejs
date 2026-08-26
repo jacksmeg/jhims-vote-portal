@@ -32,7 +32,7 @@
       <ol class="vote-demo__roadmap" aria-label="Demo progress">
         <li class="is-current" data-roadmap-step="login"><span>1</span><div><strong>Voter login</strong><small>Enter staff details</small></div></li>
         <li data-roadmap-step="otp"><span>2</span><div><strong>OTP check</strong><small>Verify the phone</small></div></li>
-        <li data-roadmap-step="ballot"><span>3</span><div><strong>Cast votes</strong><small>Choose or skip</small></div></li>
+        <li data-roadmap-step="ballot"><span>3</span><div><strong>Cast votes</strong><small>Choose candidate</small></div></li>
         <li data-roadmap-step="review"><span>4</span><div><strong>Review</strong><small>Confirm every choice</small></div></li>
         <li data-roadmap-step="complete"><span>5</span><div><strong>Complete</strong><small>Submit the ballot</small></div></li>
       </ol>
@@ -116,7 +116,7 @@
           <div>
             <small data-demo-ballot-step>Position 1 of <%= demoBallot.length %></small>
             <h2 data-demo-position-name><%= demoBallot[0].name %></h2>
-            <p>Select one candidate, or skip this position.</p>
+            <p>Select one candidate before moving to the next position.</p>
           </div>
           <div class="vote-demo__ballot-count"><strong data-demo-completed>0</strong><span>Completed</span></div>
         </div>
@@ -152,7 +152,6 @@
 
         <div class="vote-demo__ballot-actions">
           <button class="vote-demo__secondary-button" type="button" data-demo-ballot-back disabled>Back</button>
-          <button class="vote-demo__skip-button" type="button" data-demo-skip>Skip Position</button>
           <button class="vote-demo__primary-button" type="button" data-demo-next>Next Position</button>
         </div>
       </section>

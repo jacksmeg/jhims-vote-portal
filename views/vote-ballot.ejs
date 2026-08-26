@@ -17,11 +17,9 @@
 
     <div class="ballot-redesign-panel__instruction">
       <svg viewBox="0 0 24 24"><path d="M8 11V5a2 2 0 0 1 4 0v5-3a2 2 0 0 1 4 0v4-2a2 2 0 0 1 4 0v5c0 4-3 7-7 7h-1c-2.5 0-4.6-1.2-6-3L3 14a2 2 0 0 1 3-2l2 2"/></svg>
-      Vote for one candidate, or skip this position.
+      Vote for one candidate to continue to the next position.
       <span class="ballot-voter-chip">Voter ID <strong><%= voter.staffId %></strong></span>
     </div>
-
-    <% if (isSkippedSelection) { %><p class="ballot-skip-notice">This position is currently marked as skipped. Select a candidate to replace the skipped choice.</p><% } %>
 
     <form action="/vote/step/<%= currentStep %>" method="post" class="ballot-redesign-form">
       <div class="ballot-candidate-grid">
@@ -42,7 +40,6 @@
 
       <div class="ballot-action-bar">
         <% if (currentStep > 1) { %><a href="/vote/step/<%= currentStep - 1 %>"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>Back</a><% } else { %><a href="/"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>Cancel</a><% } %>
-        <button class="ballot-skip-button" type="submit" name="action" value="skip"><svg viewBox="0 0 24 24"><path d="m7 6 10 6-10 6V6Z"/><path d="M18 6v12"/></svg><%= isLastStep ? 'Skip and Review' : 'Skip Position' %></button>
         <button class="ballot-next-button" type="submit" name="action" value="select"><%= isLastStep ? 'Review Ballot' : 'Next Position' %><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
       </div>
     </form>

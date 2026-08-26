@@ -39,7 +39,6 @@
     root.querySelector("[data-demo-completed]").textContent = selections.filter((selection) => selection !== null).length;
     root.querySelector("[data-demo-ballot-back]").disabled = currentPositionIndex === 0;
     root.querySelector("[data-demo-next]").textContent = currentPositionIndex === positions.length - 1 ? "Review Ballot" : "Next Position";
-    root.querySelector("[data-demo-skip]").textContent = currentPositionIndex === positions.length - 1 ? "Skip and Review" : "Skip Position";
     position.querySelector("[data-demo-ballot-error]").textContent = "";
   }
 
@@ -65,9 +64,9 @@
       const choice = document.createElement("strong");
 
       positionName.textContent = position.dataset.positionName;
-      label.textContent = selections[index]?.skipped ? "Position skipped" : "Selected candidate";
-      choice.textContent = selections[index]?.skipped ? "No selection" : selections[index]?.candidate || "Not completed";
-      choice.className = selections[index]?.skipped ? "is-skipped" : "";
+      label.textContent = "Selected candidate";
+      choice.textContent = selections[index]?.candidate || "Not completed";
+      choice.className = selections[index] ? "" : "is-missing";
       copy.append(positionName, label);
       row.append(copy, choice);
       list.append(row);
@@ -110,17 +109,10 @@
     const activePosition = positions[currentPositionIndex];
     const selected = activePosition.querySelector("input[type='radio']:checked");
     if (!selected) {
-      activePosition.querySelector("[data-demo-ballot-error]").textContent = "Select a candidate or use Skip Position.";
+      activePosition.querySelector("[data-demo-ballot-error]").textContent = "Select one candidate before continuing.";
       return;
     }
-    saveChoice({ candidate: selected.value, skipped: false });
-  });
-
-  root.querySelector("[data-demo-skip]").addEventListener("click", () => {
-    positions[currentPositionIndex].querySelectorAll("input[type='radio']").forEach((input) => {
-      input.checked = false;
-    });
-    saveChoice({ candidate: "", skipped: true });
+    saveChoice({ candidate: selected.value });
   });
 
   root.querySelector("[data-demo-ballot-back]").addEventListener("click", () => {
