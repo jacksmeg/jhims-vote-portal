@@ -1,6 +1,6 @@
 const { createHash, randomUUID } = require("node:crypto");
 
-const categories = ["Best Nurse", "Best Midwife", "Best Clinical Staff", "Best Paramedical Staff"];
+const categories = ["Best Nurse", "Best Midwife", "Best Clinical Staff", "Best Paramedical Staff", "Best Doctor"];
 const staffFields = [
   ["name", "Full name"], ["grade", "Grade"], ["employeeNo", "Employee number"],
   ["department", "Department or unit"],
