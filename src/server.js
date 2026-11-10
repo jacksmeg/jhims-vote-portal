@@ -5786,6 +5786,8 @@ app.use((req, res, next) => {
   next();
 });
 
+require('./staff-awards').registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission });
+
 app.get("/", (req, res) => {
   const metrics = getDashboardMetrics();
   const turnoutRate = metrics.totalVoters ? metrics.votedCount / metrics.totalVoters : 0;

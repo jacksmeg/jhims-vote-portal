@@ -1,0 +1,105 @@
+<%- include("partials/head", { pageTitle, bodyClass: "staff-awards-body" }) %>
+<link rel="stylesheet" href="/staff-awards.css" />
+<main class="staff-awards">
+  <header class="awards-hero">
+    <p class="awards-eyebrow"><%= hospital %> / 2026 Staff Awards</p>
+    <h1>Nominate a staff member</h1>
+    <p>Nominate yourself or a colleague for one of four individual awards.</p>
+    <ul class="awards-categories">
+      <% for (const category of categories) { %><li><%= category %></li><% } %>
+    </ul>
+  </header>
+
+  <% if (submitted) { %>
+    <section class="awards-panel" aria-labelledby="awards-success">
+      <h2 id="awards-success">Nomination received</h2>
+      <p>Your submission is available to the awards committee for review.</p>
+      <a href="/staff-awards">Make another nomination</a>
+    </section>
+  <% } else { %>
+    <% if (error) { %><p class="awards-error" role="alert"><%= error %></p><% } %>
+    <form action="/staff-awards" method="post" class="awards-form">
+      <input type="hidden" name="token" value="<%= token %>" />
+      <input type="hidden" name="requestId" value="<%= requestId %>" />
+      <section class="awards-panel">
+        <p class="awards-eyebrow">01 / Nomination</p>
+        <h2>Nomination details</h2>
+        <div class="awards-grid">
+          <label>Nomination type
+            <select name="nominationType" required>
+              <option value="">Choose nomination type</option>
+              <option value="self" <%= values.nominationType === 'self' ? 'selected' : '' %>>Self nomination</option>
+              <option value="another" <%= values.nominationType === 'another' ? 'selected' : '' %>>Nomination for another staff member</option>
+            </select>
+          </label>
+          <label>Award category
+            <select name="category" required>
+              <option value="">Choose an award</option>
+              <% for (const category of categories) { %>
+                <option <%= values.category === category ? 'selected' : '' %>><%= category %></option>
+              <% } %>
+            </select>
+          </label>
+        </div>
+        <% for (const [prefix, label] of [['nominee', 'Nominee details'], ['nominator', 'Your details when nominating a colleague']]) { %>
+          <fieldset class="awards-details" <%= prefix === 'nominator' ? 'data-nominator' : '' %>>
+            <legend><%= label %></legend>
+            <div class="awards-grid">
+              <% for (const [field, label] of staffFields) { const key = prefix + '_' + field; %>
+                <label><%= label %><input name="<%= key %>" value="<%= values[key] || '' %>" maxlength="120" <%= prefix === 'nominee' ? 'required' : '' %> /></label>
+              <% } %>
+              <% if (prefix === 'nominee') { %>
+                <label>Years worked at this facility<input name="years" type="text" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" value="<%= values.years || '' %>" required /></label>
+              <% } %>
+            </div>
+          </fieldset>
+        <% } %>
+      </section>
+
+      <section class="awards-panel">
+        <p class="awards-eyebrow">02 / Assessment</p>
+        <h2>Reasons and competency ratings</h2>
+        <p>Choose one rating from 1 to 3 for each competency. The committee will assess attendance and punctuality using biometric attendance records and assess performance using the employee’s 2025 appraisal.</p>
+        <label>Why does the employee deserve this award?
+          <textarea name="reasons" rows="4" maxlength="2000" required aria-describedby="awards-reasons-help"><%= values.reasons || '' %></textarea>
+        </label>
+        <p id="awards-reasons-help" class="awards-help">Use examples where helpful. Leave out patient names and other identifying details.</p>
+        <% for (const [group, items] of rubric) { %>
+          <section class="awards-rubric">
+            <h3><%= group %></h3>
+            <% for (const [key, title, descriptions] of items) { %>
+              <fieldset class="awards-rating">
+                <legend><%= title %></legend>
+                <% descriptions.forEach((description, index) => { const score = String(index + 1); %>
+                  <label>
+                    <input type="radio" name="<%= key %>" value="<%= score %>" required <%= values[key] === score ? 'checked' : '' %> />
+                    <strong><%= score %></strong><span><%= description %></span>
+                  </label>
+                <% }) %>
+              </fieldset>
+            <% } %>
+            <% if (group === 'Innovation') { %>
+              <div class="awards-grid">
+                <label>Example of an idea or innovation (if applicable)
+                  <textarea name="idea" rows="3" maxlength="2000"><%= values.idea || '' %></textarea>
+                </label>
+                <label>How the idea was implemented (if applicable)
+                  <textarea name="implementation" rows="3" maxlength="2000"><%= values.implementation || '' %></textarea>
+                </label>
+              </div>
+            <% } %>
+          </section>
+        <% } %>
+      </section>
+
+      <section class="awards-panel awards-submit">
+        <p>Your nomination will be available to authorized awards administrators.</p>
+        <%- include("partials/captcha-widget") %>
+        <button type="submit">Submit nomination</button>
+      </section>
+    </form>
+  <% } %>
+</main>
+<script src="/staff-awards.js" defer></script>
+</body>
+</html>
