@@ -80,7 +80,20 @@ body.staff-awards-admin { background: #e9ecef; }
 .awards-admin .awards-toolbar { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.25fr) auto auto; }
 .awards-admin .awards-toolbar:has(a) { grid-template-columns: minmax(0, 2fr) minmax(0, 1.25fr) auto auto auto; }
 .awards-admin .awards-toolbar :is(input, select) { width: 100%; }
-.awards-admin .awards-review { scroll-margin-top: 16px; }
+.awards-admin :is(.awards-workspace, .awards-review) { scroll-margin-top: 20px; }
+.awards-admin .awards-review-shortcut { display: none; }
+.awards-admin .awards-scores dd { min-width: 24px; }
+.awards-admin .awards-review-inner > .awards-scores dd {
+  padding: 0 5px; border-radius: 4px; background: #f4e4e9; color: #851736; text-align: center;
+}
+@container (min-width: 681px) {
+  .awards-admin .awards-list-column {
+    position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto;
+  }
+}
+@container (max-width: 680px) {
+  .awards-admin .awards-review-shortcut { display: inline-block; margin-bottom: 10px; }
+}
 .awards-admin .awards-scores dt { min-width: 0; }
 @container (max-width: 625px) {
   .awards-admin .awards-toolbar,

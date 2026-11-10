@@ -18,8 +18,9 @@
     <span class="awards-count"><%= total %> <%= total === 1 ? 'nomination' : 'nominations' %></span>
   </form>
 
-  <div class="awards-workspace">
-    <div>
+  <div class="awards-workspace" id="award-details">
+    <div class="awards-list-column">
+      <% if (selected) { %><a class="awards-review-shortcut" href="#nomination-review">Go to selected nomination details</a><% } %>
       <div class="awards-register">
         <table aria-label="Staff award nominations">
           <thead><tr><th scope="col">Nominee</th><th scope="col">Award category</th><th scope="col">Submitted</th></tr></thead>
@@ -42,7 +43,7 @@
       <% } %>
     </div>
 
-    <section class="awards-review" id="award-details" aria-labelledby="awards-detail-heading">
+    <section class="awards-review" id="nomination-review" aria-labelledby="awards-detail-heading">
       <h3 id="awards-detail-heading"><%= mode === 'edit' && selected ? 'Edit nomination' : 'Nomination details' %></h3>
       <div class="awards-review-inner">
         <% if (!selected) { %>
