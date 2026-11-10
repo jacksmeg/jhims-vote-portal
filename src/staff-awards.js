@@ -3,7 +3,7 @@ const { randomUUID } = require("node:crypto");
 const categories = ["Best Nurse", "Best Midwife", "Best Clinical Staff", "Best Paramedical Staff"];
 const staffFields = [
   ["name", "Full name"], ["grade", "Grade"], ["employeeNo", "Employee number"],
-  ["staffCategory", "Staff category"], ["department", "Department or unit"],
+  ["department", "Department or unit"],
 ];
 const rubric = [
   ["Professionalism", [
