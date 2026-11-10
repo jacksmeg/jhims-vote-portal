@@ -1,0 +1,34 @@
+<form class="awards-edit" action="<%= pageUrl({ id: selected.id, action: 'edit' }) %>" method="post">
+  <input type="hidden" name="token" value="<%= token %>" />
+  <input type="hidden" name="version" value="<%= version %>" />
+  <label>Award category
+    <select name="category" required>
+      <% for (const option of categories) { %><option <%= option === values.category ? 'selected' : '' %>><%= option %></option><% } %>
+    </select>
+  </label>
+  <% for (const [prefix, label] of [['nominee', 'Nominee'], ['nominator', 'Nominator']]) { %>
+    <% if (prefix === 'nominator' && values.nominationType === 'self') continue; %>
+    <fieldset><legend><%= label %></legend>
+      <% for (const [field, title] of staffFields) { const key = prefix + '_' + field; %>
+        <label><%= title %><input name="<%= key %>" value="<%= values[key] %>" maxlength="120" required /></label>
+      <% } %>
+      <% if (prefix === 'nominee') { %>
+        <label>Years worked<input name="years" value="<%= values.years %>" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" required /></label>
+      <% } %>
+    </fieldset>
+  <% } %>
+  <label>Reasons<textarea name="reasons" rows="4" maxlength="2000" required><%= values.reasons %></textarea></label>
+  <fieldset class="awards-edit-scores"><legend>Competency ratings</legend>
+    <% for (const [, items] of rubric) { for (const [key, title] of items) { %>
+      <label><%= title %><select name="<%= key %>" required>
+        <% for (const rating of ['1', '2', '3']) { %><option <%= rating === values[key] ? 'selected' : '' %>><%= rating %></option><% } %>
+      </select></label>
+    <% } } %>
+  </fieldset>
+  <label>Innovation example<textarea name="idea" rows="3" maxlength="2000"><%= values.idea %></textarea></label>
+  <label>Implementation<textarea name="implementation" rows="3" maxlength="2000"><%= values.implementation %></textarea></label>
+  <div class="awards-actions">
+    <button class="awards-button awards-primary" type="submit">Save changes</button>
+    <a class="awards-button" href="<%= pageUrl({ id: selected.id }) %>#award-details">Cancel</a>
+  </div>
+</form>
