@@ -88,6 +88,18 @@
       icon: 'observer',
     }
   ];
+  const staffAwardsHospital = process.env.STAFF_AWARDS_HOSPITAL?.trim();
+  if (staffAwardsHospital) {
+    actionCards.push({
+      title: 'Staff Awards Nomination',
+      description: `Nominate yourself or a colleague for the ${staffAwardsHospital} Staff Awards.`,
+      href: '/staff-awards',
+      buttonLabel: 'Start Staff Nomination',
+      buttonClass: 'is-pink',
+      iconClass: 'is-blue',
+      icon: 'nomination',
+    });
+  }
   const trustPoints = [
     {
       title: 'Secure Voting',
