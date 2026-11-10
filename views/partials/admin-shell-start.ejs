@@ -105,6 +105,12 @@
           <span>Nominations</span>
         </a>
 
+        <% if (process.env.STAFF_AWARDS_HOSPITAL?.trim()) { %>
+          <a class="admin-nav__link <%= currentSection === 'staff-awards' ? 'active' : '' %>" href="/admin/staff-awards">
+            <span>Staff Awards</span>
+          </a>
+        <% } %>
+
         <a class="admin-nav__link <%= currentSection === 'observers' ? 'active' : '' %>" href="/admin/observers">
           <span class="admin-nav__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false">

@@ -1,0 +1,39 @@
+<%- include("partials/admin-shell-start", { pageTitle, currentSection: "staff-awards", pageHeading: pageTitle, pageIntro: "Review submissions for the 2026 individual awards." }) %>
+<link rel="stylesheet" href="/staff-awards.css" />
+<section class="staff-awards">
+  <header class="awards-panel">
+    <p class="awards-eyebrow"><%= hospital %> / 2026 Staff Awards</p>
+    <h1>Staff award nominations</h1>
+    <a href="/staff-awards">Open nomination form</a>
+  </header>
+  <% if (!nominations.length) { %><p>No nominations on this page.</p><% } %>
+  <% for (const { id, submitted_at, values } of nominations) { %>
+    <details class="awards-panel">
+      <summary><strong>#<%= id %> · <%= values.nominee_name %></strong> · <%= values.category %></summary>
+      <p>Submitted <%= submitted_at %> UTC · <%= values.nominationType === 'self' ? 'Self nomination' : 'Nominated by a colleague' %></p>
+      <% for (const [prefix, label] of [['nominee', 'Nominee'], ['nominator', 'Nominator']]) { %>
+        <% if (prefix === 'nominator' && values.nominationType === 'self') continue; %>
+        <h2><%= label %></h2>
+        <dl class="awards-grid">
+          <% for (const [key, title] of staffFields) { %>
+            <div><dt><%= title %></dt><dd><%= values[prefix + '_' + key] %></dd></div>
+          <% } %>
+          <% if (prefix === 'nominee') { %><div><dt>Years worked</dt><dd><%= values.years %></dd></div><% } %>
+        </dl>
+      <% } %>
+      <h2>Reasons</h2><p class="awards-response"><%= values.reasons %></p>
+      <% for (const [group, items] of rubric) { %>
+        <h3><%= group %></h3>
+        <ul><% for (const [key, title, descriptions] of items) { %>
+          <li><strong><%= title %> (<%= values[key] %>/3)</strong> · <%= descriptions[Number(values[key]) - 1] %></li>
+        <% } %></ul>
+      <% } %>
+      <% if (values.idea) { %>
+        <h3>Innovation example</h3><p class="awards-response"><%= values.idea %></p>
+        <h3>How it was implemented</h3><p class="awards-response"><%= values.implementation %></p>
+      <% } %>
+    </details>
+  <% } %>
+  <% if (nextId) { %><a href="/admin/staff-awards?before=<%= nextId %>">Older nominations</a><% } %>
+</section>
+<%- include("partials/admin-shell-end") %>

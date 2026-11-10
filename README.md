@@ -180,3 +180,15 @@ This project now includes [render.yaml](/C:/Users/El/Desktop/VOTE%20PORTAL/rende
 ### Important Production Note
 
 Do not deploy this app to hosting that has only temporary filesystem storage unless you also change it to use an external database and file storage service. Without persistent storage, uploads and election data can be lost after restart or redeploy.
+
+## Hospital staff awards
+
+Use a dedicated deployment with its own persistent database, storage, administrator
+credentials, and session secret. Set `STAFF_AWARDS_HOSPITAL` to the hospital's display
+name to enable the 2026 awards form at `/staff-awards`. Leave it empty on deployments
+that do not collect these awards nominations.
+
+The awards committee can sign in and open **Staff Awards** in the administration
+menu or visit `/admin/staff-awards`. Enable the portal's nomination CAPTCHA before
+sharing the public link. The committee assesses attendance and the 2025 appraisal
+outside the nomination form.
