@@ -16,5 +16,8 @@
       <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <% } %>
     <link rel="stylesheet" href="/styles.css" />
+    <% if (typeof bodyClass === 'string' && bodyClass.split(/\s+/).includes('staff-awards-admin')) { %>
+      <%- include("staff-awards-admin-styles") %>
+    <% } %>
   </head>
   <body class="<%= typeof bodyClass !== 'undefined' ? bodyClass : '' %>" data-theme="<%= settings.themeName || 'heritage' %>">
