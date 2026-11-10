@@ -33,7 +33,6 @@
 <% const showVoteCountdown = isVotePortal && electionState.isOpen && voteClosesAtMs && !isVoteLogin && currentPath !== '/vote/complete'; %>
 <% const showNominationCountdown = currentPath === '/nomination/form' && nominationState.isScheduled && nominationOpensAtMs; %>
 <%
-  const homeHeaderTitle = 'UDEGHSWWA ELECTION 2026';
   const homeHeaderSubtitle = 'Election Portal';
   const homeHeaderStatusText = electionState.isOpen
     ? 'Live voting in progress'
@@ -50,7 +49,6 @@
       ? '/nomination/form#nomination-guide-inline'
       : '/';
   const portalHelpLabel = isVotePortal ? 'How To Vote' : isNominationPortal ? 'How To Apply' : 'Help';
-  const portalHeaderTitle = isNominationBrandedPage ? 'UDEGHSWWA ELECTION 2026' : settings.electionName;
   const portalHeaderSubtitle = isNominationBrandedPage ? 'Nomination Portal' : 'Election Portal';
 %>
 <div class="site-shell">
@@ -62,7 +60,7 @@
         <span class="brand-mark__crest">VP</span>
       <% } %>
       <span>
-        <strong><%= isPortalFlow ? portalHeaderTitle : homeHeaderTitle %></strong>
+        <strong><%= settings.electionName %></strong>
         <small><%= isPortalFlow ? portalHeaderSubtitle : homeHeaderSubtitle %></small>
       </span>
     </a>

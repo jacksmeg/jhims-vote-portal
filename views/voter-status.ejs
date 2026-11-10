@@ -45,19 +45,18 @@
       icon: "shield",
     },
   ];
-  const voterStatusHeaderTitle = "UDEGHSWWA ELECTION 2026";
 %>
 
 <div class="voter-status-page">
   <header class="voter-status-hero">
     <a class="voter-status-brand" href="/">
       <% if (settings.organizationLogoPath) { %>
-        <img src="<%= settings.organizationLogoPath %>" alt="<%= voterStatusHeaderTitle %> logo" />
+        <img src="<%= settings.organizationLogoPath %>" alt="<%= settings.electionName %> logo" />
       <% } else { %>
         <span class="voter-status-brand__crest">VP</span>
       <% } %>
       <span>
-        <strong><%= voterStatusHeaderTitle %></strong>
+        <strong><%= settings.electionName %></strong>
         <small>Election Portal</small>
       </span>
     </a>
