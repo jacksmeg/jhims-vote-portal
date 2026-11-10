@@ -3,7 +3,7 @@
 <div class="vote-flow-container vote-flow-container--complete">
   <section class="vote-complete-status">
     <div><span></span><p><strong>Election in progress</strong><small>Voting closes at <%= settings.closesAt ? formatDateTime(settings.closesAt) : 'the scheduled closing time' %>.</small></p></div>
-    <div><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 2.9 8.2 7 9.4 4.1-1.2 7-5 7-9.4V6l-7-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>Election ID: UDEGHSWWA-2026</div>
+    <div><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 2.9 8.2 7 9.4 4.1-1.2 7-5 7-9.4V6l-7-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>Election: <%= settings.electionName %></div>
   </section>
 
   <%- include("partials/vote-flow-steps", { currentStep: 5, allComplete: true }) %>
