@@ -100,4 +100,19 @@ body.staff-awards-admin { background: #e9ecef; }
   .awards-admin .awards-toolbar:has(a) { grid-template-columns: minmax(0, 1fr) auto; }
   .awards-admin .awards-toolbar input { grid-column: 1 / -1; }
 }
+
+.awards-admin .awards-status { display: inline-block; padding: 2px 6px; border-radius: 5px; background: #edf0f3; color: #454f5d; font-size: .76rem; font-weight: 750; }
+.awards-admin .awards-status[data-status="under-review"] { background: #fff1d7; color: #774705; }
+.awards-admin .awards-status[data-status="shortlisted"] { background: #e4f3e9; color: #23583a; }
+.awards-admin .awards-status[data-status="not-shortlisted"] { background: #f5e2e8; color: #851736; }
+.awards-admin .awards-finalists { background: #fff; border: 1px solid var(--awards-line); border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; }
+.awards-admin .awards-finalists summary span { margin-left: 6px; color: var(--awards-accent); }
+.awards-admin .awards-finalist-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 12px; margin-top: 12px; }
+.awards-admin .awards-finalist-groups section { border: 1px solid #e4e6ea; border-radius: 5px; padding: 10px; }
+.awards-admin .awards-finalist-groups h3 { font-size: .93rem; margin: 0 0 5px; color: inherit; }
+.awards-admin .awards-finalist-groups :is(ul,p) { margin: 0; }
+.awards-admin .awards-finalist-groups ul { padding-left: 18px; }
+.awards-admin .awards-committee form { margin-top: 12px; }
+.awards-admin .awards-history { margin-top: 12px; }
+.awards-admin .awards-history article { border-bottom: 1px solid #e4e6ea; padding: 8px 0; }
 </style>

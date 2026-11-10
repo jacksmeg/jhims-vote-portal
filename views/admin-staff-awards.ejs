@@ -7,6 +7,21 @@
   </header>
   <% if (error) { %><p class="awards-message awards-error" role="alert"><%= error %></p><% } %>
   <% if (feedback) { %><p class="awards-message" role="status"><%= feedback %></p><% } %>
+  <details class="awards-finalists">
+    <summary>Finalists by award <span><%= finalists.reduce((total, [, entries]) => total + entries.length, 0) %></span></summary>
+    <div class="awards-finalist-groups">
+      <% for (const [award, entries] of finalists) { %>
+        <section>
+          <h3><%= award %></h3>
+          <% if (entries.length) { %>
+            <ul><% for (const entry of entries) { %>
+              <li><a href="<%= pageUrl({ id: entry.id, q: null, category: award, before: null }) %>#award-details"><%= entry.name %></a><% if (entry.department) { %> · <%= entry.department %><% } %></li>
+            <% } %></ul>
+          <% } else { %><p>No finalists yet.</p><% } %>
+        </section>
+      <% } %>
+    </div>
+  </details>
   <form class="awards-toolbar" action="/admin/staff-awards" method="get" role="search">
     <input type="search" name="q" aria-label="Search by nominee or employee number" placeholder="Search by nominee or employee number" value="<%= q %>" maxlength="120" />
     <select name="category" aria-label="Award category">
@@ -23,15 +38,15 @@
       <% if (selected) { %><a class="awards-review-shortcut" href="#nomination-review">Go to selected nomination details</a><% } %>
       <div class="awards-register">
         <table aria-label="Staff award nominations">
-          <thead><tr><th scope="col">Nominee</th><th scope="col">Award category</th><th scope="col">Submitted</th></tr></thead>
+          <thead><tr><th scope="col">Nominee</th><th scope="col">Award category</th><th scope="col">Status</th><th scope="col">Submitted</th></tr></thead>
           <tbody>
             <% for (const row of nominations) { %>
               <tr class="<%= selected?.id === row.id ? 'awards-selected' : '' %>">
                 <td><a href="<%= pageUrl({ id: row.id }) %>#award-details" <%= selected?.id === row.id ? 'aria-current=true' : '' %>><%= row.nominee %></a></td>
-                <td><%= row.category %></td><td><time><%= row.submitted_at.slice(0, 16) %> UTC</time></td>
+                <td><%= row.category %></td><td><span class="awards-status" data-status="<%= row.review_status %>"><%= reviewStatuses[row.review_status] %></span></td><td><time><%= row.submitted_at.slice(0, 16) %> UTC</time></td>
               </tr>
             <% } %>
-            <% if (!nominations.length) { %><tr><td colspan="3">No nominations found.</td></tr><% } %>
+            <% if (!nominations.length) { %><tr><td colspan="4">No nominations found.</td></tr><% } %>
           </tbody>
         </table>
       </div>
@@ -69,6 +84,9 @@
               <a class="awards-button" href="<%= pageUrl({ id: selected.id, action: 'edit' }) %>#award-details">Edit</a>
               <a class="awards-button awards-danger" href="<%= pageUrl({ id: selected.id, action: 'delete' }) %>#award-details">Delete</a>
             </div>
+          <% } %>
+          <% if (mode !== 'delete') { %>
+            <%- include("partials/staff-award-review") %>
           <% } %>
           <h5>Competency ratings</h5>
           <dl class="awards-scores">

@@ -1,0 +1,33 @@
+<details class="awards-committee" <%= error && review.status ? 'open' : '' %>>
+  <summary>Committee Review <span class="awards-status" data-status="<%= selected.review_status %>"><%= reviewStatuses[selected.review_status] %></span></summary>
+  <form class="awards-edit" action="<%= pageUrl({ id: selected.id, action: 'review' }) %>#nomination-review" method="post">
+    <input type="hidden" name="token" value="<%= token %>" />
+    <input type="hidden" name="version" value="<%= version %>" />
+    <input type="hidden" name="reviewId" value="<%= history[0]?.id || 0 %>" />
+    <label>Review status
+      <select name="status">
+        <% for (const [key, label] of Object.entries(reviewStatuses)) { %>
+          <option value="<%= key %>" <%= review.status === key ? 'selected' : '' %>><%= label %></option>
+        <% } %>
+      </select>
+    </label>
+    <label>Biometric attendance and punctuality<textarea name="attendance" rows="2" maxlength="2000"><%= review.attendance %></textarea></label>
+    <label>2025 performance appraisal<textarea name="appraisal" rows="2" maxlength="2000"><%= review.appraisal %></textarea></label>
+    <label>Decision notes<textarea name="notes" rows="3" maxlength="2000" aria-describedby="awards-decision-help"><%= review.notes %></textarea></label>
+    <p class="awards-meta" id="awards-decision-help">Include a reason when marking a nomination Shortlisted or Not Shortlisted.</p>
+    <button class="awards-button awards-primary" type="submit">Save committee review</button>
+  </form>
+  <details class="awards-history">
+    <summary>Decision history (<%= history.length %>)</summary>
+    <% if (!history.length) { %><p class="awards-meta">No reviews recorded yet.</p><% } %>
+    <% for (const entry of history) { %>
+      <article>
+        <strong><%= reviewStatuses[entry.status] %></strong>
+        <p class="awards-meta"><%= entry.reviewer %> · <%= entry.reviewed_at %> UTC · <%= entry.category %></p>
+        <% if (entry.notes) { %><p class="awards-response"><%= entry.notes %></p><% } %>
+        <% if (entry.attendance) { %><p class="awards-response"><strong>Attendance</strong> · <%= entry.attendance %></p><% } %>
+        <% if (entry.appraisal) { %><p class="awards-response"><strong>Appraisal</strong> · <%= entry.appraisal %></p><% } %>
+      </article>
+    <% } %>
+  </details>
+</details>

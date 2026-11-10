@@ -62,6 +62,12 @@ const rubric = [
 ];
 const criteria = rubric.flatMap(([, items]) => items);
 
+const reviewStatuses = {
+  pending: "Pending",
+  "under-review": "Under Review",
+  shortlisted: "Shortlisted",
+  "not-shortlisted": "Not Shortlisted",
+};
 const adminPath = "/admin/staff-awards";
 const validationError = "Complete the required fields and all nine ratings. If you include an innovation, describe both the idea and how it was implemented.";
 const readText = (value, limit = Infinity) => typeof value === "string" ? value.trim().slice(0, limit) : "";
@@ -115,21 +121,45 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
     CREATE TABLE IF NOT EXISTS staff_award_deleted_nominations (
       nomination_id INTEGER PRIMARY KEY,
       deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )
+    );
+    CREATE TABLE IF NOT EXISTS staff_award_reviews (
+      id INTEGER PRIMARY KEY,
+      nomination_id INTEGER NOT NULL,
+      category TEXT NOT NULL,
+      employee_number TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('pending', 'under-review', 'shortlisted', 'not-shortlisted')),
+      attendance TEXT NOT NULL,
+      appraisal TEXT NOT NULL,
+      notes TEXT NOT NULL,
+      reviewer TEXT NOT NULL,
+      reviewed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS staff_award_reviews_nomination ON staff_award_reviews(nomination_id, id DESC)
   `);
   const insert = db.prepare("INSERT INTO staff_award_nominations (hospital, request_id, submission) VALUES (?, ?, ?) ON CONFLICT(request_id) DO NOTHING");
   const active = "hospital = ? AND id NOT IN (SELECT nomination_id FROM staff_award_deleted_nominations)";
+  const reviewId = "(SELECT max(r.id) FROM staff_award_reviews r WHERE r.nomination_id = staff_award_nominations.id)";
+  const reviewCategory = "json_extract(staff_award_nominations.submission, '$.category')";
+  const reviewEmployee = "lower(trim(json_extract(staff_award_nominations.submission, '$.nominee_employeeNo')))";
+  const currentStatus = `coalesce((SELECT status FROM staff_award_reviews WHERE id = ${reviewId}
+    AND category = ${reviewCategory} AND employee_number = ${reviewEmployee}), 'pending')`;
+  const reviewHistory = db.prepare("SELECT * FROM staff_award_reviews WHERE nomination_id = ? ORDER BY id DESC");
+  const saveReview = db.prepare(`INSERT INTO staff_award_reviews (nomination_id, category, employee_number, status, attendance, appraisal, notes, reviewer)
+    SELECT id, ${reviewCategory}, ${reviewEmployee}, ?, ?, ?, ?, ? FROM staff_award_nominations WHERE ${active}
+    AND id = ? AND submission = ? AND coalesce(${reviewId}, 0) = ?`);
+  const shortlisted = db.prepare(`SELECT id, submission FROM staff_award_nominations
+    WHERE ${active} AND ${currentStatus} = 'shortlisted' ORDER BY id DESC`);
   const matching = `${active}
     AND (? = '' OR json_extract(submission, '$.category') = ?)
     AND (? = '' OR instr(lower(json_extract(submission, '$.nominee_name')), ?) > 0
       OR instr(lower(json_extract(submission, '$.nominee_employeeNo')), ?) > 0)`;
   const list = db.prepare(`SELECT id, submitted_at,
     json_extract(submission, '$.nominee_name') AS nominee,
-    json_extract(submission, '$.category') AS category
+    json_extract(submission, '$.category') AS category, ${currentStatus} AS review_status
     FROM staff_award_nominations WHERE ${matching} AND (? IS NULL OR id < ?)
     ORDER BY id DESC LIMIT 21`);
   const count = db.prepare(`SELECT count(*) AS total FROM staff_award_nominations WHERE ${matching}`);
-  const find = db.prepare(`SELECT * FROM staff_award_nominations WHERE ${active} AND id = ?`);
+  const find = db.prepare(`SELECT *, ${currentStatus} AS review_status FROM staff_award_nominations WHERE ${active} AND id = ?`);
   const update = db.prepare(`UPDATE staff_award_nominations SET submission = ?
     WHERE ${active} AND id = ? AND submission = ?`);
   const remove = db.prepare(`INSERT INTO staff_award_deleted_nominations (nomination_id)
@@ -177,7 +207,7 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
     }
   });
 
-  function renderAdmin(req, res, { status = 200, error = "", draft } = {}) {
+  function renderAdmin(req, res, { status = 200, error = "", draft, reviewDraft } = {}) {
     res.set("Cache-Control", "no-store");
     req.session.staffAwardsAdminToken ||= randomUUID();
     const q = readText(req.query.q, 120);
@@ -190,6 +220,15 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
     const nominations = rows.slice(0, 20);
     const selected = find.get(hospital, id || nominations[0]?.id || 0);
     const mode = ["edit", "delete"].includes(req.query.action) ? req.query.action : "";
+    const history = selected ? reviewHistory.all(selected.id) : [];
+    const finalists = new Map(categories.map(name => [name, new Map()]));
+    for (const row of shortlisted.all(hospital)) {
+      const values = JSON.parse(row.submission);
+      const group = finalists.get(values.category);
+      if (!group) continue;
+      const key = values.nominee_employeeNo?.trim().toLowerCase() || String(row.id);
+      if (!group.has(key)) group.set(key, { id: row.id, name: values.nominee_name, department: values.nominee_department });
+    }
     const feedback = req.session.staffAwardsAdminFeedback;
     delete req.session.staffAwardsAdminFeedback;
 
@@ -199,6 +238,8 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
     }
 
     return res.status(status).render("admin-staff-awards", {
+      reviewStatuses, history, review: reviewDraft || (history[0] && history[0].status === selected.review_status ? history[0] : { status: "pending" }),
+      finalists: [...finalists].map(([name, group]) => [name, [...group.values()].sort((a, b) => a.name.localeCompare(b.name))]),
       ...model, pageTitle: "Staff award nominations", nominations, q, category, before, pageUrl,
       total: count.get(...params).total, nextId: rows.length > 20 ? nominations.at(-1).id : null,
       selected, values: draft || (selected ? JSON.parse(selected.submission) : {}), mode,
@@ -217,7 +258,7 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
     }
     const id = positiveId(req.query.id);
     const action = req.query.action;
-    if (!id || !["edit", "delete"].includes(action)) return res.sendStatus(400);
+    if (!id || !["edit", "delete", "review"].includes(action)) return res.sendStatus(400);
     const current = find.get(hospital, id);
     if (!current) return renderAdmin(req, res, { status: 404 });
     if (body.version !== revision(current.submission)) {
@@ -230,18 +271,30 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
       const draft = readSubmission({ ...body, nominationType: previous.nominationType });
       if (!validSubmission(draft)) return renderAdmin(req, res, { status: 422, error: validationError, draft });
       result = update.run(JSON.stringify({ ...previous, ...draft }), hospital, id, current.submission);
+    } else if (action === "review") {
+      const reviewDraft = Object.fromEntries(["status", "attendance", "appraisal", "notes"].map(key => [key, readText(body[key])]));
+      const finalDecision = ["shortlisted", "not-shortlisted"].includes(reviewDraft.status);
+      if (!Object.hasOwn(reviewStatuses, reviewDraft.status) ||
+          [reviewDraft.attendance, reviewDraft.appraisal, reviewDraft.notes].some(value => value.length > 2000) ||
+          (finalDecision && !reviewDraft.notes)) {
+        return renderAdmin(req, res, { status: 422, error: "Select a review status, keep each note within 2,000 characters, and include a reason for a shortlist decision.", reviewDraft });
+      }
+      const previousId = body.reviewId === "0" ? 0 : positiveId(body.reviewId);
+      if (previousId === null) return res.sendStatus(400);
+      result = saveReview.run(reviewDraft.status, reviewDraft.attendance, reviewDraft.appraisal, reviewDraft.notes,
+        req.session.admin.username, hospital, id, current.submission, previousId);
     } else {
       result = remove.run(hospital, id, current.submission);
     }
     if (!result.changes) return renderAdmin(req, res, { status: 409, error: "This nomination changed. Refresh the list and try again." });
 
-    req.session.staffAwardsAdminFeedback = action === "edit" ? "Nomination updated." : "Nomination deleted.";
+    req.session.staffAwardsAdminFeedback = ({ edit: "Nomination updated.", delete: "Nomination deleted.", review: "Committee review saved." })[action];
     const redirect = new URLSearchParams();
     const q = readText(req.query.q, 120);
     if (q) redirect.set("q", q);
     if (categories.includes(req.query.category)) redirect.set("category", req.query.category);
     if (positiveId(req.query.before)) redirect.set("before", req.query.before);
-    if (action === "edit") redirect.set("id", id);
+    if (action !== "delete") redirect.set("id", id);
     return res.redirect(303, redirect.size ? adminPath + "?" + redirect.toString() : adminPath);
   });
 }
