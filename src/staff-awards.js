@@ -1,4 +1,5 @@
 const { createHash, randomUUID } = require("node:crypto");
+const { exportNominations } = require("./helpers/staff-award-exports");
 
 const categories = ["Best Nurse", "Best Midwife", "Best Clinical Staff", "Best Paramedical Staff", "Best Doctor"];
 const staffFields = [
@@ -158,6 +159,12 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
     json_extract(submission, '$.category') AS category, ${currentStatus} AS review_status
     FROM staff_award_nominations WHERE ${matching} AND (? IS NULL OR id < ?)
     ORDER BY id DESC LIMIT 21`);
+  const exportRows = db.prepare(`SELECT *, ${currentStatus} AS review_status,
+    (SELECT json_object('attendance', r.attendance, 'appraisal', r.appraisal, 'notes', r.notes,
+      'reviewer', r.reviewer, 'reviewed_at', r.reviewed_at)
+      FROM staff_award_reviews r WHERE r.id = ${reviewId}
+      AND r.category = ${reviewCategory} AND r.employee_number = ${reviewEmployee}) AS committee_review
+    FROM staff_award_nominations WHERE ${matching} ORDER BY id DESC`);
   const count = db.prepare(`SELECT count(*) AS total FROM staff_award_nominations WHERE ${matching}`);
   const find = db.prepare(`SELECT *, ${currentStatus} AS review_status FROM staff_award_nominations WHERE ${active} AND id = ?`);
   const update = db.prepare(`UPDATE staff_award_nominations SET submission = ?
@@ -249,6 +256,23 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
   }
 
   app.get(adminPath, requireAdmin, (req, res) => renderAdmin(req, res));
+
+  app.get(adminPath + "/export/:format", requireAdmin, async (req, res, next) => {
+    if (!["pdf", "excel"].includes(req.params.format)) return res.sendStatus(404);
+    res.set("Cache-Control", "no-store");
+    const q = readText(req.query.q, 120);
+    const category = categories.includes(req.query.category) ? req.query.category : "";
+    const query = q.toLowerCase();
+    try {
+      const rows = exportRows.all(hospital, category, category, query, query, query);
+      await exportNominations(res, req.params.format, {
+        hospital, q, category, rows, staffFields, criteria, reviewStatuses,
+      });
+    } catch (error) {
+      if (res.headersSent) return res.destroy(error);
+      return next(error);
+    }
+  });
 
   app.post(adminPath, requireAdmin, (req, res) => {
     res.set("Cache-Control", "no-store");

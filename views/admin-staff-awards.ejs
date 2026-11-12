@@ -3,10 +3,15 @@
   <nav class="awards-crumb" aria-label="Breadcrumb"><a href="/admin">Administration</a> / <span>Staff Awards</span></nav>
   <header class="awards-heading">
     <div><h2>Staff award nominations</h2><p>2026 awards cycle</p></div>
-    <a class="awards-button awards-primary" href="/staff-awards">Open nomination form</a>
+    <div class="awards-actions">
+      <a class="awards-button" href="<%= pageUrl({ before: null }).replace('/admin/staff-awards', '/admin/staff-awards/export/pdf') %>">Export PDF</a>
+      <a class="awards-button" href="<%= pageUrl({ before: null }).replace('/admin/staff-awards', '/admin/staff-awards/export/excel') %>">Export Excel</a>
+      <a class="awards-button awards-primary" href="/staff-awards">Open nomination form</a>
+    </div>
   </header>
   <% if (error) { %><p class="awards-message awards-error" role="alert"><%= error %></p><% } %>
   <% if (feedback) { %><p class="awards-message" role="status"><%= feedback %></p><% } %>
+  <p class="awards-meta">Exports include all nominations matching the current search and award filter.</p>
   <details class="awards-finalists">
     <summary>Finalists by award <span><%= finalists.reduce((total, [, entries]) => total + entries.length, 0) %></span></summary>
     <div class="awards-finalist-groups">
