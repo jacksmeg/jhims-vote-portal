@@ -115,4 +115,7 @@ body.staff-awards-admin { background: #e9ecef; }
 .awards-admin .awards-committee form { margin-top: 12px; }
 .awards-admin .awards-history { margin-top: 12px; }
 .awards-admin .awards-history article { border-bottom: 1px solid #e4e6ea; padding: 8px 0; }
+.awards-admin .awards-finalist-person { padding: 12px 0; border-bottom: 1px solid #e4e6ea; }
+.awards-admin .awards-finalist-person:last-child { border-bottom: 0; }
+.awards-admin .awards-finalist-groups:has(.awards-finalist-person) { grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); }
 </style>

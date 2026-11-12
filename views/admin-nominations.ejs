@@ -5,6 +5,14 @@
   currentSection: "nominations"
 }) %>
 
+<% if (process.env.STAFF_AWARDS_HOSPITAL?.trim()) { %>
+<section class="panel panel-light stack-md">
+  <h2>Staff Awards finalists</h2>
+  <p>After nominations close, committee shortlisted staff appear below for administrator approval. Approve each application, then publish it as an election candidate.</p>
+  <a class="button button-ghost" href="/admin/staff-awards/finalists">Finalist list by award</a>
+</section>
+<% } %>
+
 <section class="metric-grid">
   <article class="metric-card">
     <span>Total Applications</span>

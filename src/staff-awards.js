@@ -107,7 +107,7 @@ function validSubmission(values) {
     criteria.every(([key]) => ["1", "2", "3"].includes(values[key]));
 }
 
-function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission }) {
+function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission, isClosed, canPrepare }) {
   const hospital = (process.env.STAFF_AWARDS_HOSPITAL || "").trim();
   if (!hospital) return;
 
@@ -148,7 +148,7 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
   const saveReview = db.prepare(`INSERT INTO staff_award_reviews (nomination_id, category, employee_number, status, attendance, appraisal, notes, reviewer)
     SELECT id, ${reviewCategory}, ${reviewEmployee}, ?, ?, ?, ?, ? FROM staff_award_nominations WHERE ${active}
     AND id = ? AND submission = ? AND coalesce(${reviewId}, 0) = ?`);
-  const shortlisted = db.prepare(`SELECT id, submission FROM staff_award_nominations
+  const shortlisted = db.prepare(`SELECT id, submission, ${reviewId} AS review_id FROM staff_award_nominations
     WHERE ${active} AND ${currentStatus} = 'shortlisted' ORDER BY id DESC`);
   const matching = `${active}
     AND (? = '' OR json_extract(submission, '$.category') = ?)
@@ -172,6 +172,19 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
   const remove = db.prepare(`INSERT INTO staff_award_deleted_nominations (nomination_id)
     SELECT id FROM staff_award_nominations WHERE ${active} AND id = ? AND submission = ?`);
   const model = { hospital, categories, staffFields, rubric };
+  const bridge = require("./helpers/staff-award-finalists").createFinalistBridge({
+    db, hospital, getShortlist: () => shortlisted.all(hospital), isClosed, canPrepare,
+  });
+
+  app.use("/admin/nominations", requireAdmin, (req, res, next) => {
+    bridge.sync();
+    const id = positiveId(req.path.split("/")[1]);
+    if (req.method === "POST" && id && !bridge.isReady(id)) {
+      return res.status(409).send("This staff award nomination is no longer eligible. Close nominations and confirm the committee shortlist before approving or publishing it.");
+    }
+    next();
+  });
+
 
   function renderForm(req, res, { status = 200, values = {}, error = "", submitted = false } = {}) {
     req.session.staffAwardsToken ||= randomUUID();
@@ -183,6 +196,7 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
 
   app.get("/staff-awards", (req, res) => {
     res.set("Cache-Control", "no-store");
+    if (isClosed()) return res.status(200).render("staff-awards-closed", { ...model, pageTitle: "Staff awards nominations closed" });
     const submitted = req.session.staffAwardsSubmitted === true;
     delete req.session.staffAwardsSubmitted;
     return renderForm(req, res, { submitted });
@@ -190,6 +204,7 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
 
   app.post("/staff-awards", async (req, res, next) => {
     res.set("Cache-Control", "no-store");
+    if (isClosed()) return res.status(403).render("staff-awards-closed", { ...model, pageTitle: "Staff awards nominations closed" });
     const read = key => typeof req.body[key] === "string" ? req.body[key].trim() : "";
     if (!req.session.staffAwardsToken || read("token") !== req.session.staffAwardsToken) {
       return renderForm(req, res, { status: 403, error: "Your form expired. Please fill it in again." });
@@ -214,8 +229,9 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
     }
   });
 
-  function renderAdmin(req, res, { status = 200, error = "", draft, reviewDraft } = {}) {
+  function renderAdmin(req, res, { status = 200, error = "", draft, reviewDraft, view = "admin-staff-awards" } = {}) {
     res.set("Cache-Control", "no-store");
+    bridge.sync();
     req.session.staffAwardsAdminToken ||= randomUUID();
     const q = readText(req.query.q, 120);
     const category = categories.includes(req.query.category) ? req.query.category : "";
@@ -234,7 +250,11 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
       const group = finalists.get(values.category);
       if (!group) continue;
       const key = values.nominee_employeeNo?.trim().toLowerCase() || String(row.id);
-      if (!group.has(key)) group.set(key, { id: row.id, name: values.nominee_name, department: values.nominee_department });
+      if (!group.has(key)) {
+        const link = bridge.linked(values);
+        group.set(key, { id: row.id, name: values.nominee_name, department: values.nominee_department,
+          electionNominationId: link?.nomination_id, approvalStatus: link?.approval_status });
+      }
     }
     const feedback = req.session.staffAwardsAdminFeedback;
     delete req.session.staffAwardsAdminFeedback;
@@ -244,7 +264,8 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
       return pairs.length ? adminPath + "?" + new URLSearchParams(pairs).toString() : adminPath;
     }
 
-    return res.status(status).render("admin-staff-awards", {
+    return res.status(status).render(view, {
+      nominationsClosed: isClosed(),
       reviewStatuses, history, review: reviewDraft || (history[0] && history[0].status === selected.review_status ? history[0] : { status: "pending" }),
       finalists: [...finalists].map(([name, group]) => [name, [...group.values()].sort((a, b) => a.name.localeCompare(b.name))]),
       ...model, pageTitle: "Staff award nominations", nominations, q, category, before, pageUrl,
@@ -256,6 +277,9 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
   }
 
   app.get(adminPath, requireAdmin, (req, res) => renderAdmin(req, res));
+  app.get(adminPath + "/finalists", requireAdmin, (req, res) => {
+    return renderAdmin(req, res, { view: "staff-award-finalists" });
+  });
 
   app.get(adminPath + "/export/:format", requireAdmin, async (req, res, next) => {
     if (!["pdf", "excel"].includes(req.params.format)) return res.sendStatus(404);
@@ -289,6 +313,10 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
       return renderAdmin(req, res, { status: 409, error: "This nomination changed. Review the latest version before continuing." });
     }
 
+    const publishedLink = bridge.linked(JSON.parse(current.submission));
+    if (publishedLink?.published_candidate_id) {
+      return renderAdmin(req, res, { status: 409, error: "This staff member is already an election candidate. Manage their candidacy in the election setup." });
+    }
     let result;
     if (action === "edit") {
       const previous = JSON.parse(current.submission);
@@ -312,6 +340,7 @@ function registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission })
     }
     if (!result.changes) return renderAdmin(req, res, { status: 409, error: "This nomination changed. Refresh the list and try again." });
 
+    bridge.sync();
     req.session.staffAwardsAdminFeedback = ({ edit: "Nomination updated.", delete: "Nomination deleted.", review: "Committee review saved." })[action];
     const redirect = new URLSearchParams();
     const q = readText(req.query.q, 120);

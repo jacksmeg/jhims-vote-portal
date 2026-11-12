@@ -1,0 +1,35 @@
+<%- include("partials/admin-shell-start", { pageTitle: "Staff Awards finalists", currentSection: "staff-awards", pageHeading: hospital, pageIntro: "Awards administration", pageBodyClass: "staff-awards-admin" }) %>
+<section class="awards-admin">
+  <nav class="awards-crumb" aria-label="Breadcrumb"><a href="/admin/staff-awards">Staff Awards</a> / <span>Finalists</span></nav>
+  <header class="awards-heading">
+    <div><h2>Finalist list by award</h2><p>2026 committee shortlist</p></div>
+    <a class="awards-button awards-primary" href="/admin/nominations">Open Nomination Management</a>
+  </header>
+  <% if (!nominationsClosed) { %>
+    <p class="awards-message">This shortlist is provisional. Close nominations in Nomination Management to send finalists for administrator approval.</p>
+  <% } else { %>
+    <p class="awards-message">Nominations are closed. Review each transferred application, approve it, then publish it as an election candidate.</p>
+  <% } %>
+  <div class="awards-finalist-groups">
+    <% for (const [award, entries] of finalists) { %>
+      <section class="awards-finalists">
+        <h3><%= award %> (<%= entries.length %>)</h3>
+        <% if (!entries.length) { %><p>No shortlisted staff yet.</p><% } %>
+        <% for (const entry of entries) { %>
+          <article class="awards-finalist-person">
+            <strong><%= entry.name %></strong>
+            <p class="awards-meta"><%= entry.department %></p>
+            <% if (entry.approvalStatus) { %><p class="awards-meta">Election application · <%= entry.approvalStatus.replaceAll('_', ' ') %></p><% } %>
+            <div class="awards-actions">
+              <a class="awards-button" href="/admin/staff-awards?id=<%= entry.id %>#award-details">Committee record</a>
+              <% if (nominationsClosed && entry.electionNominationId) { %>
+                <a class="awards-button awards-primary" href="/admin/nominations/<%= entry.electionNominationId %>">Review application</a>
+              <% } %>
+            </div>
+          </article>
+        <% } %>
+      </section>
+    <% } %>
+  </div>
+</section>
+<%- include("partials/admin-shell-end") %>

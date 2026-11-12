@@ -5786,7 +5786,11 @@ app.use((req, res, next) => {
   next();
 });
 
-require('./staff-awards').registerStaffAwards(app, { db, requireAdmin, verifyCaptchaSubmission });
+require('./staff-awards').registerStaffAwards(app, {
+  db, requireAdmin, verifyCaptchaSubmission,
+  isClosed: () => computeNominationState(getElectionSettings()).isClosed,
+  canPrepare: () => getElectionSettings().phase === "setup",
+});
 
 app.get("/", (req, res) => {
   const metrics = getDashboardMetrics();
@@ -8476,49 +8480,51 @@ app.post("/admin/nominations/:id/publish", requireAdmin, (req, res) => {
     : nomination.bio;
 
   try {
-    const candidateInsert = db.prepare(`
-      INSERT INTO candidates (
-        position_id,
-        name,
-        photo_path,
-        bio,
-        sort_order,
-        is_active,
-        created_at,
-        updated_at
-      )
-      VALUES (?, ?, ?, ?, 0, 1, ?, ?)
-    `).run(
-      nomination.positionId,
-      nomination.fullName,
-      nomination.photoPath,
-      candidateBio,
-      timestamp,
-      timestamp,
-    );
+    runTransaction(() => {
+      const candidateInsert = db.prepare(`
+        INSERT INTO candidates (
+          position_id,
+          name,
+          photo_path,
+          bio,
+          sort_order,
+          is_active,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, 0, 1, ?, ?)
+      `).run(
+        nomination.positionId,
+        nomination.fullName,
+        nomination.photoPath,
+        candidateBio,
+        timestamp,
+        timestamp,
+      );
 
-    db.prepare(`
-      UPDATE nominations
-      SET
-        status = 'published',
-        published_candidate_id = ?,
-        reviewed_at = ?,
-        reviewed_by = ?,
-        updated_at = ?
-      WHERE id = ?
-    `).run(
-      Number(candidateInsert.lastInsertRowid),
-      timestamp,
-      req.session.admin.username,
-      timestamp,
-      nominationId,
-    );
+      db.prepare(`
+        UPDATE nominations
+        SET
+          status = 'published',
+          published_candidate_id = ?,
+          reviewed_at = ?,
+          reviewed_by = ?,
+          updated_at = ?
+        WHERE id = ?
+      `).run(
+        Number(candidateInsert.lastInsertRowid),
+        timestamp,
+        req.session.admin.username,
+        timestamp,
+        nominationId,
+      );
 
-    logAudit(req, "admin", req.session.admin.username, "nomination_published_as_candidate", {
-      nominationId,
-      staffId: nomination.staffId,
-      candidateId: Number(candidateInsert.lastInsertRowid),
-      positionName: nomination.positionName,
+      logAudit(req, "admin", req.session.admin.username, "nomination_published_as_candidate", {
+        nominationId,
+        staffId: nomination.staffId,
+        candidateId: Number(candidateInsert.lastInsertRowid),
+        positionName: nomination.positionName,
+      });
     });
     setFlash(req, "success", "Approved nomination has been published to the candidate list.");
   } catch (error) {
